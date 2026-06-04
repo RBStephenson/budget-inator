@@ -9,7 +9,7 @@ services:
       - ./data:/data
     environment:
       - DATABASE_URL=sqlite:////data/budget.db
-      - CORS_ORIGINS=["http://localhost", "http://localhost:5173"]
+      - CORS_ORIGINS=["http://localhost:8080"]
     restart: unless-stopped
 
   frontend:
