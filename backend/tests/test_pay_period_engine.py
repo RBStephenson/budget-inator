@@ -1,0 +1,494 @@
+"""Unit tests for the pay-period assignment engine.
+
+No DB, no HTTP — pure logic only.
+"""
+
+from datetime import date, timedelta
+from decimal import Decimal
+
+from app.models.enums import BillRecurrence, PayFrequency
+from app.services.pay_period_engine import (
+    BillInput,
+    PayPeriodResult,
+    assign_bills,
+    build_periods,
+    due_dates_for_bill,
+    project,
+)
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+SALARY = Decimal("2500.00")
+ZERO = Decimal("0.00")
+
+
+def _bill(
+    *,
+    id: int = 1,
+    name: str = "Rent",
+    amount: str = "1200.00",
+    recurrence: BillRecurrence = BillRecurrence.monthly,
+    due_day: int | None = 1,
+    first_due_date: date | None = None,
+    grace: int = 0,
+) -> BillInput:
+    return BillInput(
+        id=id,
+        name=name,
+        amount=Decimal(amount),
+        recurrence=recurrence,
+        due_day=due_day,
+        first_due_date=first_due_date,
+        grace_period_days=grace,
+    )
+
+
+def _biweekly_periods(n: int = 3) -> list[PayPeriodResult]:
+    """Build biweekly periods without balances applied (use project() for balances)."""
+    return build_periods(date(2024, 1, 5), PayFrequency.biweekly, n)
+
+
+# ---------------------------------------------------------------------------
+# build_periods — period boundaries
+# ---------------------------------------------------------------------------
+
+
+class TestBuildPeriods:
+    def test_biweekly_boundaries(self) -> None:
+        periods = _biweekly_periods(3)
+        assert len(periods) == 3
+        assert periods[0].period_start == date(2024, 1, 5)
+        assert periods[0].period_end == date(2024, 1, 18)
+        assert periods[1].period_start == date(2024, 1, 19)
+        assert periods[1].period_end == date(2024, 2, 1)
+        assert periods[2].period_start == date(2024, 2, 2)
+        assert periods[2].period_end == date(2024, 2, 15)
+
+    def test_weekly_boundaries(self) -> None:
+        periods = build_periods(date(2024, 1, 5), PayFrequency.weekly, 2)
+        assert periods[0].period_end == date(2024, 1, 11)
+        assert periods[1].period_start == date(2024, 1, 12)
+
+    def test_semimonthly_boundaries(self) -> None:
+        periods = build_periods(date(2024, 1, 1), PayFrequency.semimonthly, 4)
+        assert periods[0].period_start == date(2024, 1, 1)
+        assert periods[0].period_end == date(2024, 1, 14)
+        assert periods[1].period_start == date(2024, 1, 15)
+        assert periods[1].period_end == date(2024, 1, 31)
+        assert periods[2].period_start == date(2024, 2, 1)
+        assert periods[3].period_start == date(2024, 2, 15)
+
+    def test_monthly_boundaries(self) -> None:
+        periods = build_periods(date(2024, 1, 15), PayFrequency.monthly, 3)
+        assert periods[0].period_start == date(2024, 1, 15)
+        assert periods[0].period_end == date(2024, 2, 14)
+        assert periods[1].period_start == date(2024, 2, 15)
+
+    def test_pay_date_equals_period_start(self) -> None:
+        periods = _biweekly_periods(2)
+        for p in periods:
+            assert p.pay_date == p.period_start
+
+    def test_period_index(self) -> None:
+        periods = _biweekly_periods(3)
+        assert [p.period_index for p in periods] == [0, 1, 2]
+
+    def test_no_gaps_between_periods(self) -> None:
+        periods = _biweekly_periods(4)
+        for a, b in zip(periods, periods[1:]):
+            assert b.period_start == a.period_end + timedelta(days=1)
+
+
+# ---------------------------------------------------------------------------
+# build_periods — rolling balances
+# ---------------------------------------------------------------------------
+
+
+class TestRollingBalance:
+    def test_first_period_opening_adds_beginning_balance(self) -> None:
+        periods = project(
+            date(2024, 1, 5), PayFrequency.biweekly, 1, SALARY, Decimal("500.00"), []
+        )
+        assert periods[0].opening_balance == Decimal("3000.00")
+
+    def test_zero_beginning_balance(self) -> None:
+        periods = project(date(2024, 1, 5), PayFrequency.biweekly, 1, SALARY, ZERO, [])
+        assert periods[0].opening_balance == SALARY
+
+    def test_remaining_balance_no_bills(self) -> None:
+        periods = project(date(2024, 1, 5), PayFrequency.biweekly, 1, SALARY, ZERO, [])
+        assert periods[0].remaining_balance == SALARY
+
+    def test_rolling_balance_carries_over(self) -> None:
+        # Period 0: opens 2500, one bill 1000 → remaining 1500
+        # Period 1: opens 1500 + 2500 = 4000
+        bill = _bill(amount="1000.00", due_day=10)  # due Jan 10, in period 0
+        periods = project(
+            date(2024, 1, 5), PayFrequency.biweekly, 2, SALARY, ZERO, [bill]
+        )
+        assert periods[0].remaining_balance == Decimal("1500.00")
+        assert periods[1].opening_balance == Decimal("4000.00")
+
+    def test_negative_carry_over(self) -> None:
+        # Overspend in period 0 → negative carry
+        bill = _bill(amount="3000.00", due_day=10)
+        periods = project(
+            date(2024, 1, 5), PayFrequency.biweekly, 2, SALARY, ZERO, [bill]
+        )
+        assert periods[0].remaining_balance == Decimal("-500.00")
+        assert periods[1].opening_balance == Decimal("2000.00")
+
+
+# ---------------------------------------------------------------------------
+# due_dates_for_bill
+# ---------------------------------------------------------------------------
+
+
+class TestDueDatesForBill:
+    def test_monthly_single_occurrence(self) -> None:
+        bill = _bill(recurrence=BillRecurrence.monthly, due_day=15)
+        dates = due_dates_for_bill(bill, date(2024, 1, 1), date(2024, 1, 31))
+        assert dates == [date(2024, 1, 15)]
+
+    def test_monthly_multiple_months(self) -> None:
+        bill = _bill(recurrence=BillRecurrence.monthly, due_day=1)
+        dates = due_dates_for_bill(bill, date(2024, 1, 1), date(2024, 3, 31))
+        assert dates == [date(2024, 1, 1), date(2024, 2, 1), date(2024, 3, 1)]
+
+    def test_monthly_due_day_clamped_for_short_month(self) -> None:
+        # due_day=31; February should clamp to Feb 28 (2024 is a leap year → 29)
+        bill = _bill(recurrence=BillRecurrence.monthly, due_day=28)
+        dates = due_dates_for_bill(bill, date(2024, 2, 1), date(2024, 2, 29))
+        assert dates == [date(2024, 2, 28)]
+
+    def test_monthly_window_starts_after_due_day(self) -> None:
+        # Window Jan 20 – Feb 28; due_day=15; first hit is Feb 15
+        bill = _bill(recurrence=BillRecurrence.monthly, due_day=15)
+        dates = due_dates_for_bill(bill, date(2024, 1, 20), date(2024, 2, 28))
+        assert dates == [date(2024, 2, 15)]
+
+    def test_biweekly_multiple_occurrences(self) -> None:
+        bill = _bill(
+            recurrence=BillRecurrence.biweekly,
+            due_day=None,
+            first_due_date=date(2024, 1, 5),
+        )
+        dates = due_dates_for_bill(bill, date(2024, 1, 1), date(2024, 2, 15))
+        assert dates == [date(2024, 1, 5), date(2024, 1, 19), date(2024, 2, 2)]
+
+    def test_biweekly_anchor_before_window(self) -> None:
+        bill = _bill(
+            recurrence=BillRecurrence.biweekly,
+            due_day=None,
+            first_due_date=date(2023, 12, 1),
+        )
+        dates = due_dates_for_bill(bill, date(2024, 1, 1), date(2024, 1, 31))
+        # Sequence from Dec 1: Dec 1, 15, 29, Jan 12, 26
+        assert date(2024, 1, 12) in dates
+        assert date(2024, 1, 26) in dates
+        assert all(date(2024, 1, 1) <= d <= date(2024, 1, 31) for d in dates)
+
+    def test_biweekly_anchor_after_window_start(self) -> None:
+        bill = _bill(
+            recurrence=BillRecurrence.biweekly,
+            due_day=None,
+            first_due_date=date(2024, 1, 19),
+        )
+        dates = due_dates_for_bill(bill, date(2024, 1, 5), date(2024, 2, 15))
+        assert dates == [date(2024, 1, 19), date(2024, 2, 2)]
+
+    def test_weekly_four_occurrences(self) -> None:
+        bill = _bill(
+            recurrence=BillRecurrence.weekly,
+            due_day=None,
+            first_due_date=date(2024, 1, 5),
+        )
+        dates = due_dates_for_bill(bill, date(2024, 1, 5), date(2024, 1, 28))
+        assert dates == [
+            date(2024, 1, 5),
+            date(2024, 1, 12),
+            date(2024, 1, 19),
+            date(2024, 1, 26),
+        ]
+
+    def test_quarterly(self) -> None:
+        bill = _bill(
+            recurrence=BillRecurrence.quarterly,
+            due_day=None,
+            first_due_date=date(2024, 1, 15),
+        )
+        dates = due_dates_for_bill(bill, date(2024, 1, 1), date(2024, 12, 31))
+        assert dates == [
+            date(2024, 1, 15),
+            date(2024, 4, 15),
+            date(2024, 7, 15),
+            date(2024, 10, 15),
+        ]
+
+    def test_annual(self) -> None:
+        bill = _bill(
+            recurrence=BillRecurrence.annual,
+            due_day=None,
+            first_due_date=date(2024, 3, 1),
+        )
+        dates = due_dates_for_bill(bill, date(2024, 1, 1), date(2025, 12, 31))
+        assert dates == [date(2024, 3, 1), date(2025, 3, 1)]
+
+    def test_one_time_in_window(self) -> None:
+        bill = _bill(
+            recurrence=BillRecurrence.one_time,
+            due_day=None,
+            first_due_date=date(2024, 1, 20),
+        )
+        dates = due_dates_for_bill(bill, date(2024, 1, 1), date(2024, 1, 31))
+        assert dates == [date(2024, 1, 20)]
+
+    def test_one_time_outside_window(self) -> None:
+        bill = _bill(
+            recurrence=BillRecurrence.one_time,
+            due_day=None,
+            first_due_date=date(2024, 3, 1),
+        )
+        dates = due_dates_for_bill(bill, date(2024, 1, 1), date(2024, 1, 31))
+        assert dates == []
+
+    def test_no_dates_when_window_precedes_first_occurrence(self) -> None:
+        bill = _bill(recurrence=BillRecurrence.monthly, due_day=28)
+        dates = due_dates_for_bill(bill, date(2024, 1, 29), date(2024, 1, 31))
+        assert dates == []
+
+
+# ---------------------------------------------------------------------------
+# assign_bills — normal assignment
+# ---------------------------------------------------------------------------
+
+
+class TestAssignBills:
+    def test_bill_assigned_to_containing_period(self) -> None:
+        periods = _biweekly_periods(3)
+        # Period 0: Jan 5–18; bill due Jan 10
+        bill = _bill(due_day=10)
+        assign_bills(periods, [bill])
+        assert len(periods[0].assigned_bills) == 1
+        assert periods[0].assigned_bills[0].due_date == date(2024, 1, 10)
+        assert periods[0].assigned_bills[0].status == "on_time"
+
+    def test_bill_due_on_period_start_boundary(self) -> None:
+        periods = _biweekly_periods(3)
+        # Period 1 starts Jan 19; bill due Jan 19
+        bill = _bill(due_day=19)
+        assign_bills(periods, [bill])
+        assert len(periods[1].assigned_bills) == 1
+        assert periods[1].assigned_bills[0].status == "on_time"
+
+    def test_bill_due_on_period_end_boundary(self) -> None:
+        periods = _biweekly_periods(3)
+        # Period 0 ends Jan 18; bill due Jan 18
+        bill = _bill(due_day=18)
+        assign_bills(periods, [bill])
+        assert len(periods[0].assigned_bills) == 1
+        assert periods[0].assigned_bills[0].status == "on_time"
+
+    def test_multiple_bills_sorted_by_due_date(self) -> None:
+        periods = _biweekly_periods(3)
+        b1 = _bill(id=1, name="Rent", due_day=15)
+        b2 = _bill(id=2, name="Electric", due_day=8)
+        assign_bills(periods, [b1, b2])
+        due_dates = [b.due_date for b in periods[0].assigned_bills]
+        assert due_dates == sorted(due_dates)
+
+    def test_bills_span_multiple_periods(self) -> None:
+        periods = _biweekly_periods(3)
+        b1 = _bill(id=1, name="Rent", due_day=10)  # period 0
+        b2 = _bill(id=2, name="Car", due_day=25)  # period 1 (Jan 19–Feb 1)
+        assign_bills(periods, [b1, b2])
+        assert any(b.name == "Rent" for b in periods[0].assigned_bills)
+        assert any(b.name == "Car" for b in periods[1].assigned_bills)
+
+    def test_empty_bills_list(self) -> None:
+        periods = _biweekly_periods(3)
+        assign_bills(periods, [])
+        assert all(len(p.assigned_bills) == 0 for p in periods)
+
+    def test_empty_periods_list(self) -> None:
+        result = assign_bills([], [_bill()])
+        assert result == []
+
+    def test_remaining_balance_updated(self) -> None:
+        bill = _bill(amount="500.00", due_day=10)
+        periods = project(
+            date(2024, 1, 5), PayFrequency.biweekly, 2, SALARY, ZERO, [bill]
+        )
+        assert periods[0].remaining_balance == Decimal("2000.00")
+
+
+# ---------------------------------------------------------------------------
+# assign_bills — late flagging
+# ---------------------------------------------------------------------------
+
+
+class TestLateFlagging:
+    def test_bill_due_before_first_period_is_late_flagged(self) -> None:
+        # First paycheck Jan 5; bill due Jan 3
+        periods = build_periods(date(2024, 1, 5), PayFrequency.biweekly, 3)
+        bill = BillInput(
+            id=1,
+            name="Overdue",
+            amount=Decimal("100.00"),
+            recurrence=BillRecurrence.one_time,
+            due_day=None,
+            first_due_date=date(2024, 1, 3),
+        )
+        assign_bills(periods, [bill])
+        assert len(periods[0].assigned_bills) == 1
+        assert periods[0].assigned_bills[0].status == "late_flagged"
+
+    def test_late_flagged_bill_lands_in_first_period(self) -> None:
+        periods = build_periods(date(2024, 2, 1), PayFrequency.biweekly, 2)
+        bill = BillInput(
+            id=1,
+            name="Old Bill",
+            amount=Decimal("50.00"),
+            recurrence=BillRecurrence.one_time,
+            due_day=None,
+            first_due_date=date(2024, 1, 15),
+        )
+        assign_bills(periods, [bill])
+        assert periods[0].assigned_bills[0].status == "late_flagged"
+        assert len(periods[1].assigned_bills) == 0
+
+
+# ---------------------------------------------------------------------------
+# assign_bills — grace period
+# ---------------------------------------------------------------------------
+
+
+class TestGracePeriod:
+    def test_grace_shifts_assignment_to_later_period(self) -> None:
+        # Period 0: Jan 5–18; Period 1: Jan 19–Feb 1
+        # Bill due Jan 17, grace 5 days → effective Jan 22 → Period 1
+        periods = _biweekly_periods(3)
+        bill = BillInput(
+            id=1,
+            name="Flexible",
+            amount=Decimal("200.00"),
+            recurrence=BillRecurrence.one_time,
+            due_day=None,
+            first_due_date=date(2024, 1, 17),
+            grace_period_days=5,
+        )
+        assign_bills(periods, [bill])
+        assert len(periods[0].assigned_bills) == 0
+        assert len(periods[1].assigned_bills) == 1
+        assert periods[1].assigned_bills[0].due_date == date(2024, 1, 17)
+
+    def test_zero_grace_uses_actual_due_date(self) -> None:
+        periods = _biweekly_periods(3)
+        bill = BillInput(
+            id=1,
+            name="NoGrace",
+            amount=Decimal("100.00"),
+            recurrence=BillRecurrence.one_time,
+            due_day=None,
+            first_due_date=date(2024, 1, 17),
+            grace_period_days=0,
+        )
+        assign_bills(periods, [bill])
+        assert len(periods[0].assigned_bills) == 1
+
+    def test_grace_rescues_late_flagged_bill(self) -> None:
+        # First period starts Jan 5; bill due Jan 3, grace 3 → effective Jan 6
+        periods = build_periods(date(2024, 1, 5), PayFrequency.biweekly, 2)
+        bill = BillInput(
+            id=1,
+            name="AlmostLate",
+            amount=Decimal("75.00"),
+            recurrence=BillRecurrence.one_time,
+            due_day=None,
+            first_due_date=date(2024, 1, 3),
+            grace_period_days=3,
+        )
+        assign_bills(periods, [bill])
+        assert periods[0].assigned_bills[0].status == "on_time"
+
+
+# ---------------------------------------------------------------------------
+# assign_bills — biweekly bill spanning multiple periods
+# ---------------------------------------------------------------------------
+
+
+class TestBiweeklyBillMultiplePeriods:
+    def test_biweekly_bill_generates_instance_per_period(self) -> None:
+        periods = _biweekly_periods(3)
+        bill = BillInput(
+            id=1,
+            name="Loan",
+            amount=Decimal("300.00"),
+            recurrence=BillRecurrence.biweekly,
+            due_day=None,
+            first_due_date=date(2024, 1, 5),
+        )
+        assign_bills(periods, [bill])
+        # Jan 5 → period 0, Jan 19 → period 1, Feb 2 → period 2
+        assert any(b.due_date == date(2024, 1, 5) for b in periods[0].assigned_bills)
+        assert any(b.due_date == date(2024, 1, 19) for b in periods[1].assigned_bills)
+        assert any(b.due_date == date(2024, 2, 2) for b in periods[2].assigned_bills)
+
+    def test_weekly_bill_four_instances_in_four_weeks(self) -> None:
+        periods = build_periods(date(2024, 1, 5), PayFrequency.weekly, 4)
+        bill = BillInput(
+            id=1,
+            name="Weekly Sub",
+            amount=Decimal("10.00"),
+            recurrence=BillRecurrence.weekly,
+            due_day=None,
+            first_due_date=date(2024, 1, 5),
+        )
+        assign_bills(periods, [bill])
+        # One instance per period
+        assert all(len(p.assigned_bills) == 1 for p in periods)
+
+
+# ---------------------------------------------------------------------------
+# project — integration
+# ---------------------------------------------------------------------------
+
+
+class TestProject:
+    def test_full_projection(self) -> None:
+        bills = [
+            _bill(id=1, name="Rent", amount="1200.00", due_day=5),
+            _bill(
+                id=2,
+                name="Car",
+                amount="350.00",
+                recurrence=BillRecurrence.biweekly,
+                due_day=None,
+                first_due_date=date(2024, 1, 12),
+            ),
+        ]
+        periods = project(
+            first_paycheck_date=date(2024, 1, 5),
+            frequency=PayFrequency.biweekly,
+            num_periods=3,
+            net_salary=SALARY,
+            beginning_balance=Decimal("500.00"),
+            bills=bills,
+        )
+        assert len(periods) == 3
+        # Period 0 (Jan 5–18): Rent Jan 5, Car Jan 12
+        p0_names = {b.name for b in periods[0].assigned_bills}
+        assert p0_names == {"Rent", "Car"}
+
+    def test_returns_empty_list_for_zero_periods(self) -> None:
+        result = project(
+            first_paycheck_date=date(2024, 1, 5),
+            frequency=PayFrequency.biweekly,
+            num_periods=0,
+            net_salary=SALARY,
+            beginning_balance=ZERO,
+            bills=[],
+        )
+        assert result == []
