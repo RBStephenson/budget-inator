@@ -2,9 +2,11 @@ services:
   backend:
     build: ./backend
     # Bind to loopback only — the API is unauthenticated and must not be
-    # reachable from the LAN. Access via the proxy at http://localhost.
+    # reachable from the LAN. Access via the proxy at http://localhost:8080.
+    # Host port 8001 (container stays 8000) to avoid colliding with other
+    # local projects that use 8000.
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:8001:8000"
     volumes:
       - ./data:/data
     environment:
@@ -15,7 +17,7 @@ services:
   frontend:
     build: ./frontend
     ports:
-      - "127.0.0.1:5173:5173"
+      - "127.0.0.1:5174:5173"
     environment:
       - VITE_API_URL=http://backend:8000
     depends_on:
