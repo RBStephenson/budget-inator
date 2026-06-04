@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Date,
@@ -17,6 +18,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 from app.models.enums import BillStatus
 from app.utils import utcnow
+
+if TYPE_CHECKING:
+    from app.models.bill import Bill
+    from app.models.pay_period import PayPeriod
 
 
 class BillInstance(Base):
@@ -47,8 +52,8 @@ class BillInstance(Base):
         server_default=text("CURRENT_TIMESTAMP"),
     )
 
-    bill: Mapped["Bill"] = relationship("Bill", back_populates="instances")
-    pay_period: Mapped["PayPeriod"] = relationship(
+    bill: Mapped[Bill] = relationship("Bill", back_populates="instances")
+    pay_period: Mapped[PayPeriod] = relationship(
         "PayPeriod", back_populates="bill_instances"
     )
 
