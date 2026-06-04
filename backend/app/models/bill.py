@@ -24,10 +24,16 @@ class Bill(Base):
     recurrence: Mapped[str] = mapped_column(String)
     due_day: Mapped[int | None] = mapped_column(Integer)
     first_due_date: Mapped[date | None] = mapped_column(Date)
-    grace_period_days: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    grace_period_days: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0")
+    )
     category: Mapped[str] = mapped_column(String)
-    is_variable: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("0"))
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("1"))
+    is_variable: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("0")
+    )
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=text("1")
+    )
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=utcnow, server_default=text("CURRENT_TIMESTAMP")

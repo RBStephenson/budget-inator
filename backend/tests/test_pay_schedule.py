@@ -54,20 +54,24 @@ class TestPostPaySchedule:
         assert r.status_code == 422
 
     def test_rejects_negative_beginning_balance(self, client: TestClient) -> None:
-        r = client.post("/pay-schedule", json={**VALID_PAYLOAD, "beginning_balance": "-0.01"})
+        payload = {**VALID_PAYLOAD, "beginning_balance": "-0.01"}
+        r = client.post("/pay-schedule", json=payload)
         assert r.status_code == 422
 
     def test_rejects_invalid_frequency(self, client: TestClient) -> None:
-        r = client.post("/pay-schedule", json={**VALID_PAYLOAD, "frequency": "fortnight"})
+        payload = {**VALID_PAYLOAD, "frequency": "fortnight"}
+        r = client.post("/pay-schedule", json=payload)
         assert r.status_code == 422
 
     def test_accepts_zero_beginning_balance(self, client: TestClient) -> None:
-        r = client.post("/pay-schedule", json={**VALID_PAYLOAD, "beginning_balance": "0.00"})
+        payload = {**VALID_PAYLOAD, "beginning_balance": "0.00"}
+        r = client.post("/pay-schedule", json=payload)
         assert r.status_code == 201
 
     def test_accepts_all_valid_frequencies(self, client: TestClient) -> None:
         for freq in ("weekly", "biweekly", "semimonthly", "monthly"):
-            r = client.post("/pay-schedule", json={**VALID_PAYLOAD, "frequency": freq})
+            payload = {**VALID_PAYLOAD, "frequency": freq}
+            r = client.post("/pay-schedule", json=payload)
             assert r.status_code == 201, f"frequency={freq} should be accepted"
             assert r.json()["frequency"] == freq
 
@@ -87,7 +91,8 @@ class TestPatchPaySchedule:
 
     def test_updates_multiple_fields(self, client: TestClient) -> None:
         client.post("/pay-schedule", json=VALID_PAYLOAD)
-        r = client.patch("/pay-schedule", json={"frequency": "monthly", "beginning_balance": "1000.00"})
+        patch = {"frequency": "monthly", "beginning_balance": "1000.00"}
+        r = client.patch("/pay-schedule", json=patch)
         assert r.status_code == 200
         data = r.json()
         assert data["frequency"] == "monthly"

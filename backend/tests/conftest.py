@@ -3,9 +3,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+import app.models  # noqa: F401
 from app.database import Base, get_db
 from app.main import app
-import app.models  # noqa: F401
 
 
 @pytest.fixture

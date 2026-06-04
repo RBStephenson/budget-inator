@@ -1,14 +1,14 @@
 import enum
 
 
-class PayFrequency(str, enum.Enum):
+class PayFrequency(enum.StrEnum):
     weekly = "weekly"
     biweekly = "biweekly"
     semimonthly = "semimonthly"
     monthly = "monthly"
 
 
-class BillRecurrence(str, enum.Enum):
+class BillRecurrence(enum.StrEnum):
     weekly = "weekly"
     biweekly = "biweekly"
     monthly = "monthly"
@@ -18,7 +18,7 @@ class BillRecurrence(str, enum.Enum):
     one_time = "one_time"
 
 
-class BillCategory(str, enum.Enum):
+class BillCategory(enum.StrEnum):
     housing = "housing"
     utilities = "utilities"
     subscriptions = "subscriptions"
@@ -28,7 +28,7 @@ class BillCategory(str, enum.Enum):
     other = "other"
 
 
-class BillStatus(str, enum.Enum):
+class BillStatus(enum.StrEnum):
     pending = "pending"
     paid = "paid"
     skipped = "skipped"

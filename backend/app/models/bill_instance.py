@@ -24,7 +24,9 @@ class BillInstance(Base):
     __table_args__ = (UniqueConstraint("bill_id", "due_date", name="uq_bill_instance"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    bill_id: Mapped[int] = mapped_column(ForeignKey("bills.id", ondelete="CASCADE"), index=True)
+    bill_id: Mapped[int] = mapped_column(
+        ForeignKey("bills.id", ondelete="CASCADE"), index=True
+    )
     pay_period_id: Mapped[int] = mapped_column(
         ForeignKey("pay_periods.id", ondelete="CASCADE"), index=True
     )
@@ -46,7 +48,9 @@ class BillInstance(Base):
     )
 
     bill: Mapped["Bill"] = relationship("Bill", back_populates="instances")
-    pay_period: Mapped["PayPeriod"] = relationship("PayPeriod", back_populates="bill_instances")
+    pay_period: Mapped["PayPeriod"] = relationship(
+        "PayPeriod", back_populates="bill_instances"
+    )
 
 
 __all__ = ["BillInstance", "BillStatus"]
