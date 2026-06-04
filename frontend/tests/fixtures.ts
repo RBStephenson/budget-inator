@@ -1,4 +1,5 @@
 import type { AssignedBill, PayPeriod, ScheduleResponse } from "../src/types/schedule";
+import type { Bill } from "../src/types/bill";
 
 export function makeBill(overrides: Partial<AssignedBill> = {}): AssignedBill {
   return {
@@ -22,6 +23,25 @@ export function makePeriod(overrides: Partial<PayPeriod> = {}): PayPeriod {
     remaining_balance: "300.00",
     flagged_bill_count: 0,
     assigned_bills: [],
+    ...overrides,
+  };
+}
+
+export function makeApiBill(overrides: Partial<Bill> = {}): Bill {
+  return {
+    id: 1,
+    name: "Rent",
+    amount: "1200.00",
+    recurrence: "monthly",
+    due_day: 1,
+    due_date: null,
+    grace_period_days: 0,
+    category: "housing",
+    is_variable: false,
+    is_active: true,
+    notes: null,
+    created_at: "2025-01-01T00:00:00",
+    updated_at: "2025-01-01T00:00:00",
     ...overrides,
   };
 }
