@@ -1,0 +1,41 @@
+version: 2
+
+updates:
+  # ── Python (backend) ──────────────────────────────────────────────────────
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - python
+    groups:
+      prod-deps:
+        dependency-type: production
+      dev-deps:
+        dependency-type: development
+
+  # ── npm (frontend) ────────────────────────────────────────────────────────
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - javascript
+    groups:
+      prod-deps:
+        dependency-type: production
+      dev-deps:
+        dependency-type: development
+
+  # ── GitHub Actions ────────────────────────────────────────────────────────
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
