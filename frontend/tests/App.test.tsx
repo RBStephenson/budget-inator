@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import App from "../src/App";
 
 beforeEach(() => {
-  vi.spyOn(global, "fetch").mockResolvedValue({
+  vi.spyOn(globalThis, "fetch").mockResolvedValue({
     ok: true,
     json: async () => ({ status: "ok" }),
   } as Response);
