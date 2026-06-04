@@ -25,7 +25,10 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Budget-inator</h1>
+        <h1><a href="/" className="app-header__title">Budget-inator</a></h1>
+        <nav className="app-nav">
+          <a href="/settings" className="app-nav__link">Settings</a>
+        </nav>
       </header>
       <main>
         {page === "bills" ? (

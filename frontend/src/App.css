@@ -17,12 +17,34 @@ body {
 }
 
 .app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 2rem;
 }
 
 .app-header h1 {
   font-size: 2rem;
   font-weight: 700;
+}
+
+.app-header__title {
+  text-decoration: none;
+  color: inherit;
+}
+
+.app-header__title:hover {
+  color: #6366f1;
+}
+
+.app-nav__link {
+  font-size: 0.875rem;
+  color: #6b7280;
+  text-decoration: none;
+}
+
+.app-nav__link:hover {
+  color: #111827;
 }
 
 /* ── Dashboard ─────────────────────────────────────────────────────────────── */

@@ -34,6 +34,13 @@ describe("App", () => {
     expect(screen.getByText("Budget-inator")).toBeInTheDocument();
   });
 
+  it("renders a settings nav link on every page", async () => {
+    mockScheduleFetch();
+    render(<App />);
+    await waitFor(() => expect(screen.queryByText(/loading/i)).not.toBeInTheDocument());
+    expect(screen.getByRole("link", { name: /settings/i })).toHaveAttribute("href", "/settings");
+  });
+
   it("renders SettingsPage when path is /settings", async () => {
     window.history.pushState({}, "", "/settings");
     mockSettingsFetch();
