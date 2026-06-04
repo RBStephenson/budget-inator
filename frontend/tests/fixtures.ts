@@ -1,5 +1,6 @@
 import type { AssignedBill, PayPeriod, ScheduleResponse } from "../src/types/schedule";
 import type { Bill } from "../src/types/bill";
+import type { PaySchedule } from "../src/types/paySchedule";
 
 export function makeBill(overrides: Partial<AssignedBill> = {}): AssignedBill {
   return {
@@ -40,6 +41,19 @@ export function makeApiBill(overrides: Partial<Bill> = {}): Bill {
     is_variable: false,
     is_active: true,
     notes: null,
+    created_at: "2025-01-01T00:00:00",
+    updated_at: "2025-01-01T00:00:00",
+    ...overrides,
+  };
+}
+
+export function makePaySchedule(overrides: Partial<PaySchedule> = {}): PaySchedule {
+  return {
+    id: 1,
+    net_salary: "2000.00",
+    first_paycheck_date: "2025-01-03",
+    beginning_balance: "500.00",
+    frequency: "biweekly",
     created_at: "2025-01-01T00:00:00",
     updated_at: "2025-01-01T00:00:00",
     ...overrides,

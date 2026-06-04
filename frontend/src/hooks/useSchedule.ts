@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { get } from "../api/client";
+import { ApiError, get } from "../api/client";
 import type { ScheduleResponse } from "../types/schedule";
 
-export type ScheduleStatus = "loading" | "error" | "empty" | "ok";
+export type ScheduleStatus = "loading" | "error" | "no-schedule" | "empty" | "ok";
 
 export function useSchedule() {
   const [data, setData] = useState<ScheduleResponse | null>(null);
@@ -14,7 +14,13 @@ export function useSchedule() {
         setData(d);
         setStatus(d.periods.length === 0 ? "empty" : "ok");
       })
-      .catch(() => setStatus("error"));
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 404) {
+          setStatus("no-schedule");
+        } else {
+          setStatus("error");
+        }
+      });
   }, []);
 
   return { data, status };

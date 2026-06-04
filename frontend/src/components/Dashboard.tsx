@@ -9,6 +9,21 @@ export function Dashboard() {
     return <p className="dashboard__state">Loading schedule…</p>;
   }
 
+  if (status === "no-schedule") {
+    return (
+      <div className="dashboard__onboarding">
+        <h2 className="dashboard__onboarding-title">Welcome to Budget-inator</h2>
+        <p className="dashboard__onboarding-body">
+          Set up your pay schedule to see your pay periods, assigned bills, and
+          available-to-spend balance.
+        </p>
+        <a href="/settings" className="btn btn--primary">
+          Set up pay schedule →
+        </a>
+      </div>
+    );
+  }
+
   if (status === "error") {
     return (
       <p className="dashboard__state dashboard__state--error">
