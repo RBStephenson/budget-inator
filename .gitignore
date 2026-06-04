@@ -73,6 +73,9 @@ frontend/.vite/
 Thumbs.db
 desktop.ini
 
+# ── Claude Code ───────────────────────────────────────────────────────────────
+.claude/
+
 # ── IDEs ──────────────────────────────────────────────────────────────────────
 .vscode/
 !.vscode/extensions.json
