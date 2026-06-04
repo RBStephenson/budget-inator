@@ -1,10 +1,16 @@
 import { useEffect, useState } from "react";
 import { BillsPage } from "./components/BillsPage";
 import { Dashboard } from "./components/Dashboard";
+import { SettingsPage } from "./components/SettingsPage";
 import "./App.css";
 
-function getPage(): "dashboard" | "bills" {
-  return window.location.pathname.startsWith("/bills") ? "bills" : "dashboard";
+type Page = "dashboard" | "bills" | "settings";
+
+function getPage(): Page {
+  const path = window.location.pathname;
+  if (path.startsWith("/bills")) return "bills";
+  if (path.startsWith("/settings")) return "settings";
+  return "dashboard";
 }
 
 export default function App() {
@@ -22,7 +28,13 @@ export default function App() {
         <h1>Budget-inator</h1>
       </header>
       <main>
-        {page === "bills" ? <BillsPage /> : <Dashboard />}
+        {page === "bills" ? (
+          <BillsPage />
+        ) : page === "settings" ? (
+          <SettingsPage />
+        ) : (
+          <Dashboard />
+        )}
       </main>
     </div>
   );

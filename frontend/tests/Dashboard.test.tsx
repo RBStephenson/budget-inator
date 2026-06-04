@@ -31,6 +31,20 @@ describe("Dashboard", () => {
     );
   });
 
+  it("shows onboarding CTA when no schedule is configured (404)", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: "Not Found",
+      json: async () => ({}),
+    } as Response);
+    render(<Dashboard />);
+    await waitFor(() =>
+      expect(screen.getByText(/welcome to budget-inator/i)).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("link", { name: /set up pay schedule/i })).toBeInTheDocument();
+  });
+
   it("shows an empty state when there are no periods", async () => {
     mockFetch(makeSchedule([]));
     render(<Dashboard />);

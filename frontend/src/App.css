@@ -653,6 +653,95 @@ body {
   background: #b91c1c;
 }
 
+/* ── Dashboard onboarding ───────────────────────────────────────────────────── */
+
+.dashboard__onboarding {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  padding: 2.5rem 2rem;
+  text-align: center;
+  max-width: 480px;
+  margin: 3rem auto;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.dashboard__onboarding-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+}
+
+.dashboard__onboarding-body {
+  color: #6b7280;
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+
+/* ── Settings page ───────────────────────────────────────────────────────────── */
+
+.settings-page {
+  max-width: 600px;
+}
+
+.settings-page__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 1.5rem;
+}
+
+.settings-page__title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-top: 0.25rem;
+}
+
+.settings-page__intro {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  color: #0369a1;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.settings-form {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.settings-form__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+.settings-form__footer {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #f3f4f6;
+}
+
+.settings-form__saved {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #16a34a;
+}
+
+.settings-form__save-error {
+  font-size: 0.875rem;
+  color: #dc2626;
+}
+
 /* ── Responsive ─────────────────────────────────────────────────────────────── */
 
 @media (max-width: 600px) {
