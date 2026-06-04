@@ -3,7 +3,9 @@ export interface AssignedBill {
   name: string;
   due_date: string;
   amount: string;
-  status: "on_time" | "late_flagged";
+  status: "on_time" | "late_flagged" | "paid" | "skipped";
+  instance_id: number | null;
+  actual_amount: string | null;
 }
 
 export interface PayPeriod {

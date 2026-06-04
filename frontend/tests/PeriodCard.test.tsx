@@ -37,7 +37,7 @@ describe("PeriodCard", () => {
     const user = userEvent.setup();
     const period = makePeriod({ assigned_bills: [makeBill({ name: "Rent" })] });
     render(<PeriodCard period={period} />);
-    await user.click(screen.getByRole("button"));
+    await user.click(screen.getByRole("button", { name: /upcoming/i }));
     expect(screen.getByText("Rent")).toBeInTheDocument();
   });
 
@@ -45,7 +45,7 @@ describe("PeriodCard", () => {
     const user = userEvent.setup();
     const period = makePeriod({ assigned_bills: [makeBill({ name: "Rent" })] });
     render(<PeriodCard period={period} isHero />);
-    const btn = screen.getByRole("button");
+    const btn = screen.getByRole("button", { name: /current period/i });
     await user.click(btn);
     expect(screen.queryByText("Rent")).not.toBeInTheDocument();
     await user.click(btn);

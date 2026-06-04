@@ -9,6 +9,8 @@ export function makeBill(overrides: Partial<AssignedBill> = {}): AssignedBill {
     due_date: "2025-01-15",
     amount: "1200.00",
     status: "on_time",
+    instance_id: null,
+    actual_amount: null,
     ...overrides,
   };
 }

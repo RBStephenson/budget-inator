@@ -223,3 +223,71 @@ def test_summary_totals_match_periods(client: TestClient, db):
         if b["status"] == "late_flagged"
     )
     assert body["summary"]["total_flagged_bills"] == manual_flagged
+
+
+# ---------------------------------------------------------------------------
+# Payment status overlay tests
+# ---------------------------------------------------------------------------
+
+
+def test_paid_bill_shows_paid_status(client: TestClient, db):
+    _make_schedule(db, first_paycheck=date(2025, 1, 3))
+    bill = _make_monthly_bill(db, name="Rent", amount="800.00", due_day=10)
+
+    # Mark it paid via the bill-instances endpoint
+    client.patch(
+        f"/bill-instances/{bill.id}/2025-01-10",
+        json={"status": "paid"},
+    )
+
+    resp = client.get("/schedule?from=2025-01-03&to=2025-01-16")
+    assert resp.status_code == 200
+    bills = resp.json()["periods"][0]["assigned_bills"]
+    rent = next(b for b in bills if b["name"] == "Rent")
+    assert rent["status"] == "paid"
+    assert rent["instance_id"] is not None
+
+
+def test_skipped_bill_excluded_from_total(client: TestClient, db):
+    _make_schedule(db, first_paycheck=date(2025, 1, 3), net_salary="1000.00")
+    bill = _make_monthly_bill(db, name="Rent", amount="800.00", due_day=10)
+
+    client.patch(
+        f"/bill-instances/{bill.id}/2025-01-10",
+        json={"status": "skipped"},
+    )
+
+    resp = client.get("/schedule?from=2025-01-03&to=2025-01-16")
+    assert resp.status_code == 200
+    period = resp.json()["periods"][0]
+    assert float(period["total_bills"]) == pytest.approx(0.0)
+    assert float(period["remaining_balance"]) == pytest.approx(1500.0)
+
+
+def test_paid_with_actual_amount_uses_actual_in_total(client: TestClient, db):
+    _make_schedule(db, first_paycheck=date(2025, 1, 3), net_salary="1000.00")
+    bill = _make_monthly_bill(db, name="Electric", amount="100.00", due_day=10)
+
+    client.patch(
+        f"/bill-instances/{bill.id}/2025-01-10",
+        json={"status": "paid", "actual_amount": "75.00"},
+    )
+
+    resp = client.get("/schedule?from=2025-01-03&to=2025-01-16")
+    assert resp.status_code == 200
+    period = resp.json()["periods"][0]
+    assert float(period["total_bills"]) == pytest.approx(75.0)
+    electric = next(b for b in period["assigned_bills"] if b["name"] == "Electric")
+    assert float(electric["actual_amount"]) == pytest.approx(75.0)
+
+
+def test_no_instance_leaves_status_as_on_time(client: TestClient, db):
+    _make_schedule(db, first_paycheck=date(2025, 1, 3))
+    _make_monthly_bill(db, name="Rent", due_day=10)
+
+    resp = client.get("/schedule?from=2025-01-03&to=2025-01-16")
+    assert resp.status_code == 200
+    bills = resp.json()["periods"][0]["assigned_bills"]
+    rent = next(b for b in bills if b["name"] == "Rent")
+    assert rent["status"] == "on_time"
+    assert rent["instance_id"] is None

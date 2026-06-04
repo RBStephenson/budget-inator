@@ -3,7 +3,7 @@ import { FlaggedBillsBanner } from "./FlaggedBillsBanner";
 import { PeriodCard } from "./PeriodCard";
 
 export function Dashboard() {
-  const { data, status } = useSchedule();
+  const { data, status, refetch } = useSchedule();
 
   if (status === "loading") {
     return <p className="dashboard__state">Loading schedule…</p>;
@@ -48,13 +48,13 @@ export function Dashboard() {
         <FlaggedBillsBanner periods={data.periods} />
       )}
 
-      <PeriodCard period={current} isHero />
+      <PeriodCard period={current} isHero onRefetch={refetch} />
 
       {upcoming.length > 0 && (
         <section className="dashboard__upcoming">
           <h2 className="dashboard__upcoming-title">Upcoming periods</h2>
           {upcoming.map((p) => (
-            <PeriodCard key={p.period_index} period={p} />
+            <PeriodCard key={p.period_index} period={p} onRefetch={refetch} />
           ))}
         </section>
       )}
