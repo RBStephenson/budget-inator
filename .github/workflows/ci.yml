@@ -10,11 +10,27 @@ permissions:
   contents: read
 
 jobs:
+  # ── Detect scaffolded directories ─────────────────────────────────────────
+  detect:
+    name: Detect project dirs
+    runs-on: ubuntu-latest
+    outputs:
+      has_backend: ${{ steps.check.outputs.has_backend }}
+      has_frontend: ${{ steps.check.outputs.has_frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check which directories exist
+        id: check
+        run: |
+          echo "has_backend=$([ -f backend/requirements.txt ] && echo true || echo false)" >> $GITHUB_OUTPUT
+          echo "has_frontend=$([ -f frontend/package.json ] && echo true || echo false)" >> $GITHUB_OUTPUT
+
   # ── Backend ────────────────────────────────────────────────────────────────
   backend:
     name: Backend (Python)
     runs-on: ubuntu-latest
-    if: ${{ hashFiles('backend/requirements.txt') != '' }}
+    needs: detect
+    if: needs.detect.outputs.has_backend == 'true'
     defaults:
       run:
         working-directory: backend
@@ -47,7 +63,8 @@ jobs:
   frontend:
     name: Frontend (React/TS)
     runs-on: ubuntu-latest
-    if: ${{ hashFiles('frontend/package.json') != '' }}
+    needs: detect
+    if: needs.detect.outputs.has_frontend == 'true'
     defaults:
       run:
         working-directory: frontend
