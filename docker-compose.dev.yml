@@ -1,0 +1,13 @@
+# Development overlay — enables backend hot-reload and bind-mounts source.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Code changes in backend/app/ take effect without a rebuild.
+# Frontend hot-reload works automatically via Vite's dev server.
+services:
+  backend:
+    volumes:
+      - ./backend/app:/app/app
+    command:
+      ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

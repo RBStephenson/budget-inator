@@ -41,15 +41,32 @@ budget-inator/
 
 ## Getting Started
 
-> Full setup instructions will be added as the project is scaffolded. See the open [GitHub Issues](https://github.com/RBStephenson/budget-inator/issues) for planned work.
+### Docker (recommended)
 
-### Prerequisites
+Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/).
 
+**Production:**
+```bash
+docker compose up
+```
+Open [http://localhost](http://localhost).
+
+**Development** (backend hot-reload on save):
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+```
+
+The SQLite database is stored in `./data/budget.db` (created automatically).
+
+---
+
+### Manual setup (without Docker)
+
+#### Prerequisites
 - Python 3.12+
 - Node.js 20+
 
-### Backend
-
+#### Backend
 ```bash
 cd backend
 python -m venv .venv
@@ -58,8 +75,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-### Frontend
-
+#### Frontend
 ```bash
 cd frontend
 npm install
