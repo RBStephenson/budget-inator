@@ -14,7 +14,7 @@ jobs:
   backend:
     name: Backend (Python)
     runs-on: ubuntu-latest
-    if: hashFiles('backend/requirements.txt') != ''
+    if: ${{ hashFiles('backend/requirements.txt') != '' }}
     defaults:
       run:
         working-directory: backend
@@ -47,7 +47,7 @@ jobs:
   frontend:
     name: Frontend (React/TS)
     runs-on: ubuntu-latest
-    if: hashFiles('frontend/package.json') != ''
+    if: ${{ hashFiles('frontend/package.json') != '' }}
     defaults:
       run:
         working-directory: frontend
