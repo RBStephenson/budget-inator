@@ -49,7 +49,7 @@ Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/).
 ```bash
 docker compose up
 ```
-Open [http://localhost](http://localhost).
+Open [http://localhost:8080](http://localhost:8080).
 
 **Development** (backend hot-reload on save):
 ```bash
