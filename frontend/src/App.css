@@ -476,6 +476,16 @@ body {
   background: #4f46e5;
 }
 
+.btn--secondary {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+.btn--secondary:hover {
+  background: #e5e7eb;
+}
+
 /* ── Bills page ─────────────────────────────────────────────────────────────── */
 
 .bills-page__header {
@@ -920,6 +930,59 @@ body {
 
 .settings-form__save-error {
   font-size: 0.875rem;
+  color: #dc2626;
+}
+
+.settings-section {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.settings-section__title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 1rem;
+}
+
+.settings-data__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+}
+
+.settings-data__item {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.settings-data__desc {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+.settings-data__file-label {
+  display: inline-block;
+  cursor: pointer;
+}
+
+.settings-data__file-input {
+  display: none;
+}
+
+.settings-data__ok {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #16a34a;
+}
+
+.settings-data__err {
+  font-size: 0.8rem;
   color: #dc2626;
 }
 

@@ -1,14 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { deleteAllData, exportData, importData } from "../api/data";
 import {
   createPaySchedule,
   getPaySchedule,
   updatePaySchedule,
 } from "../api/paySchedule";
+import { ConfirmDialog } from "./ConfirmDialog";
 import type { PayFrequency, PaySchedule } from "../types/paySchedule";
 import { FREQUENCY_LABELS } from "../types/paySchedule";
 
 type PageStatus = "loading" | "error" | "ready";
 type SaveStatus = "idle" | "saving" | "saved" | "error";
+type DataStatus = "idle" | "busy" | "done" | "error";
 
 interface FormState {
   net_salary: string;
@@ -34,6 +37,13 @@ export function SettingsPage() {
   const [form, setForm] = useState<FormState>(initialForm(null));
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+
+  const [exportStatus, setExportStatus] = useState<DataStatus>("idle");
+  const [importStatus, setImportStatus] = useState<DataStatus>("idle");
+  const [importError, setImportError] = useState<string | null>(null);
+  const [deleteStatus, setDeleteStatus] = useState<DataStatus>("idle");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     getPaySchedule()
@@ -81,6 +91,52 @@ export function SettingsPage() {
       setTimeout(() => setSaveStatus("idle"), 3000);
     } catch {
       setSaveStatus("error");
+    }
+  }
+
+  async function handleExport() {
+    setExportStatus("busy");
+    try {
+      const blob = await exportData();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `budget-inator-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setExportStatus("done");
+      setTimeout(() => setExportStatus("idle"), 3000);
+    } catch {
+      setExportStatus("error");
+    }
+  }
+
+  async function handleImport(file: File) {
+    setImportStatus("busy");
+    setImportError(null);
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text) as unknown;
+      await importData(payload);
+      setImportStatus("done");
+      setTimeout(() => setImportStatus("idle"), 3000);
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "Import failed");
+      setImportStatus("error");
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  async function handleDeleteConfirmed() {
+    setShowDeleteConfirm(false);
+    setDeleteStatus("busy");
+    try {
+      await deleteAllData();
+      setDeleteStatus("done");
+      setTimeout(() => setDeleteStatus("idle"), 3000);
+    } catch {
+      setDeleteStatus("error");
     }
   }
 
@@ -212,6 +268,87 @@ export function SettingsPage() {
           )}
         </div>
       </form>
+      <div className="settings-section">
+        <h3 className="settings-section__title">Data management</h3>
+
+        <div className="settings-data__row">
+          <div className="settings-data__item">
+            <p className="settings-data__desc">
+              Download a JSON backup of your pay schedule and bills.
+            </p>
+            <button
+              className="btn btn--secondary"
+              onClick={handleExport}
+              disabled={exportStatus === "busy"}
+              aria-label="Export backup"
+            >
+              {exportStatus === "busy" ? "Exporting…" : "Export backup"}
+            </button>
+            {exportStatus === "done" && (
+              <span className="settings-data__ok">✓ Downloaded</span>
+            )}
+            {exportStatus === "error" && (
+              <span className="settings-data__err">Export failed</span>
+            )}
+          </div>
+
+          <div className="settings-data__item">
+            <p className="settings-data__desc">
+              Restore from a backup file. This overwrites all current data.
+            </p>
+            <label className="btn btn--secondary settings-data__file-label">
+              {importStatus === "busy" ? "Importing…" : "Import backup"}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json,application/json"
+                aria-label="Import backup file"
+                className="settings-data__file-input"
+                disabled={importStatus === "busy"}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleImport(file);
+                }}
+              />
+            </label>
+            {importStatus === "done" && (
+              <span className="settings-data__ok">✓ Imported</span>
+            )}
+            {importStatus === "error" && (
+              <span className="settings-data__err">{importError ?? "Import failed"}</span>
+            )}
+          </div>
+
+          <div className="settings-data__item">
+            <p className="settings-data__desc">
+              Permanently delete all data and start over. This cannot be undone.
+            </p>
+            <button
+              className="btn btn--danger"
+              onClick={() => setShowDeleteConfirm(true)}
+              disabled={deleteStatus === "busy"}
+              aria-label="Delete all data"
+            >
+              {deleteStatus === "busy" ? "Deleting…" : "Delete all data"}
+            </button>
+            {deleteStatus === "done" && (
+              <span className="settings-data__ok">✓ All data deleted</span>
+            )}
+            {deleteStatus === "error" && (
+              <span className="settings-data__err">Delete failed</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {showDeleteConfirm && (
+        <ConfirmDialog
+          message="Delete all data? Your pay schedule, bills, and bill history will be permanently removed. This cannot be undone."
+          confirmLabel="Delete everything"
+          onConfirm={handleDeleteConfirmed}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
+      )}
     </div>
   );
 }
