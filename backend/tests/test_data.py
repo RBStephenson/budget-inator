@@ -143,9 +143,7 @@ class TestImport:
         resp = client.post("/data/import", json=payload)
         assert resp.status_code == 422
 
-    def test_import_clears_bill_instances_and_overrides(
-        self, client: TestClient, db
-    ):
+    def test_import_clears_bill_instances_and_overrides(self, client: TestClient, db):
         _seed(db)
         bill = db.query(Bill).first()
         db.add(
@@ -182,9 +180,7 @@ class TestDelete:
         resp = client.delete("/data")
         assert resp.status_code == 204
 
-    def test_delete_clears_bill_instances_and_overrides(
-        self, client: TestClient, db
-    ):
+    def test_delete_clears_bill_instances_and_overrides(self, client: TestClient, db):
         _seed(db)
         bill = db.query(Bill).first()
         db.add(
