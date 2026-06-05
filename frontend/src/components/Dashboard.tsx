@@ -1,15 +1,34 @@
+import { useState } from "react";
 import { useSchedule } from "../hooks/useSchedule";
+import { useMonthlySchedule } from "../hooks/useMonthlySchedule";
 import { FlaggedBillsBanner } from "./FlaggedBillsBanner";
 import { PeriodCard } from "./PeriodCard";
+import { MonthCard } from "./MonthCard";
+
+type DashboardView = "periods" | "monthly";
 
 export function Dashboard() {
+  const [view, setView] = useState<DashboardView>("periods");
   const { data, status, refetch } = useSchedule();
+  const {
+    data: monthlyData,
+    status: monthlyStatus,
+  } = useMonthlySchedule(view === "monthly");
 
-  if (status === "loading") {
+  const isLoading =
+    view === "periods" ? status === "loading" : monthlyStatus === "loading" || monthlyStatus === "idle";
+  const isError =
+    view === "periods" ? status === "error" : monthlyStatus === "error";
+  const noSchedule =
+    view === "periods"
+      ? status === "no-schedule"
+      : monthlyStatus === "no-schedule";
+
+  if (isLoading) {
     return <p className="dashboard__state">Loading schedule…</p>;
   }
 
-  if (status === "no-schedule") {
+  if (noSchedule) {
     return (
       <div className="dashboard__onboarding">
         <h2 className="dashboard__onboarding-title">Welcome to Budget-inator</h2>
@@ -24,7 +43,7 @@ export function Dashboard() {
     );
   }
 
-  if (status === "error") {
+  if (isError) {
     return (
       <p className="dashboard__state dashboard__state--error">
         Could not load schedule. Make sure the API is running.
@@ -32,29 +51,59 @@ export function Dashboard() {
     );
   }
 
-  if (status === "empty" || !data || data.periods.length === 0) {
-    return (
-      <div className="dashboard__state">
-        <p>No pay periods found. Set up your pay schedule to get started.</p>
-      </div>
-    );
-  }
-
-  const [current, ...upcoming] = data.periods;
-
   return (
     <div className="dashboard">
-      {data.summary.total_flagged_bills > 0 && (
-        <FlaggedBillsBanner periods={data.periods} />
+      <div className="dashboard__view-toggle" role="group" aria-label="Dashboard view">
+        <button
+          className={`btn-view-toggle${view === "periods" ? " btn-view-toggle--active" : ""}`}
+          onClick={() => setView("periods")}
+          aria-pressed={view === "periods"}
+        >
+          By Pay Period
+        </button>
+        <button
+          className={`btn-view-toggle${view === "monthly" ? " btn-view-toggle--active" : ""}`}
+          onClick={() => setView("monthly")}
+          aria-pressed={view === "monthly"}
+        >
+          By Month
+        </button>
+      </div>
+
+      {view === "periods" && data && data.periods.length > 0 && (
+        <>
+          {data.summary.total_flagged_bills > 0 && (
+            <FlaggedBillsBanner periods={data.periods} />
+          )}
+          {(() => {
+            const [current, ...upcoming] = data.periods;
+            return (
+              <>
+                <PeriodCard period={current} isHero onRefetch={refetch} />
+                {upcoming.length > 0 && (
+                  <section className="dashboard__upcoming">
+                    <h2 className="dashboard__upcoming-title">Upcoming periods</h2>
+                    {upcoming.map((p) => (
+                      <PeriodCard key={p.period_index} period={p} onRefetch={refetch} />
+                    ))}
+                  </section>
+                )}
+              </>
+            );
+          })()}
+        </>
       )}
 
-      <PeriodCard period={current} isHero onRefetch={refetch} />
+      {view === "periods" && (!data || data.periods.length === 0) && (
+        <div className="dashboard__state">
+          <p>No pay periods found. Set up your pay schedule to get started.</p>
+        </div>
+      )}
 
-      {upcoming.length > 0 && (
-        <section className="dashboard__upcoming">
-          <h2 className="dashboard__upcoming-title">Upcoming periods</h2>
-          {upcoming.map((p) => (
-            <PeriodCard key={p.period_index} period={p} onRefetch={refetch} />
+      {view === "monthly" && monthlyData && (
+        <section className="dashboard__months">
+          {monthlyData.months.map((m) => (
+            <MonthCard key={m.month} summary={m} />
           ))}
         </section>
       )}

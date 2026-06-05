@@ -78,6 +78,185 @@ body {
   margin-top: 0.5rem;
 }
 
+.dashboard__view-toggle {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+.btn-view-toggle {
+  flex: 1;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  background: #fff;
+  font-size: 0.875rem;
+  color: #374151;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.btn-view-toggle--active {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
+.dashboard__months {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* ── Month card ─────────────────────────────────────────────────────────────── */
+
+.month-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.month-card--overspent {
+  border-color: #fca5a5;
+}
+
+.month-card__header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.month-card__title {
+  font-weight: 600;
+  font-size: 1rem;
+  color: #111827;
+  min-width: 8rem;
+}
+
+.month-card__summary {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.month-card__row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.875rem;
+}
+
+.month-card__label {
+  color: #6b7280;
+}
+
+.month-card__value {
+  font-weight: 500;
+  color: #111827;
+}
+
+.month-card__value--green {
+  color: #16a34a;
+}
+
+.month-card__value--amber {
+  color: #d97706;
+}
+
+.month-card__value--overspent {
+  color: #dc2626;
+}
+
+.month-card__chevron {
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+.month-card__body {
+  border-top: 1px solid #f3f4f6;
+  padding: 0.75rem 1.25rem 1rem;
+}
+
+.month-card__empty {
+  font-size: 0.875rem;
+  color: #9ca3af;
+  padding: 0.5rem 0;
+}
+
+.month-card__groups {
+  display: flex;
+  flex-direction: column;
+}
+
+.month-card__group + .month-card__group {
+  margin-top: 0.75rem;
+}
+
+.month-card__group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.25rem;
+}
+
+.month-card__category-heading {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #9ca3af;
+  margin: 0;
+  padding: 0;
+}
+
+.month-card__category-subtotal {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.month-card__bill-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.month-card__bill-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.month-card__bill-name {
+  flex: 1;
+  color: #111827;
+}
+
+.month-card__estimated {
+  color: #9ca3af;
+}
+
+.month-card__bill-due {
+  color: #6b7280;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.month-card__bill-amount {
+  font-weight: 500;
+  color: #374151;
+  white-space: nowrap;
+}
+
 /* ── Flagged bills banner ───────────────────────────────────────────────────── */
 
 .flagged-banner {

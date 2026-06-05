@@ -1,7 +1,8 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Dashboard } from "../src/components/Dashboard";
-import { makeBill, makePeriod, makeSchedule } from "./fixtures";
+import { makeBill, makePeriod, makeSchedule, makeMonthlySummary } from "./fixtures";
 
 function mockFetch(data: unknown, ok = true) {
   vi.spyOn(globalThis, "fetch").mockResolvedValue({
@@ -112,6 +113,71 @@ describe("Dashboard", () => {
     render(<Dashboard />);
     await waitFor(() =>
       expect(screen.getByRole("link", { name: /add bill/i })).toBeInTheDocument(),
+    );
+  });
+
+  it("shows the view toggle buttons", async () => {
+    mockFetch(makeSchedule([makePeriod()]));
+    render(<Dashboard />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /by pay period/i })).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: /by month/i })).toBeInTheDocument();
+  });
+});
+
+describe("Dashboard — monthly view toggle", () => {
+  beforeEach(() => vi.restoreAllMocks());
+  afterEach(() => vi.restoreAllMocks());
+
+  function mockBothEndpoints(monthlyData = { months: [makeMonthlySummary()] }) {
+    vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
+      const u = String(url);
+      const data = u.includes("monthly-summary")
+        ? monthlyData
+        : makeSchedule([makePeriod()]);
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: async () => data,
+      } as Response);
+    });
+  }
+
+  it("switches to monthly view when 'By Month' is clicked", async () => {
+    const user = userEvent.setup();
+    mockBothEndpoints();
+    render(<Dashboard />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /by month/i })).toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole("button", { name: /by month/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/january 2025/i)).toBeInTheDocument(),
+    );
+  });
+
+  it("hides pay-period cards when monthly view is active", async () => {
+    const user = userEvent.setup();
+    mockBothEndpoints();
+    render(<Dashboard />);
+    await waitFor(() => screen.getByText("Current period"));
+    await user.click(screen.getByRole("button", { name: /by month/i }));
+    await waitFor(() => screen.getByText(/january 2025/i));
+    expect(screen.queryByText("Current period")).not.toBeInTheDocument();
+  });
+
+  it("switches back to pay-period view when 'By Pay Period' is clicked", async () => {
+    const user = userEvent.setup();
+    mockBothEndpoints();
+    render(<Dashboard />);
+    await waitFor(() => screen.getByText("Current period"));
+    await user.click(screen.getByRole("button", { name: /by month/i }));
+    await waitFor(() => screen.getByText(/january 2025/i));
+    await user.click(screen.getByRole("button", { name: /by pay period/i }));
+    await waitFor(() =>
+      expect(screen.getByText("Current period")).toBeInTheDocument(),
     );
   });
 });

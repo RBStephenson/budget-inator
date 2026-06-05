@@ -1,6 +1,7 @@
 import type { AssignedBill, PayPeriod, ScheduleResponse } from "../src/types/schedule";
 import type { Bill } from "../src/types/bill";
 import type { PaySchedule } from "../src/types/paySchedule";
+import type { MonthlySummary, MonthlyCategoryGroup, MonthlyBillItem } from "../src/types/monthly";
 
 export function makeBill(overrides: Partial<AssignedBill> = {}): AssignedBill {
   return {
@@ -77,5 +78,43 @@ export function makeSchedule(
       period_count: periods.length,
       total_flagged_bills: periods.reduce((n, p) => n + p.flagged_bill_count, 0),
     },
+  };
+}
+
+export function makeMonthlyBillItem(
+  overrides: Partial<MonthlyBillItem> = {},
+): MonthlyBillItem {
+  return {
+    bill_id: 1,
+    name: "Rent",
+    due_date: "2025-01-01",
+    amount: "900.00",
+    category: "housing",
+    is_variable: false,
+    ...overrides,
+  };
+}
+
+export function makeMonthlyCategoryGroup(
+  overrides: Partial<MonthlyCategoryGroup> = {},
+): MonthlyCategoryGroup {
+  return {
+    category: "housing",
+    subtotal: "900.00",
+    bills: [makeMonthlyBillItem()],
+    ...overrides,
+  };
+}
+
+export function makeMonthlySummary(
+  overrides: Partial<MonthlySummary> = {},
+): MonthlySummary {
+  return {
+    month: "2025-01",
+    total_income: "2000.00",
+    total_bills: "900.00",
+    available: "1100.00",
+    categories: [makeMonthlyCategoryGroup()],
+    ...overrides,
   };
 }
