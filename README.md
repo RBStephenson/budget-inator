@@ -1,5 +1,17 @@
 # The Budget-inator
 
+[![CI](https://github.com/RBStephenson/budget-inator/actions/workflows/ci.yml/badge.svg)](https://github.com/RBStephenson/budget-inator/actions/workflows/ci.yml)
+[![Build Check](https://github.com/RBStephenson/budget-inator/actions/workflows/build-check.yml/badge.svg)](https://github.com/RBStephenson/budget-inator/actions/workflows/build-check.yml)
+[![Release](https://github.com/RBStephenson/budget-inator/actions/workflows/release.yml/badge.svg)](https://github.com/RBStephenson/budget-inator/actions/workflows/release.yml)
+[![CodeQL](https://github.com/RBStephenson/budget-inator/actions/workflows/codeql.yml/badge.svg)](https://github.com/RBStephenson/budget-inator/actions/workflows/codeql.yml)
+&nbsp;
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
+
 A personal budget management application that helps you track bills against your pay schedule — so you always know which bills land in which pay period, and you never get caught off guard by a due date.
 
 ## Features
@@ -41,7 +53,25 @@ budget-inator/
 
 ## Getting Started
 
-### Docker (recommended)
+### Standalone (recommended for most users — no Docker needed)
+
+1. Go to the [Releases page](https://github.com/RBStephenson/budget-inator/releases) and download the file for your OS:
+   - **Windows**: `budget-inator-windows.exe`
+   - **Linux**: `budget-inator-linux`
+
+2. Run the file. Your browser will open automatically to `http://localhost:8585`.
+
+3. Open **Settings**, enter your pay schedule (net salary, frequency, first paycheck date), then add your bills.
+
+Your budget database is stored in your user data folder and survives app updates:
+- **Windows**: `%LOCALAPPDATA%\Budget-inator\`
+- **Linux**: `~/.local/share/Budget-inator/`
+
+> macOS builds aren't published yet — use Docker or the manual setup below.
+
+---
+
+### Docker
 
 Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/).
 
