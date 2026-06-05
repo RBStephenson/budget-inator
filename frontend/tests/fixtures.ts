@@ -11,6 +11,7 @@ export function makeBill(overrides: Partial<AssignedBill> = {}): AssignedBill {
     status: "on_time",
     instance_id: null,
     actual_amount: null,
+    is_variable: false,
     ...overrides,
   };
 }

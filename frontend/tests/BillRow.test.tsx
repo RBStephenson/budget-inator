@@ -108,3 +108,88 @@ describe("BillRow", () => {
     await waitFor(() => expect(onRefetch).toHaveBeenCalledOnce());
   });
 });
+
+describe("BillRow — variable bill", () => {
+  it("shows tilde indicator for variable bill without actual amount", () => {
+    render(
+      <BillRow bill={makeBill({ is_variable: true, actual_amount: null })} payOnDate="2025-01-03" />,
+    );
+    expect(screen.getByLabelText("estimated")).toBeInTheDocument();
+  });
+
+  it("does not show tilde indicator when actual amount is set", () => {
+    render(
+      <BillRow
+        bill={makeBill({ is_variable: true, actual_amount: "110.00" })}
+        payOnDate="2025-01-03"
+      />,
+    );
+    expect(screen.queryByLabelText("estimated")).not.toBeInTheDocument();
+  });
+
+  it("does not show tilde indicator for non-variable bills", () => {
+    render(<BillRow bill={makeBill({ is_variable: false })} payOnDate="2025-01-03" />);
+    expect(screen.queryByLabelText("estimated")).not.toBeInTheDocument();
+  });
+
+  it("shows Enter actual button for variable pending bills", () => {
+    render(<BillRow bill={makeBill({ is_variable: true })} payOnDate="2025-01-03" />);
+    expect(screen.getByRole("button", { name: /enter actual/i })).toBeInTheDocument();
+  });
+
+  it("shows Edit actual button when actual amount already set", () => {
+    render(
+      <BillRow
+        bill={makeBill({ is_variable: true, actual_amount: "110.00" })}
+        payOnDate="2025-01-03"
+      />,
+    );
+    expect(screen.getByRole("button", { name: /edit actual amount/i })).toBeInTheDocument();
+  });
+
+  it("does not show Enter actual button for paid variable bills", () => {
+    render(
+      <BillRow bill={makeBill({ is_variable: true, status: "paid" })} payOnDate="2025-01-03" />,
+    );
+    expect(screen.queryByRole("button", { name: /enter actual/i })).not.toBeInTheDocument();
+  });
+
+  it("does not show Enter actual button for non-variable bills", () => {
+    render(<BillRow bill={makeBill({ is_variable: false })} payOnDate="2025-01-03" />);
+    expect(screen.queryByRole("button", { name: /enter actual/i })).not.toBeInTheDocument();
+  });
+
+  it("reveals input when Enter actual is clicked", async () => {
+    render(<BillRow bill={makeBill({ is_variable: true })} payOnDate="2025-01-03" />);
+    await userEvent.click(screen.getByRole("button", { name: /enter actual/i }));
+    expect(screen.getByRole("spinbutton", { name: /actual amount/i })).toBeInTheDocument();
+  });
+
+  it("calls patchBillInstance with actual_amount when confirmed", async () => {
+    mockPatch();
+    const onRefetch = vi.fn();
+    render(
+      <BillRow
+        bill={makeBill({ is_variable: true })}
+        payOnDate="2025-01-03"
+        onRefetch={onRefetch}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /enter actual/i }));
+    await userEvent.type(screen.getByRole("spinbutton", { name: /actual amount/i }), "95.50");
+    await userEvent.click(screen.getByRole("button", { name: /confirm actual/i }));
+    await waitFor(() => expect(onRefetch).toHaveBeenCalledOnce());
+    const fetchMock = vi.mocked(globalThis.fetch);
+    const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string);
+    expect(parseFloat(body.actual_amount)).toBeCloseTo(95.5);
+    expect(body.status).toBe("pending");
+  });
+
+  it("hides input after cancel", async () => {
+    render(<BillRow bill={makeBill({ is_variable: true })} payOnDate="2025-01-03" />);
+    await userEvent.click(screen.getByRole("button", { name: /enter actual/i }));
+    expect(screen.getByRole("spinbutton", { name: /actual amount/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /cancel actual/i }));
+    expect(screen.queryByRole("spinbutton", { name: /actual amount/i })).not.toBeInTheDocument();
+  });
+});

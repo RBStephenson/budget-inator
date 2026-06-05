@@ -291,3 +291,42 @@ def test_no_instance_leaves_status_as_on_time(client: TestClient, db):
     rent = next(b for b in bills if b["name"] == "Rent")
     assert rent["status"] == "on_time"
     assert rent["instance_id"] is None
+
+
+# ---------------------------------------------------------------------------
+# Variable bill flag propagation tests
+# ---------------------------------------------------------------------------
+
+
+def test_variable_bill_flag_is_true_in_schedule(client: TestClient, db):
+    _make_schedule(db, first_paycheck=date(2025, 1, 3))
+    bill = Bill(
+        name="Electric",
+        estimated_amount="120.00",
+        recurrence="monthly",
+        due_day=10,
+        first_due_date=None,
+        grace_period_days=0,
+        category="utilities",
+        is_variable=True,
+        is_active=True,
+    )
+    db.add(bill)
+    db.commit()
+
+    resp = client.get("/schedule?from=2025-01-03&to=2025-01-16")
+    assert resp.status_code == 200
+    bills = resp.json()["periods"][0]["assigned_bills"]
+    electric = next(b for b in bills if b["name"] == "Electric")
+    assert electric["is_variable"] is True
+
+
+def test_non_variable_bill_flag_is_false_in_schedule(client: TestClient, db):
+    _make_schedule(db, first_paycheck=date(2025, 1, 3))
+    _make_monthly_bill(db, name="Rent", due_day=10)
+
+    resp = client.get("/schedule?from=2025-01-03&to=2025-01-16")
+    assert resp.status_code == 200
+    bills = resp.json()["periods"][0]["assigned_bills"]
+    rent = next(b for b in bills if b["name"] == "Rent")
+    assert rent["is_variable"] is False

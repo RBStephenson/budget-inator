@@ -24,6 +24,8 @@ function fmtCurrency(amount: string): string {
 
 export function BillRow({ bill, payOnDate, onRefetch }: Props) {
   const [saving, setSaving] = useState(false);
+  const [editingActual, setEditingActual] = useState(false);
+  const [actualInput, setActualInput] = useState("");
   const isLate = bill.status === "late_flagged";
   const isPaid = bill.status === "paid";
   const isSkipped = bill.status === "skipped";
@@ -38,6 +40,26 @@ export function BillRow({ bill, payOnDate, onRefetch }: Props) {
     }
   }
 
+  async function saveActual() {
+    const trimmed = actualInput.trim();
+    if (!trimmed || isNaN(parseFloat(trimmed))) return;
+    setSaving(true);
+    try {
+      await patchBillInstance(bill.bill_id, bill.due_date, "pending", trimmed);
+      setEditingActual(false);
+      setActualInput("");
+      onRefetch?.();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function cancelActual() {
+    setEditingActual(false);
+    setActualInput("");
+  }
+
+  const isEstimated = bill.is_variable && bill.actual_amount == null;
   const displayAmount = bill.actual_amount ?? bill.amount;
 
   return (
@@ -67,7 +89,10 @@ export function BillRow({ bill, payOnDate, onRefetch }: Props) {
         <span className="bill-row__date-label">Pay</span>
         <span className="bill-row__date-value">{fmt(payOnDate)}</span>
       </span>
-      <span className="bill-row__amount">{fmtCurrency(displayAmount)}</span>
+      <span className="bill-row__amount">
+        {isEstimated && <span className="bill-row__estimated-mark" aria-label="estimated">~</span>}
+        {fmtCurrency(displayAmount)}
+      </span>
       <span className="bill-row__actions">
         {isPaid || isSkipped ? (
           <button
@@ -95,6 +120,51 @@ export function BillRow({ bill, payOnDate, onRefetch }: Props) {
               Skip
             </button>
           </>
+        )}
+        {bill.is_variable && !isPaid && !isSkipped && (
+          editingActual ? (
+            <span className="bill-row__actual-edit">
+              <input
+                className="bill-row__actual-input"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder={bill.amount}
+                value={actualInput}
+                onChange={(e) => setActualInput(e.target.value)}
+                aria-label="Actual amount"
+                autoFocus
+              />
+              <button
+                className="btn-action btn-action--confirm"
+                disabled={saving}
+                onClick={saveActual}
+                aria-label="Confirm actual amount"
+              >
+                ✓
+              </button>
+              <button
+                className="btn-action"
+                disabled={saving}
+                onClick={cancelActual}
+                aria-label="Cancel actual amount"
+              >
+                ✕
+              </button>
+            </span>
+          ) : (
+            <button
+              className="btn-action btn-action--actual"
+              disabled={saving}
+              onClick={() => {
+                setActualInput(bill.actual_amount ?? "");
+                setEditingActual(true);
+              }}
+              aria-label={bill.actual_amount ? "Edit actual amount" : "Enter actual amount"}
+            >
+              {bill.actual_amount ? "Edit actual" : "Enter actual"}
+            </button>
+          )
         )}
       </span>
     </li>

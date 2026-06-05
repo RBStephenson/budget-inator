@@ -6,6 +6,7 @@ export interface AssignedBill {
   status: "on_time" | "late_flagged" | "paid" | "skipped";
   instance_id: number | null;
   actual_amount: string | null;
+  is_variable: boolean;
 }
 
 export interface PayPeriod {

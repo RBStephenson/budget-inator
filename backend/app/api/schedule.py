@@ -58,7 +58,12 @@ def _to_bill_input(bill: Bill) -> BillInput:
     )
 
 
-def _to_period_out(p: PayPeriodResult, instances: _InstanceMap) -> PayPeriodOut:
+_BillIsVariable = dict[int, bool]
+
+
+def _to_period_out(
+    p: PayPeriodResult, instances: _InstanceMap, bill_is_variable: _BillIsVariable
+) -> PayPeriodOut:
     bills_out: list[AssignedBillOut] = []
     for b in p.assigned_bills:
         inst = instances.get((b.bill_id, b.due_date))
@@ -75,6 +80,7 @@ def _to_period_out(p: PayPeriodResult, instances: _InstanceMap) -> PayPeriodOut:
                 status=effective_status,
                 instance_id=inst.id if inst else None,
                 actual_amount=inst.actual_amount if inst else None,
+                is_variable=bill_is_variable.get(b.bill_id, False),
             )
         )
 
@@ -120,9 +126,9 @@ def get_schedule(
     net_salary = Decimal(str(sched.net_salary))
     beginning_balance = Decimal(str(sched.beginning_balance))
 
-    bills = [
-        _to_bill_input(b) for b in db.query(Bill).filter(Bill.is_active.is_(True)).all()
-    ]
+    bill_rows = db.query(Bill).filter(Bill.is_active.is_(True)).all()
+    bill_is_variable: _BillIsVariable = {b.id: b.is_variable for b in bill_rows}
+    bills = [_to_bill_input(b) for b in bill_rows]
 
     today = date.today()
 
@@ -175,7 +181,7 @@ def get_schedule(
         )
         instances = {(r.bill_id, r.due_date): r for r in rows}
 
-    period_outs = [_to_period_out(p, instances) for p in window]
+    period_outs = [_to_period_out(p, instances, bill_is_variable) for p in window]
 
     total_flagged = sum(
         1 for p in period_outs for b in p.assigned_bills if b.status == "late_flagged"
