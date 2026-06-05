@@ -101,6 +101,8 @@ def test_periods_have_correct_structure(client: TestClient, db):
     for key in (
         "period_index",
         "pay_date",
+        "original_pay_date",
+        "is_overridden",
         "period_start",
         "period_end",
         "opening_balance",

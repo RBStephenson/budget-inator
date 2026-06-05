@@ -20,6 +20,8 @@ export function makePeriod(overrides: Partial<PayPeriod> = {}): PayPeriod {
   return {
     period_index: 0,
     pay_date: "2025-01-03",
+    original_pay_date: "2025-01-03",
+    is_overridden: false,
     period_start: "2025-01-03",
     period_end: "2025-01-16",
     opening_balance: "1500.00",

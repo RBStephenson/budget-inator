@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Bill, BillInstance, PaySchedule
 from app.models.enums import BillRecurrence, BillStatus, PayFrequency
+from app.models.pay_period_override import PayPeriodOverride
 from app.schemas.schedule import (
     AssignedBillOut,
     PayPeriodOut,
@@ -19,6 +20,8 @@ from app.services.pay_period_engine import BillInput, PayPeriodResult, project
 
 # Keyed by (bill_id, due_date)
 _InstanceMap = dict[tuple[int, date], BillInstance]
+# Keyed by original (computed) pay_date → overridden pay_date
+_OverrideMap = dict[date, date]
 
 router = APIRouter(prefix="/schedule", tags=["schedule"])
 
@@ -62,7 +65,10 @@ _BillIsVariable = dict[int, bool]
 
 
 def _to_period_out(
-    p: PayPeriodResult, instances: _InstanceMap, bill_is_variable: _BillIsVariable
+    p: PayPeriodResult,
+    instances: _InstanceMap,
+    bill_is_variable: _BillIsVariable,
+    override_map: _OverrideMap,
 ) -> PayPeriodOut:
     bills_out: list[AssignedBillOut] = []
     for b in p.assigned_bills:
@@ -95,9 +101,12 @@ def _to_period_out(
     )
     remaining = p.opening_balance - total
     flagged = sum(1 for bo in bills_out if bo.status == "late_flagged")
+    effective_pay_date = override_map.get(p.pay_date, p.pay_date)
     return PayPeriodOut(
         period_index=p.period_index,
-        pay_date=p.pay_date,
+        pay_date=effective_pay_date,
+        original_pay_date=p.pay_date,
+        is_overridden=p.pay_date in override_map,
         period_start=p.period_start,
         period_end=p.period_end,
         opening_balance=p.opening_balance,
@@ -166,8 +175,9 @@ def get_schedule(
     if not window:
         window = []
 
-    # Load BillInstance records for this window keyed by (bill_id, due_date)
+    # Load BillInstance records and pay-date overrides for this window
     instances: _InstanceMap = {}
+    override_map: _OverrideMap = {}
     if window:
         window_start = window[0].period_start
         window_end = window[-1].period_end
@@ -181,7 +191,19 @@ def get_schedule(
         )
         instances = {(r.bill_id, r.due_date): r for r in rows}
 
-    period_outs = [_to_period_out(p, instances, bill_is_variable) for p in window]
+        pay_dates = [p.pay_date for p in window]
+        override_rows = (
+            db.query(PayPeriodOverride)
+            .filter(PayPeriodOverride.original_pay_date.in_(pay_dates))
+            .all()
+        )
+        override_map = {
+            r.original_pay_date: r.overridden_pay_date for r in override_rows
+        }
+
+    period_outs = [
+        _to_period_out(p, instances, bill_is_variable, override_map) for p in window
+    ]
 
     total_flagged = sum(
         1 for p in period_outs for b in p.assigned_bills if b.status == "late_flagged"

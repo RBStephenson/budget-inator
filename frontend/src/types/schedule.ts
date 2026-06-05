@@ -12,6 +12,8 @@ export interface AssignedBill {
 export interface PayPeriod {
   period_index: number;
   pay_date: string;
+  original_pay_date: string;
+  is_overridden: boolean;
   period_start: string;
   period_end: string;
   opening_balance: string;
