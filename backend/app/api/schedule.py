@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from calendar import monthrange
+from collections import defaultdict
 from datetime import date
 from decimal import Decimal
 
@@ -10,13 +12,25 @@ from app.database import get_db
 from app.models import Bill, BillInstance, PaySchedule
 from app.models.enums import BillRecurrence, BillStatus, PayFrequency
 from app.models.pay_period_override import PayPeriodOverride
+from app.schemas.monthly import (
+    MonthlyBillItem,
+    MonthlyCategoryGroup,
+    MonthlySummary,
+    MonthlySummaryResponse,
+)
 from app.schemas.schedule import (
     AssignedBillOut,
     PayPeriodOut,
     ScheduleResponse,
     ScheduleSummary,
 )
-from app.services.pay_period_engine import BillInput, PayPeriodResult, project
+from app.services.pay_period_engine import (
+    BillInput,
+    PayPeriodResult,
+    build_periods,
+    due_dates_for_bill,
+    project,
+)
 
 # Keyed by (bill_id, due_date)
 _InstanceMap = dict[tuple[int, date], BillInstance]
@@ -225,3 +239,197 @@ def get_schedule(
             total_flagged_bills=total_flagged,
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# Monthly summary helpers
+# ---------------------------------------------------------------------------
+
+_CATEGORY_ORDER = [
+    "housing",
+    "utilities",
+    "subscriptions",
+    "insurance",
+    "debt",
+    "savings",
+    "other",
+]
+
+
+def _parse_year_month(value: str) -> tuple[int, int]:
+    parts = value.split("-")
+    if len(parts) != 2:
+        raise ValueError("expected YYYY-MM")
+    year, month = int(parts[0]), int(parts[1])
+    if not 1 <= month <= 12:
+        raise ValueError("month must be 1-12")
+    return year, month
+
+
+def _month_last_day(year: int, month: int) -> date:
+    _, last = monthrange(year, month)
+    return date(year, month, last)
+
+
+def _months_in_range(
+    from_year: int, from_month: int, to_year: int, to_month: int
+) -> list[tuple[int, int]]:
+    months: list[tuple[int, int]] = []
+    y, m = from_year, from_month
+    while (y, m) <= (to_year, to_month):
+        months.append((y, m))
+        m += 1
+        if m > 12:
+            m, y = 1, y + 1
+    return months
+
+
+@router.get("/monthly-summary", response_model=MonthlySummaryResponse)
+def get_monthly_summary(
+    from_month: str | None = Query(default=None, alias="from"),
+    to_month: str | None = Query(default=None, alias="to"),
+    db: Session = Depends(get_db),
+) -> MonthlySummaryResponse:
+    sched = db.query(PaySchedule).first()
+    if sched is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No pay schedule configured",
+        )
+
+    today = date.today()
+
+    try:
+        from_year, from_m = (
+            _parse_year_month(from_month) if from_month else (today.year, today.month)
+        )
+    except (ValueError, IndexError):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="'from' must be YYYY-MM",
+        )
+
+    try:
+        if to_month:
+            to_year, to_m = _parse_year_month(to_month)
+        else:
+            # default: from_month + 2 (3 months total)
+            raw = from_m + 2
+            to_year = from_year + (raw - 1) // 12
+            to_m = (raw - 1) % 12 + 1
+    except (ValueError, IndexError):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="'to' must be YYYY-MM",
+        )
+
+    if (to_year, to_m) < (from_year, from_m):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="'to' must be >= 'from'",
+        )
+
+    window_start = date(from_year, from_m, 1)
+    window_end = _month_last_day(to_year, to_m)
+
+    frequency = PayFrequency(sched.frequency)
+    first_paycheck = sched.first_paycheck_date
+    net_salary = Decimal(str(sched.net_salary))
+
+    # Income per month: count pay periods whose period_start falls in the window
+    num_needed = _periods_needed(first_paycheck, window_end, frequency)
+    all_pay_periods = build_periods(first_paycheck, frequency, num_needed)
+    income_by_month: dict[tuple[int, int], Decimal] = defaultdict(Decimal)
+    for p in all_pay_periods:
+        if window_start <= p.period_start <= window_end:
+            key = (p.period_start.year, p.period_start.month)
+            income_by_month[key] += net_salary
+
+    # Bills per month: find all due dates in the window
+    bill_rows = db.query(Bill).filter(Bill.is_active.is_(True)).all()
+    bills_by_month: dict[tuple[int, int], list[tuple[Bill, date]]] = defaultdict(list)
+    for bill in bill_rows:
+        bill_input = _to_bill_input(bill)
+        for due_date in due_dates_for_bill(bill_input, window_start, window_end):
+            key = (due_date.year, due_date.month)
+            bills_by_month[key].append((bill, due_date))
+
+    # Payment-status overlay: actual amounts and paid/skipped status, matching
+    # the pay-period view so the same bill totals the same in both views.
+    instance_rows = (
+        db.query(BillInstance)
+        .filter(
+            BillInstance.due_date >= window_start,
+            BillInstance.due_date <= window_end,
+        )
+        .all()
+    )
+    instances: _InstanceMap = {(r.bill_id, r.due_date): r for r in instance_rows}
+
+    def _build_item(bill: Bill, due_date: date) -> MonthlyBillItem:
+        inst = instances.get((bill.id, due_date))
+        status_ = (
+            inst.status
+            if inst is not None and inst.status in (BillStatus.paid, BillStatus.skipped)
+            else "on_time"
+        )
+        return MonthlyBillItem(
+            bill_id=bill.id,
+            name=bill.name,
+            due_date=due_date,
+            amount=Decimal(str(bill.estimated_amount)),
+            category=bill.category,
+            is_variable=bill.is_variable,
+            status=status_,
+            actual_amount=inst.actual_amount if inst is not None else None,
+        )
+
+    def _effective_amount(item: MonthlyBillItem) -> Decimal:
+        """Skipped bills count as 0; paid bills use actual when recorded."""
+        if item.status == BillStatus.skipped:
+            return Decimal("0")
+        if item.actual_amount is not None:
+            return Decimal(str(item.actual_amount))
+        return item.amount
+
+    # Build one MonthlySummary per month
+    result: list[MonthlySummary] = []
+    for y, m in _months_in_range(from_year, from_m, to_year, to_m):
+        key = (y, m)
+        total_income = income_by_month.get(key, Decimal("0"))
+        month_bills = bills_by_month.get(key, [])
+
+        cat_map: dict[str, list[MonthlyBillItem]] = defaultdict(list)
+        for bill, due_date in month_bills:
+            cat_map[bill.category].append(_build_item(bill, due_date))
+
+        total_bills = sum(
+            (_effective_amount(item) for items in cat_map.values() for item in items),
+            Decimal("0"),
+        )
+        available = total_income - total_bills
+
+        categories = [
+            MonthlyCategoryGroup(
+                category=cat,
+                subtotal=sum(
+                    (_effective_amount(i) for i in cat_map[cat]),
+                    Decimal("0"),
+                ),
+                bills=sorted(cat_map[cat], key=lambda i: i.due_date),
+            )
+            for cat in _CATEGORY_ORDER
+            if cat in cat_map
+        ]
+
+        result.append(
+            MonthlySummary(
+                month=f"{y:04d}-{m:02d}",
+                total_income=total_income,
+                total_bills=total_bills,
+                available=available,
+                categories=categories,
+            )
+        )
+
+    return MonthlySummaryResponse(months=result)
