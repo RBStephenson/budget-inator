@@ -195,7 +195,7 @@ export function PeriodCard({ period, isHero = false, onRefetch }: Props) {
             {fmtDateShort(period.pay_date)}
             {period.is_overridden && (
               <span className="period-card__payday-adjusted" aria-label="pay date adjusted">
-                {" "}(adjusted)
+                adjusted
               </span>
             )}
             <button
