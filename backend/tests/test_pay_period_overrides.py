@@ -1,4 +1,4 @@
-"""Tests for PUT/DELETE /pay-period-overrides and override reflection in GET /schedule."""
+"""Tests for pay-period-overrides API and schedule override reflection."""
 
 from __future__ import annotations
 
