@@ -81,6 +81,9 @@ body {
 /* ── Flagged bills banner ───────────────────────────────────────────────────── */
 
 .flagged-banner {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   background: #fef2f2;
   border: 1px solid #fca5a5;
   border-radius: 0.5rem;
@@ -168,6 +171,22 @@ body {
   margin-bottom: 0.2rem;
 }
 
+.period-card__range-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.period-card__today-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #4338ca;
+  background: #e0e7ff;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
 .period-card--hero .period-card__label {
   color: #4338ca;
 }
@@ -210,15 +229,22 @@ body {
   color: #d97706;
 }
 
-.period-card__balance-value--red {
-  color: #dc2626;
-}
-
 .period-card__balance-value--overspent {
   color: #991b1b;
   background: #fee2e2;
   padding: 0 0.35rem;
   border-radius: 0.25rem;
+}
+
+.period-card__progress-wrap {
+  height: 4px;
+  background: #f3f4f6;
+}
+
+.period-card__progress-fill {
+  height: 100%;
+  background: #6366f1;
+  transition: width 0.3s ease;
 }
 
 .period-card__flag-badge {
