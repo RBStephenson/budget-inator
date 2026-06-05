@@ -332,3 +332,42 @@ def test_non_variable_bill_flag_is_false_in_schedule(client: TestClient, db):
     bills = resp.json()["periods"][0]["assigned_bills"]
     rent = next(b for b in bills if b["name"] == "Rent")
     assert rent["is_variable"] is False
+
+
+# ---------------------------------------------------------------------------
+# Category propagation tests
+# ---------------------------------------------------------------------------
+
+
+def test_category_is_present_in_assigned_bill(client: TestClient, db):
+    _make_schedule(db, first_paycheck=date(2025, 1, 3))
+    _make_monthly_bill(db, name="Rent", due_day=10)
+
+    resp = client.get("/schedule?from=2025-01-03&to=2025-01-16")
+    assert resp.status_code == 200
+    bills = resp.json()["periods"][0]["assigned_bills"]
+    rent = next(b for b in bills if b["name"] == "Rent")
+    assert rent["category"] == "housing"
+
+
+def test_category_reflects_bill_category(client: TestClient, db):
+    _make_schedule(db, first_paycheck=date(2025, 1, 3))
+    bill = Bill(
+        name="Netflix",
+        estimated_amount="15.00",
+        recurrence="monthly",
+        due_day=10,
+        first_due_date=None,
+        grace_period_days=0,
+        category="subscriptions",
+        is_variable=False,
+        is_active=True,
+    )
+    db.add(bill)
+    db.commit()
+
+    resp = client.get("/schedule?from=2025-01-03&to=2025-01-16")
+    assert resp.status_code == 200
+    all_bills = [b for p in resp.json()["periods"] for b in p["assigned_bills"]]
+    netflix = next(b for b in all_bills if b["name"] == "Netflix")
+    assert netflix["category"] == "subscriptions"

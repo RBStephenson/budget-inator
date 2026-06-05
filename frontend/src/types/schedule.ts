@@ -7,6 +7,7 @@ export interface AssignedBill {
   instance_id: number | null;
   actual_amount: string | null;
   is_variable: boolean;
+  category: string;
 }
 
 export interface PayPeriod {

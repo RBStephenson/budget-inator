@@ -62,12 +62,14 @@ def _to_bill_input(bill: Bill) -> BillInput:
 
 
 _BillIsVariable = dict[int, bool]
+_BillCategory = dict[int, str]
 
 
 def _to_period_out(
     p: PayPeriodResult,
     instances: _InstanceMap,
     bill_is_variable: _BillIsVariable,
+    bill_category: _BillCategory,
     override_map: _OverrideMap,
 ) -> PayPeriodOut:
     bills_out: list[AssignedBillOut] = []
@@ -87,6 +89,7 @@ def _to_period_out(
                 instance_id=inst.id if inst else None,
                 actual_amount=inst.actual_amount if inst else None,
                 is_variable=bill_is_variable.get(b.bill_id, False),
+                category=bill_category.get(b.bill_id, "other"),
             )
         )
 
@@ -137,6 +140,7 @@ def get_schedule(
 
     bill_rows = db.query(Bill).filter(Bill.is_active.is_(True)).all()
     bill_is_variable: _BillIsVariable = {b.id: b.is_variable for b in bill_rows}
+    bill_category: _BillCategory = {b.id: b.category for b in bill_rows}
     bills = [_to_bill_input(b) for b in bill_rows]
 
     today = date.today()
@@ -202,7 +206,7 @@ def get_schedule(
         }
 
     period_outs = [
-        _to_period_out(p, instances, bill_is_variable, override_map) for p in window
+        _to_period_out(p, instances, bill_is_variable, bill_category, override_map) for p in window
     ]
 
     total_flagged = sum(

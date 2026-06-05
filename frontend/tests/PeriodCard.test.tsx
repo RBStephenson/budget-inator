@@ -150,6 +150,69 @@ describe("PeriodCard", () => {
   });
 });
 
+describe("PeriodCard — category grouping", () => {
+  it("renders a category heading for each category present", () => {
+    const period = makePeriod({
+      assigned_bills: [
+        makeBill({ bill_id: 1, name: "Rent", category: "housing" }),
+        makeBill({ bill_id: 2, name: "Electric", category: "utilities" }),
+      ],
+    });
+    render(<PeriodCard period={period} isHero />);
+    expect(screen.getByRole("heading", { name: "Housing" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Utilities" })).toBeInTheDocument();
+  });
+
+  it("renders only one heading per category even with multiple bills", () => {
+    const period = makePeriod({
+      assigned_bills: [
+        makeBill({ bill_id: 1, name: "Rent", category: "housing" }),
+        makeBill({ bill_id: 2, name: "Mortgage", category: "housing" }),
+      ],
+    });
+    render(<PeriodCard period={period} isHero />);
+    expect(screen.getAllByRole("heading", { name: "Housing" })).toHaveLength(1);
+  });
+
+  it("does not render a heading for absent categories", () => {
+    const period = makePeriod({
+      assigned_bills: [makeBill({ category: "housing" })],
+    });
+    render(<PeriodCard period={period} isHero />);
+    expect(screen.queryByRole("heading", { name: "Utilities" })).not.toBeInTheDocument();
+  });
+
+  it("renders categories in canonical order (housing before utilities before subscriptions)", () => {
+    const period = makePeriod({
+      assigned_bills: [
+        makeBill({ bill_id: 1, name: "Netflix", category: "subscriptions" }),
+        makeBill({ bill_id: 2, name: "Electric", category: "utilities" }),
+        makeBill({ bill_id: 3, name: "Rent", category: "housing" }),
+      ],
+    });
+    const { container } = render(<PeriodCard period={period} isHero />);
+    const headings = Array.from(container.querySelectorAll(".period-card__category-heading"));
+    const texts = headings.map((h) => h.textContent);
+    const housingIdx = texts.indexOf("Housing");
+    const utilitiesIdx = texts.indexOf("Utilities");
+    const subscriptionsIdx = texts.indexOf("Subscriptions");
+    expect(housingIdx).toBeLessThan(utilitiesIdx);
+    expect(utilitiesIdx).toBeLessThan(subscriptionsIdx);
+  });
+
+  it("bills within a category group are visible under that heading", () => {
+    const period = makePeriod({
+      assigned_bills: [
+        makeBill({ bill_id: 1, name: "Rent", category: "housing" }),
+        makeBill({ bill_id: 2, name: "Electric", category: "utilities" }),
+      ],
+    });
+    render(<PeriodCard period={period} isHero />);
+    expect(screen.getByText("Rent")).toBeInTheDocument();
+    expect(screen.getByText("Electric")).toBeInTheDocument();
+  });
+});
+
 describe("PeriodCard — pay date override", () => {
   it("shows the pay date in the payday row", () => {
     const { container } = render(<PeriodCard period={makePeriod({ pay_date: "2025-01-03" })} />);

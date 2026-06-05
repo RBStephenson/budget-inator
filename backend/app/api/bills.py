@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Bill
-from app.models.enums import BillRecurrence
+from app.models.enums import BillCategory, BillRecurrence
 from app.schemas.bill import BillCreate, BillRead, BillUpdate
 
 router = APIRouter(prefix="/bills", tags=["bills"])
@@ -20,8 +20,14 @@ def _get_bill_or_404(bill_id: int, db: Session) -> Bill:
 
 
 @router.get("", response_model=list[BillRead])
-def list_bills(db: Session = Depends(get_db)) -> list[Bill]:
-    return db.query(Bill).order_by(Bill.id).all()
+def list_bills(
+    category: BillCategory | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> list[Bill]:
+    q = db.query(Bill).order_by(Bill.id)
+    if category is not None:
+        q = q.filter(Bill.category == category)
+    return q.all()
 
 
 @router.post("", response_model=BillRead, status_code=status.HTTP_201_CREATED)

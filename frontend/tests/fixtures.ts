@@ -12,6 +12,7 @@ export function makeBill(overrides: Partial<AssignedBill> = {}): AssignedBill {
     instance_id: null,
     actual_amount: null,
     is_variable: false,
+    category: "housing",
     ...overrides,
   };
 }

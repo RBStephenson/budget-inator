@@ -37,6 +37,27 @@ class TestListBills:
         assert statuses["Rent"] is True
         assert statuses["Electric"] is False
 
+    def test_filters_by_category(self, client: TestClient) -> None:
+        client.post("/bills", json=MONTHLY_BILL)   # housing
+        client.post("/bills", json=ANCHOR_BILL)    # utilities
+
+        r = client.get("/bills?category=housing")
+        assert r.status_code == 200
+        bills = r.json()
+        assert len(bills) == 1
+        assert bills[0]["name"] == "Rent"
+
+    def test_category_filter_returns_empty_for_no_match(self, client: TestClient) -> None:
+        client.post("/bills", json=MONTHLY_BILL)   # housing
+
+        r = client.get("/bills?category=debt")
+        assert r.status_code == 200
+        assert r.json() == []
+
+    def test_rejects_invalid_category_filter(self, client: TestClient) -> None:
+        r = client.get("/bills?category=food")
+        assert r.status_code == 422
+
 
 class TestCreateBill:
     def test_creates_monthly_bill(self, client: TestClient) -> None:
