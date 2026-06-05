@@ -47,7 +47,9 @@ class TestListBills:
         assert len(bills) == 1
         assert bills[0]["name"] == "Rent"
 
-    def test_category_filter_returns_empty_for_no_match(self, client: TestClient) -> None:
+    def test_category_filter_returns_empty_for_no_match(
+        self, client: TestClient
+    ) -> None:
         client.post("/bills", json=MONTHLY_BILL)   # housing
 
         r = client.get("/bills?category=debt")

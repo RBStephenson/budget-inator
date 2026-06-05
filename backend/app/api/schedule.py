@@ -206,7 +206,8 @@ def get_schedule(
         }
 
     period_outs = [
-        _to_period_out(p, instances, bill_is_variable, bill_category, override_map) for p in window
+        _to_period_out(p, instances, bill_is_variable, bill_category, override_map)
+        for p in window
     ]
 
     total_flagged = sum(
