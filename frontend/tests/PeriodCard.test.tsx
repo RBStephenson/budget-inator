@@ -21,6 +21,26 @@ describe("PeriodCard", () => {
     expect(screen.getByText("Upcoming")).toBeInTheDocument();
   });
 
+  it("shows today badge on hero card", () => {
+    const { container } = render(<PeriodCard period={makePeriod()} isHero />);
+    expect(container.querySelector(".period-card__today-badge")).toBeInTheDocument();
+  });
+
+  it("does not show today badge on upcoming card", () => {
+    const { container } = render(<PeriodCard period={makePeriod()} />);
+    expect(container.querySelector(".period-card__today-badge")).not.toBeInTheDocument();
+  });
+
+  it("renders progress bar on hero card", () => {
+    const { container } = render(<PeriodCard period={makePeriod()} isHero />);
+    expect(container.querySelector(".period-card__progress-wrap")).toBeInTheDocument();
+  });
+
+  it("does not render progress bar on upcoming card", () => {
+    const { container } = render(<PeriodCard period={makePeriod()} />);
+    expect(container.querySelector(".period-card__progress-wrap")).not.toBeInTheDocument();
+  });
+
   it("is expanded by default when isHero=true", () => {
     const period = makePeriod({ assigned_bills: [makeBill({ name: "Rent" })] });
     render(<PeriodCard period={period} isHero />);
@@ -37,7 +57,7 @@ describe("PeriodCard", () => {
     const user = userEvent.setup();
     const period = makePeriod({ assigned_bills: [makeBill({ name: "Rent" })] });
     render(<PeriodCard period={period} />);
-    await user.click(screen.getByRole("button"));
+    await user.click(screen.getByRole("button", { name: /upcoming/i }));
     expect(screen.getByText("Rent")).toBeInTheDocument();
   });
 
@@ -45,7 +65,7 @@ describe("PeriodCard", () => {
     const user = userEvent.setup();
     const period = makePeriod({ assigned_bills: [makeBill({ name: "Rent" })] });
     render(<PeriodCard period={period} isHero />);
-    const btn = screen.getByRole("button");
+    const btn = screen.getByRole("button", { name: /current period/i });
     await user.click(btn);
     expect(screen.queryByText("Rent")).not.toBeInTheDocument();
     await user.click(btn);
@@ -67,6 +87,28 @@ describe("PeriodCard", () => {
   it("shows 'Overspent' label when remaining balance is negative", () => {
     render(<PeriodCard period={makePeriod({ remaining_balance: "-50.00" })} />);
     expect(screen.getByText("Overspent")).toBeInTheDocument();
+  });
+
+  it("applies green balance color when remaining is ≥20% of opening", () => {
+    const { container } = render(
+      <PeriodCard
+        period={makePeriod({ opening_balance: "1000.00", remaining_balance: "200.00" })}
+      />,
+    );
+    expect(
+      container.querySelector(".period-card__balance-value--green"),
+    ).toBeInTheDocument();
+  });
+
+  it("applies amber balance color when remaining is <20% of opening", () => {
+    const { container } = render(
+      <PeriodCard
+        period={makePeriod({ opening_balance: "1000.00", remaining_balance: "150.00" })}
+      />,
+    );
+    expect(
+      container.querySelector(".period-card__balance-value--amber"),
+    ).toBeInTheDocument();
   });
 
   it("shows flagged badge when period has flagged bills", () => {

@@ -12,6 +12,8 @@ class AssignedBillOut(BaseModel):
     due_date: date
     amount: Decimal
     status: str
+    instance_id: int | None = None
+    actual_amount: Decimal | None = None
 
 
 class PayPeriodOut(BaseModel):

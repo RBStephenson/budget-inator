@@ -1,0 +1,99 @@
+"""Integration tests for PATCH /bill-instances/{bill_id}/{due_date}."""
+
+from __future__ import annotations
+
+from fastapi.testclient import TestClient
+
+from app.models import Bill, BillInstance
+
+
+def _make_bill(db, name: str = "Rent") -> Bill:
+    bill = Bill(
+        name=name,
+        estimated_amount="800.00",
+        recurrence="monthly",
+        due_day=1,
+        first_due_date=None,
+        grace_period_days=0,
+        category="housing",
+        is_variable=False,
+        is_active=True,
+    )
+    db.add(bill)
+    db.commit()
+    db.refresh(bill)
+    return bill
+
+
+class TestUpsertBillInstance:
+    def test_creates_paid_instance(self, client: TestClient, db):
+        bill = _make_bill(db)
+        resp = client.patch(
+            f"/bill-instances/{bill.id}/2025-01-01",
+            json={"status": "paid"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "paid"
+        assert data["bill_id"] == bill.id
+        assert data["due_date"] == "2025-01-01"
+        assert data["paid_at"] is not None
+
+    def test_creates_skipped_instance(self, client: TestClient, db):
+        bill = _make_bill(db)
+        resp = client.patch(
+            f"/bill-instances/{bill.id}/2025-01-01",
+            json={"status": "skipped"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "skipped"
+        assert data["paid_at"] is None
+
+    def test_creates_pending_instance(self, client: TestClient, db):
+        bill = _make_bill(db)
+        resp = client.patch(
+            f"/bill-instances/{bill.id}/2025-01-01",
+            json={"status": "pending"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "pending"
+
+    def test_updates_existing_instance(self, client: TestClient, db):
+        bill = _make_bill(db)
+        client.patch(
+            f"/bill-instances/{bill.id}/2025-01-01",
+            json={"status": "paid"},
+        )
+        resp = client.patch(
+            f"/bill-instances/{bill.id}/2025-01-01",
+            json={"status": "skipped"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "skipped"
+        rows = db.query(BillInstance).filter(BillInstance.bill_id == bill.id).all()
+        assert len(rows) == 1
+
+    def test_stores_actual_amount(self, client: TestClient, db):
+        bill = _make_bill(db)
+        resp = client.patch(
+            f"/bill-instances/{bill.id}/2025-01-01",
+            json={"status": "paid", "actual_amount": "750.00"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["actual_amount"] == "750.00"
+
+    def test_returns_404_for_unknown_bill(self, client: TestClient):
+        resp = client.patch(
+            "/bill-instances/9999/2025-01-01",
+            json={"status": "paid"},
+        )
+        assert resp.status_code == 404
+
+    def test_returns_422_for_invalid_status(self, client: TestClient, db):
+        bill = _make_bill(db)
+        resp = client.patch(
+            f"/bill-instances/{bill.id}/2025-01-01",
+            json={"status": "invalid"},
+        )
+        assert resp.status_code == 422
