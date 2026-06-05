@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { PayPeriod } from "../types/schedule";
 import { BillRow } from "./BillRow";
+import { putPayPeriodOverride, deletePayPeriodOverride } from "../api/payPeriodOverrides";
 
 interface Props {
   period: PayPeriod;
@@ -13,6 +14,13 @@ function fmtDate(isoDate: string): string {
     month: "short",
     day: "numeric",
     year: "numeric",
+  });
+}
+
+function fmtDateShort(isoDate: string): string {
+  return new Date(isoDate + "T00:00:00").toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
   });
 }
 
@@ -35,6 +43,9 @@ function balanceColor(remaining: string, opening: string): BalanceColor {
 
 export function PeriodCard({ period, isHero = false, onRefetch }: Props) {
   const [expanded, setExpanded] = useState(isHero);
+  const [editingPayDate, setEditingPayDate] = useState(false);
+  const [payDateInput, setPayDateInput] = useState("");
+  const [savingPayDate, setSavingPayDate] = useState(false);
 
   const color = balanceColor(period.remaining_balance, period.opening_balance);
   const isOverspent = color === "overspent";
@@ -57,6 +68,34 @@ export function PeriodCard({ period, isHero = false, onRefetch }: Props) {
     month: "short",
     day: "numeric",
   });
+
+  async function savePayDateOverride() {
+    if (!payDateInput) return;
+    setSavingPayDate(true);
+    try {
+      await putPayPeriodOverride(period.original_pay_date, payDateInput);
+      setEditingPayDate(false);
+      setPayDateInput("");
+      onRefetch?.();
+    } finally {
+      setSavingPayDate(false);
+    }
+  }
+
+  async function clearPayDateOverride() {
+    setSavingPayDate(true);
+    try {
+      await deletePayPeriodOverride(period.original_pay_date);
+      onRefetch?.();
+    } finally {
+      setSavingPayDate(false);
+    }
+  }
+
+  function cancelPayDateEdit() {
+    setEditingPayDate(false);
+    setPayDateInput("");
+  }
 
   return (
     <div className={cardClass}>
@@ -121,6 +160,72 @@ export function PeriodCard({ period, isHero = false, onRefetch }: Props) {
           <div className="period-card__progress-fill" style={{ width: `${billPct}%` }} />
         </div>
       )}
+
+      <div className="period-card__payday-row">
+        <span className="period-card__payday-label">Payday</span>
+        {editingPayDate ? (
+          <span className="period-card__payday-edit">
+            <input
+              className="period-card__payday-input"
+              type="date"
+              value={payDateInput}
+              onChange={(e) => setPayDateInput(e.target.value)}
+              aria-label="Override pay date"
+              autoFocus
+            />
+            <button
+              className="btn-action btn-action--confirm"
+              disabled={savingPayDate || !payDateInput}
+              onClick={savePayDateOverride}
+              aria-label="Confirm pay date override"
+            >
+              ✓
+            </button>
+            <button
+              className="btn-action"
+              disabled={savingPayDate}
+              onClick={cancelPayDateEdit}
+              aria-label="Cancel pay date edit"
+            >
+              ✕
+            </button>
+          </span>
+        ) : (
+          <span className="period-card__payday-value">
+            {fmtDateShort(period.pay_date)}
+            {period.is_overridden && (
+              <span className="period-card__payday-adjusted" aria-label="pay date adjusted">
+                {" "}(adjusted)
+              </span>
+            )}
+            <button
+              className="btn-icon"
+              onClick={(e) => {
+                e.stopPropagation();
+                setPayDateInput(period.pay_date);
+                setEditingPayDate(true);
+              }}
+              aria-label="Edit pay date"
+              disabled={savingPayDate}
+            >
+              ✏
+            </button>
+            {period.is_overridden && (
+              <button
+                className="btn-icon btn-icon--reset"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  clearPayDateOverride();
+                }}
+                aria-label="Reset pay date to computed"
+                disabled={savingPayDate}
+              >
+                ↺
+              </button>
+            )}
+          </span>
+        )}
+      </div>
 
       {expanded && (
         <div className="period-card__body">

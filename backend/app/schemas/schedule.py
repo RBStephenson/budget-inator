@@ -20,6 +20,8 @@ class AssignedBillOut(BaseModel):
 class PayPeriodOut(BaseModel):
     period_index: int
     pay_date: date
+    original_pay_date: date
+    is_overridden: bool = False
     period_start: date
     period_end: date
     opening_balance: Decimal
