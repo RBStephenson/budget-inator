@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useSchedule } from "../hooks/useSchedule";
 import { useMonthlySchedule } from "../hooks/useMonthlySchedule";
+import { downloadBudgetPdf } from "../api/reports";
 import { FlaggedBillsBanner } from "./FlaggedBillsBanner";
 import { PeriodCard } from "./PeriodCard";
 import { MonthCard } from "./MonthCard";
@@ -9,11 +10,25 @@ type DashboardView = "periods" | "monthly";
 
 export function Dashboard() {
   const [view, setView] = useState<DashboardView>("periods");
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState(false);
   const { data, status, refetch } = useSchedule();
   const {
     data: monthlyData,
     status: monthlyStatus,
   } = useMonthlySchedule(view === "monthly");
+
+  async function handleDownloadPdf() {
+    setDownloading(true);
+    setDownloadError(false);
+    try {
+      await downloadBudgetPdf();
+    } catch {
+      setDownloadError(true);
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   const isLoading =
     view === "periods" ? status === "loading" : monthlyStatus === "loading" || monthlyStatus === "idle";
@@ -112,6 +127,18 @@ export function Dashboard() {
         <a href="/bills" className="btn btn--primary">
           + Add Bill
         </a>
+        <button
+          className="btn btn--secondary"
+          onClick={handleDownloadPdf}
+          disabled={downloading}
+        >
+          {downloading ? "Generating PDF…" : "Download PDF"}
+        </button>
+        {downloadError && (
+          <span className="dashboard__download-error" role="alert">
+            Could not generate the PDF. Please try again.
+          </span>
+        )}
       </div>
     </div>
   );
