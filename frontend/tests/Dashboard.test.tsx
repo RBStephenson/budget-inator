@@ -181,3 +181,76 @@ describe("Dashboard — monthly view toggle", () => {
     );
   });
 });
+
+describe("Dashboard — PDF download", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    globalThis.URL.createObjectURL = vi.fn(() => "blob:mock");
+    globalThis.URL.revokeObjectURL = vi.fn();
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  function mockScheduleAnd(pdf: () => Promise<Response>) {
+    vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
+      const u = String(url);
+      if (u.includes("budget.pdf")) return pdf();
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: async () => makeSchedule([makePeriod()]),
+      } as Response);
+    });
+  }
+
+  function pdfOk(): Promise<Response> {
+    return Promise.resolve({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      blob: async () => new Blob(["%PDF-1.7"], { type: "application/pdf" }),
+      headers: new Headers({
+        "content-disposition": 'attachment; filename="budget-2025-01-03.pdf"',
+      }),
+    } as Response);
+  }
+
+  it("renders the Download PDF button", async () => {
+    mockScheduleAnd(pdfOk);
+    render(<Dashboard />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /download pdf/i })).toBeInTheDocument(),
+    );
+  });
+
+  it("triggers a download when clicked", async () => {
+    const user = userEvent.setup();
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+    mockScheduleAnd(pdfOk);
+    render(<Dashboard />);
+    await waitFor(() => screen.getByRole("button", { name: /download pdf/i }));
+    await user.click(screen.getByRole("button", { name: /download pdf/i }));
+    await waitFor(() => expect(clickSpy).toHaveBeenCalledOnce());
+  });
+
+  it("shows an error message when PDF generation fails", async () => {
+    const user = userEvent.setup();
+    mockScheduleAnd(() =>
+      Promise.resolve({
+        ok: false,
+        status: 500,
+        statusText: "Server Error",
+        blob: async () => new Blob([]),
+        headers: new Headers(),
+      } as Response),
+    );
+    render(<Dashboard />);
+    await waitFor(() => screen.getByRole("button", { name: /download pdf/i }));
+    await user.click(screen.getByRole("button", { name: /download pdf/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(/could not generate/i),
+    );
+  });
+});

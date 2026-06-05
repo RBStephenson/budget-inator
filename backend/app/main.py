@@ -7,6 +7,7 @@ from app.api.data import router as data_router
 from app.api.health import router as health_router
 from app.api.pay_period_overrides import router as pay_period_overrides_router
 from app.api.pay_schedule import router as pay_schedule_router
+from app.api.reports import router as reports_router
 from app.api.schedule import router as schedule_router
 from app.config import settings
 
@@ -27,3 +28,4 @@ app.include_router(schedule_router)
 app.include_router(bill_instances_router)
 app.include_router(pay_period_overrides_router)
 app.include_router(data_router)
+app.include_router(reports_router)
