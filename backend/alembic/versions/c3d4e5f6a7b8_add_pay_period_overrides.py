@@ -46,7 +46,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index(
-        "ix_pay_period_overrides_original_pay_date", "pay_period_overrides"
-    )
+    op.drop_index("ix_pay_period_overrides_original_pay_date", "pay_period_overrides")
     op.drop_table("pay_period_overrides")
