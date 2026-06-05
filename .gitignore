@@ -56,6 +56,10 @@ frontend/build/
 frontend/.vite/
 *.tsbuildinfo
 
+# ── Standalone packaging (PyInstaller) ────────────────────────────────────────
+dist-standalone/
+*.spec.bak
+
 # ── SQLite ────────────────────────────────────────────────────────────────────
 *.db
 *.sqlite

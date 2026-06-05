@@ -1,0 +1,104 @@
+name: Release
+
+# Two ways to release:
+#   1. Actions tab -> "Release" -> Run workflow -> pick patch/minor/major.
+#      Computes the next version, creates+pushes the tag, then builds & publishes.
+#   2. Push a tag manually (git tag v1.2.3 && git push origin v1.2.3).
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump (ignored if version is set)"
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+      version:
+        description: "Explicit version tag (e.g. v1.0.0) — overrides bump"
+        type: string
+        default: ""
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # to create and push the new tag
+    outputs:
+      tag: ${{ steps.compute.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0   # need all tags to compute the next version
+
+      - name: Compute tag
+        id: compute
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # Triggered by a manual tag push — just use it.
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            echo "Using pushed tag ${GITHUB_REF_NAME}"
+            exit 0
+          fi
+
+          # Allow an explicit version to override auto-computation.
+          if [ -n "${{ inputs.version }}" ]; then
+            newtag="${{ inputs.version }}"
+            echo "Using explicit version: ${newtag}"
+          else
+            latest=$(git tag -l 'v*' --sort=-v:refname | head -n1)
+            latest=${latest:-v0.0.0}
+            ver=${latest#v}
+            IFS=. read -r major minor patch <<< "$ver"
+            case "${{ inputs.bump }}" in
+              major) major=$((major+1)); minor=0; patch=0 ;;
+              minor) minor=$((minor+1)); patch=0 ;;
+              patch) patch=$((patch+1)) ;;
+            esac
+            newtag="v${major}.${minor}.${patch}"
+            echo "Latest tag: ${latest} -> new tag: ${newtag}"
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$newtag" -m "Release $newtag"
+          git push origin "$newtag"
+          echo "tag=$newtag" >> "$GITHUB_OUTPUT"
+
+      # Create the release as a DRAFT up front. The parallel build jobs upload
+      # their platform binaries to this draft; a published release is immutable,
+      # so we must not publish until every asset is attached (see publish job).
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ steps.compute.outputs.tag }}"
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --draft --generate-notes --title "$tag"
+          else
+            echo "Release $tag already exists — leaving as-is."
+          fi
+
+  release:
+    needs: version
+    uses: ./.github/workflows/build.yml
+    permissions:
+      contents: write
+    with:
+      release: true
+      tag: ${{ needs.version.outputs.tag }}
+      ref: ${{ needs.version.outputs.tag }}
+
+  publish:
+    needs: [version, release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}   # this job has no checkout; tell gh the repo
+        run: gh release edit "${{ needs.version.outputs.tag }}" --draft=false
