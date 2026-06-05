@@ -209,3 +209,100 @@ describe("SettingsPage", () => {
     );
   });
 });
+
+describe("SettingsPage — data management", () => {
+  function mockScheduleLoad() {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: "Not Found",
+      json: async () => ({}),
+    } as Response);
+  }
+
+  beforeEach(() => vi.restoreAllMocks());
+  afterEach(() => vi.restoreAllMocks());
+
+  it("renders export, import, and delete buttons", async () => {
+    mockScheduleLoad();
+    render(<SettingsPage />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /export/i })).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: /delete all data/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/import backup file/i)).toBeInTheDocument();
+  });
+
+  it("calls GET /api/data/export on export click", async () => {
+    const blob = new Blob(['{"version":1}'], { type: "application/json" });
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+        json: async () => ({}),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        blob: async () => blob,
+      } as unknown as Response);
+
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn(() => "blob:mock"),
+      revokeObjectURL: vi.fn(),
+    });
+
+    render(<SettingsPage />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /export backup/i })).toBeInTheDocument(),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /export backup/i }));
+    await waitFor(() =>
+      expect(fetchSpy.mock.calls.some((c) => String(c[0]).includes("/data/export"))).toBe(true),
+    );
+  });
+
+  it("calls DELETE /api/data after confirming delete", async () => {
+    mockScheduleLoad();
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({
+        ok: false, status: 404, json: async () => ({}),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true, status: 204, json: async () => ({}),
+      } as Response);
+
+    render(<SettingsPage />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /delete all data/i })).toBeInTheDocument(),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /delete all data/i }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /delete everything/i }));
+    await waitFor(() => {
+      const deleteCall = fetchSpy.mock.calls.find(
+        (c) => (c[1] as RequestInit | undefined)?.method === "DELETE",
+      );
+      expect(deleteCall).toBeDefined();
+    });
+    await waitFor(() =>
+      expect(screen.getByText(/all data deleted/i)).toBeInTheDocument(),
+    );
+  });
+
+  it("shows confirm dialog and cancel dismisses it", async () => {
+    mockScheduleLoad();
+    render(<SettingsPage />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /delete all data/i })).toBeInTheDocument(),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /delete all data/i }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /cancel/i }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});

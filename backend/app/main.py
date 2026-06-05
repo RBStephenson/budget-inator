@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.bill_instances import router as bill_instances_router
 from app.api.bills import router as bills_router
+from app.api.data import router as data_router
 from app.api.health import router as health_router
 from app.api.pay_period_overrides import router as pay_period_overrides_router
 from app.api.pay_schedule import router as pay_schedule_router
@@ -25,3 +26,4 @@ app.include_router(bills_router)
 app.include_router(schedule_router)
 app.include_router(bill_instances_router)
 app.include_router(pay_period_overrides_router)
+app.include_router(data_router)

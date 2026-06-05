@@ -48,7 +48,7 @@ describe("App", () => {
     await waitFor(() =>
       expect(screen.queryByText(/loading settings/i)).not.toBeInTheDocument(),
     );
-    expect(screen.getByText(/pay schedule/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /pay schedule/i })).toBeInTheDocument();
     window.history.pushState({}, "", "/");
   });
 });
