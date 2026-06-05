@@ -142,6 +142,7 @@ describe("MonthCard", () => {
     const summary = makeMonthlySummary({
       categories: [
         makeMonthlyCategoryGroup({
+          subtotal: "1500.00",
           bills: [
             makeMonthlyBillItem({
               name: "Rent",
@@ -170,5 +171,57 @@ describe("MonthCard", () => {
     render(<MonthCard summary={summary} />);
     await user.click(screen.getByRole("button", { name: /january 2025/i }));
     expect(screen.getByText("~")).toBeInTheDocument();
+  });
+
+  it("uses the actual amount when one is recorded", async () => {
+    const user = userEvent.setup();
+    const summary = makeMonthlySummary({
+      categories: [
+        makeMonthlyCategoryGroup({
+          bills: [
+            makeMonthlyBillItem({
+              amount: "100.00",
+              actual_amount: "75.00",
+              status: "paid",
+            }),
+          ],
+        }),
+      ],
+    });
+    render(<MonthCard summary={summary} />);
+    await user.click(screen.getByRole("button", { name: /january 2025/i }));
+    expect(screen.getByText("$75.00")).toBeInTheDocument();
+    expect(screen.queryByText("$100.00")).not.toBeInTheDocument();
+  });
+
+  it("marks a paid bill with a paid tag", async () => {
+    const user = userEvent.setup();
+    const summary = makeMonthlySummary({
+      categories: [
+        makeMonthlyCategoryGroup({
+          bills: [makeMonthlyBillItem({ status: "paid" })],
+        }),
+      ],
+    });
+    render(<MonthCard summary={summary} />);
+    await user.click(screen.getByRole("button", { name: /january 2025/i }));
+    expect(screen.getByText("paid")).toBeInTheDocument();
+  });
+
+  it("marks a skipped bill with a skipped tag and strike styling", async () => {
+    const user = userEvent.setup();
+    const summary = makeMonthlySummary({
+      categories: [
+        makeMonthlyCategoryGroup({
+          bills: [makeMonthlyBillItem({ status: "skipped" })],
+        }),
+      ],
+    });
+    const { container } = render(<MonthCard summary={summary} />);
+    await user.click(screen.getByRole("button", { name: /january 2025/i }));
+    expect(screen.getByText("skipped")).toBeInTheDocument();
+    expect(
+      container.querySelector(".month-card__bill-item--skipped"),
+    ).toBeInTheDocument();
   });
 });

@@ -110,25 +110,45 @@ export function MonthCard({ summary }: Props) {
                     </span>
                   </div>
                   <ul className="month-card__bill-list">
-                    {group.bills.map((bill) => (
-                      <li
-                        key={`${bill.bill_id}-${bill.due_date}`}
-                        className="month-card__bill-item"
-                      >
-                        <span className="month-card__bill-name">
-                          {bill.name}
-                          {bill.is_variable && (
-                            <span className="month-card__estimated"> ~</span>
-                          )}
-                        </span>
-                        <span className="month-card__bill-due">
-                          {fmtDay(bill.due_date)}
-                        </span>
-                        <span className="month-card__bill-amount">
-                          {fmtCurrency(bill.amount)}
-                        </span>
-                      </li>
-                    ))}
+                    {group.bills.map((bill) => {
+                      const effective =
+                        bill.actual_amount !== null
+                          ? bill.actual_amount
+                          : bill.amount;
+                      const itemClass = [
+                        "month-card__bill-item",
+                        bill.status === "skipped"
+                          ? "month-card__bill-item--skipped"
+                          : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ");
+                      return (
+                        <li
+                          key={`${bill.bill_id}-${bill.due_date}`}
+                          className={itemClass}
+                        >
+                          <span className="month-card__bill-name">
+                            {bill.name}
+                            {bill.is_variable && (
+                              <span className="month-card__estimated"> ~</span>
+                            )}
+                            {bill.status === "skipped" && (
+                              <span className="month-card__bill-tag">skipped</span>
+                            )}
+                            {bill.status === "paid" && (
+                              <span className="month-card__bill-tag">paid</span>
+                            )}
+                          </span>
+                          <span className="month-card__bill-due">
+                            {fmtDay(bill.due_date)}
+                          </span>
+                          <span className="month-card__bill-amount">
+                            {fmtCurrency(effective)}
+                          </span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               ))}

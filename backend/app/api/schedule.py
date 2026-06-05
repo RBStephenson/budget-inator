@@ -13,8 +13,8 @@ from app.models import Bill, BillInstance, PaySchedule
 from app.models.enums import BillRecurrence, BillStatus, PayFrequency
 from app.models.pay_period_override import PayPeriodOverride
 from app.schemas.monthly import (
-    MonthlyCategoryGroup,
     MonthlyBillItem,
+    MonthlyCategoryGroup,
     MonthlySummary,
     MonthlySummaryResponse,
 )
@@ -260,7 +260,10 @@ def _parse_year_month(value: str) -> tuple[int, int]:
     parts = value.split("-")
     if len(parts) != 2:
         raise ValueError("expected YYYY-MM")
-    return int(parts[0]), int(parts[1])
+    year, month = int(parts[0]), int(parts[1])
+    if not 1 <= month <= 12:
+        raise ValueError("month must be 1-12")
+    return year, month
 
 
 def _month_last_day(year: int, month: int) -> date:
@@ -298,9 +301,7 @@ def get_monthly_summary(
 
     try:
         from_year, from_m = (
-            _parse_year_month(from_month)
-            if from_month
-            else (today.year, today.month)
+            _parse_year_month(from_month) if from_month else (today.year, today.month)
         )
     except (ValueError, IndexError):
         raise HTTPException(
@@ -346,14 +347,50 @@ def get_monthly_summary(
 
     # Bills per month: find all due dates in the window
     bill_rows = db.query(Bill).filter(Bill.is_active.is_(True)).all()
-    bills_by_month: dict[
-        tuple[int, int], list[tuple[Bill, date]]
-    ] = defaultdict(list)
+    bills_by_month: dict[tuple[int, int], list[tuple[Bill, date]]] = defaultdict(list)
     for bill in bill_rows:
         bill_input = _to_bill_input(bill)
         for due_date in due_dates_for_bill(bill_input, window_start, window_end):
             key = (due_date.year, due_date.month)
             bills_by_month[key].append((bill, due_date))
+
+    # Payment-status overlay: actual amounts and paid/skipped status, matching
+    # the pay-period view so the same bill totals the same in both views.
+    instance_rows = (
+        db.query(BillInstance)
+        .filter(
+            BillInstance.due_date >= window_start,
+            BillInstance.due_date <= window_end,
+        )
+        .all()
+    )
+    instances: _InstanceMap = {(r.bill_id, r.due_date): r for r in instance_rows}
+
+    def _build_item(bill: Bill, due_date: date) -> MonthlyBillItem:
+        inst = instances.get((bill.id, due_date))
+        status_ = (
+            inst.status
+            if inst is not None and inst.status in (BillStatus.paid, BillStatus.skipped)
+            else "on_time"
+        )
+        return MonthlyBillItem(
+            bill_id=bill.id,
+            name=bill.name,
+            due_date=due_date,
+            amount=Decimal(str(bill.estimated_amount)),
+            category=bill.category,
+            is_variable=bill.is_variable,
+            status=status_,
+            actual_amount=inst.actual_amount if inst is not None else None,
+        )
+
+    def _effective_amount(item: MonthlyBillItem) -> Decimal:
+        """Skipped bills count as 0; paid bills use actual when recorded."""
+        if item.status == BillStatus.skipped:
+            return Decimal("0")
+        if item.actual_amount is not None:
+            return Decimal(str(item.actual_amount))
+        return item.amount
 
     # Build one MonthlySummary per month
     result: list[MonthlySummary] = []
@@ -361,30 +398,22 @@ def get_monthly_summary(
         key = (y, m)
         total_income = income_by_month.get(key, Decimal("0"))
         month_bills = bills_by_month.get(key, [])
-        total_bills = sum(
-            (Decimal(str(b.estimated_amount)) for b, _ in month_bills),
-            Decimal("0"),
-        )
-        available = total_income - total_bills
 
         cat_map: dict[str, list[MonthlyBillItem]] = defaultdict(list)
         for bill, due_date in month_bills:
-            cat_map[bill.category].append(
-                MonthlyBillItem(
-                    bill_id=bill.id,
-                    name=bill.name,
-                    due_date=due_date,
-                    amount=Decimal(str(bill.estimated_amount)),
-                    category=bill.category,
-                    is_variable=bill.is_variable,
-                )
-            )
+            cat_map[bill.category].append(_build_item(bill, due_date))
+
+        total_bills = sum(
+            (_effective_amount(item) for items in cat_map.values() for item in items),
+            Decimal("0"),
+        )
+        available = total_income - total_bills
 
         categories = [
             MonthlyCategoryGroup(
                 category=cat,
                 subtotal=sum(
-                    (i.amount for i in cat_map[cat]),
+                    (_effective_amount(i) for i in cat_map[cat]),
                     Decimal("0"),
                 ),
                 bills=sorted(cat_map[cat], key=lambda i: i.due_date),

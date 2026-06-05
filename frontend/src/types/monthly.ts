@@ -5,6 +5,8 @@ export interface MonthlyBillItem {
   amount: string;
   category: string;
   is_variable: boolean;
+  status: "on_time" | "paid" | "skipped";
+  actual_amount: string | null;
 }
 
 export interface MonthlyCategoryGroup {

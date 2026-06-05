@@ -10,9 +10,11 @@ class MonthlyBillItem(BaseModel):
     bill_id: int
     name: str
     due_date: date
-    amount: Decimal
+    amount: Decimal  # scheduled (estimated) amount
     category: str
     is_variable: bool = False
+    status: str = "on_time"
+    actual_amount: Decimal | None = None
 
 
 class MonthlyCategoryGroup(BaseModel):

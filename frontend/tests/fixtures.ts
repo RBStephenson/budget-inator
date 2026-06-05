@@ -91,6 +91,8 @@ export function makeMonthlyBillItem(
     amount: "900.00",
     category: "housing",
     is_variable: false,
+    status: "on_time",
+    actual_amount: null,
     ...overrides,
   };
 }

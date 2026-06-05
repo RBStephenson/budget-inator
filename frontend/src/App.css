@@ -257,6 +257,25 @@ body {
   white-space: nowrap;
 }
 
+.month-card__bill-item--skipped .month-card__bill-name,
+.month-card__bill-item--skipped .month-card__bill-amount {
+  color: #9ca3af;
+  text-decoration: line-through;
+}
+
+.month-card__bill-tag {
+  margin-left: 0.35rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  text-decoration: none;
+}
+
 /* ── Flagged bills banner ───────────────────────────────────────────────────── */
 
 .flagged-banner {
