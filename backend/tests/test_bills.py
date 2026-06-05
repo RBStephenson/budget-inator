@@ -38,8 +38,8 @@ class TestListBills:
         assert statuses["Electric"] is False
 
     def test_filters_by_category(self, client: TestClient) -> None:
-        client.post("/bills", json=MONTHLY_BILL)   # housing
-        client.post("/bills", json=ANCHOR_BILL)    # utilities
+        client.post("/bills", json=MONTHLY_BILL)  # housing
+        client.post("/bills", json=ANCHOR_BILL)  # utilities
 
         r = client.get("/bills?category=housing")
         assert r.status_code == 200
@@ -50,7 +50,7 @@ class TestListBills:
     def test_category_filter_returns_empty_for_no_match(
         self, client: TestClient
     ) -> None:
-        client.post("/bills", json=MONTHLY_BILL)   # housing
+        client.post("/bills", json=MONTHLY_BILL)  # housing
 
         r = client.get("/bills?category=debt")
         assert r.status_code == 200
