@@ -15,6 +15,7 @@ class AssignedBillOut(BaseModel):
     instance_id: int | None = None
     actual_amount: Decimal | None = None
     is_variable: bool = False
+    category: str = "other"
 
 
 class PayPeriodOut(BaseModel):

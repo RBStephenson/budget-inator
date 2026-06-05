@@ -358,6 +358,25 @@ body {
   padding: 0.5rem 0;
 }
 
+.period-card__bill-groups {
+  display: flex;
+  flex-direction: column;
+}
+
+.period-card__bill-group + .period-card__bill-group {
+  margin-top: 0.625rem;
+}
+
+.period-card__category-heading {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #9ca3af;
+  margin: 0 0 0.25rem;
+  padding: 0;
+}
+
 .period-card__bill-list {
   list-style: none;
   display: flex;

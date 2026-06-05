@@ -1,7 +1,19 @@
 import { useState } from "react";
 import type { PayPeriod } from "../types/schedule";
+import type { BillCategory } from "../types/bill";
+import { CATEGORY_LABELS } from "../types/bill";
 import { BillRow } from "./BillRow";
 import { putPayPeriodOverride, deletePayPeriodOverride } from "../api/payPeriodOverrides";
+
+const CATEGORY_ORDER: BillCategory[] = [
+  "housing",
+  "utilities",
+  "subscriptions",
+  "insurance",
+  "debt",
+  "savings",
+  "other",
+];
 
 interface Props {
   period: PayPeriod;
@@ -232,16 +244,29 @@ export function PeriodCard({ period, isHero = false, onRefetch }: Props) {
           {period.assigned_bills.length === 0 ? (
             <p className="period-card__empty">No bills this period.</p>
           ) : (
-            <ul className="period-card__bill-list">
-              {period.assigned_bills.map((bill) => (
-                <BillRow
-                  key={`${bill.bill_id}-${bill.due_date}`}
-                  bill={bill}
-                  payOnDate={period.pay_date}
-                  onRefetch={onRefetch}
-                />
+            <div className="period-card__bill-groups">
+              {CATEGORY_ORDER.filter((cat) =>
+                period.assigned_bills.some((b) => b.category === cat),
+              ).map((cat) => (
+                <div key={cat} className="period-card__bill-group">
+                  <h4 className="period-card__category-heading">
+                    {CATEGORY_LABELS[cat]}
+                  </h4>
+                  <ul className="period-card__bill-list">
+                    {period.assigned_bills
+                      .filter((b) => b.category === cat)
+                      .map((bill) => (
+                        <BillRow
+                          key={`${bill.bill_id}-${bill.due_date}`}
+                          bill={bill}
+                          payOnDate={period.pay_date}
+                          onRefetch={onRefetch}
+                        />
+                      ))}
+                  </ul>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </div>
       )}
