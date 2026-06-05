@@ -7,8 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Bill, PaySchedule
-from app.models.enums import BillRecurrence, PayFrequency
+from app.models import Bill, BillInstance, PaySchedule
+from app.models.enums import BillRecurrence, BillStatus, PayFrequency
 from app.schemas.schedule import (
     AssignedBillOut,
     PayPeriodOut,
@@ -16,6 +16,9 @@ from app.schemas.schedule import (
     ScheduleSummary,
 )
 from app.services.pay_period_engine import BillInput, PayPeriodResult, project
+
+# Keyed by (bill_id, due_date)
+_InstanceMap = dict[tuple[int, date], BillInstance]
 
 router = APIRouter(prefix="/schedule", tags=["schedule"])
 
@@ -55,19 +58,37 @@ def _to_bill_input(bill: Bill) -> BillInput:
     )
 
 
-def _to_period_out(p: PayPeriodResult) -> PayPeriodOut:
-    bills_out = [
-        AssignedBillOut(
-            bill_id=b.bill_id,
-            name=b.name,
-            due_date=b.due_date,
-            amount=b.amount,
-            status=b.status,
+def _to_period_out(p: PayPeriodResult, instances: _InstanceMap) -> PayPeriodOut:
+    bills_out: list[AssignedBillOut] = []
+    for b in p.assigned_bills:
+        inst = instances.get((b.bill_id, b.due_date))
+        if inst is not None and inst.status in (BillStatus.paid, BillStatus.skipped):
+            effective_status = inst.status
+        else:
+            effective_status = b.status
+        bills_out.append(
+            AssignedBillOut(
+                bill_id=b.bill_id,
+                name=b.name,
+                due_date=b.due_date,
+                amount=b.amount,
+                status=effective_status,
+                instance_id=inst.id if inst else None,
+                actual_amount=inst.actual_amount if inst else None,
+            )
         )
-        for b in p.assigned_bills
-    ]
-    total = sum((b.amount for b in p.assigned_bills), Decimal("0"))
-    flagged = sum(1 for b in p.assigned_bills if b.status == "late_flagged")
+
+    def _effective_amount(bo: AssignedBillOut) -> Decimal:
+        if bo.actual_amount is not None:
+            return Decimal(str(bo.actual_amount))
+        return bo.amount
+
+    total = sum(
+        (_effective_amount(bo) for bo in bills_out if bo.status != BillStatus.skipped),
+        Decimal("0"),
+    )
+    remaining = p.opening_balance - total
+    flagged = sum(1 for bo in bills_out if bo.status == "late_flagged")
     return PayPeriodOut(
         period_index=p.period_index,
         pay_date=p.pay_date,
@@ -75,7 +96,7 @@ def _to_period_out(p: PayPeriodResult) -> PayPeriodOut:
         period_end=p.period_end,
         opening_balance=p.opening_balance,
         total_bills=total,
-        remaining_balance=p.remaining_balance,
+        remaining_balance=remaining,
         flagged_bill_count=flagged,
         assigned_bills=bills_out,
     )
@@ -139,14 +160,31 @@ def get_schedule(
     if not window:
         window = []
 
+    # Load BillInstance records for this window keyed by (bill_id, due_date)
+    instances: _InstanceMap = {}
+    if window:
+        window_start = window[0].period_start
+        window_end = window[-1].period_end
+        rows = (
+            db.query(BillInstance)
+            .filter(
+                BillInstance.due_date >= window_start,
+                BillInstance.due_date <= window_end,
+            )
+            .all()
+        )
+        instances = {(r.bill_id, r.due_date): r for r in rows}
+
+    period_outs = [_to_period_out(p, instances) for p in window]
+
     total_flagged = sum(
-        1 for p in window for b in p.assigned_bills if b.status == "late_flagged"
+        1 for p in period_outs for b in p.assigned_bills if b.status == "late_flagged"
     )
     effective_from = window[0].period_start if window else today
     effective_to = window[-1].period_end if window else today
 
     return ScheduleResponse(
-        periods=[_to_period_out(p) for p in window],
+        periods=period_outs,
         summary=ScheduleSummary(
             from_date=effective_from,
             to_date=effective_to,

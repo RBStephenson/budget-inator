@@ -32,8 +32,8 @@ class BillInstance(Base):
     bill_id: Mapped[int] = mapped_column(
         ForeignKey("bills.id", ondelete="CASCADE"), index=True
     )
-    pay_period_id: Mapped[int] = mapped_column(
-        ForeignKey("pay_periods.id", ondelete="CASCADE"), index=True
+    pay_period_id: Mapped[int | None] = mapped_column(
+        ForeignKey("pay_periods.id", ondelete="CASCADE"), index=True, nullable=True
     )
     due_date: Mapped[date] = mapped_column(Date)
     estimated_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2))

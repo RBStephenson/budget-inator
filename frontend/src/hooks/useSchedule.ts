@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ApiError, get } from "../api/client";
 import type { ScheduleResponse } from "../types/schedule";
 
@@ -7,8 +7,10 @@ export type ScheduleStatus = "loading" | "error" | "no-schedule" | "empty" | "ok
 export function useSchedule() {
   const [data, setData] = useState<ScheduleResponse | null>(null);
   const [status, setStatus] = useState<ScheduleStatus>("loading");
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
+    setStatus("loading");
     get<ScheduleResponse>("/schedule")
       .then((d) => {
         setData(d);
@@ -21,7 +23,9 @@ export function useSchedule() {
           setStatus("error");
         }
       });
-  }, []);
+  }, [tick]);
 
-  return { data, status };
+  const refetch = useCallback(() => setTick((t) => t + 1), []);
+
+  return { data, status, refetch };
 }

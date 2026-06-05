@@ -5,6 +5,7 @@ import { BillRow } from "./BillRow";
 interface Props {
   period: PayPeriod;
   isHero?: boolean;
+  onRefetch?: () => void;
 }
 
 function fmtDate(isoDate: string): string {
@@ -35,7 +36,7 @@ function balanceColor(remaining: string, opening: string): BalanceColor {
   return "red";
 }
 
-export function PeriodCard({ period, isHero = false }: Props) {
+export function PeriodCard({ period, isHero = false, onRefetch }: Props) {
   const [expanded, setExpanded] = useState(isHero);
 
   const color = balanceColor(period.remaining_balance, period.opening_balance);
@@ -106,7 +107,12 @@ export function PeriodCard({ period, isHero = false }: Props) {
           ) : (
             <ul className="period-card__bill-list">
               {period.assigned_bills.map((bill) => (
-                <BillRow key={`${bill.bill_id}-${bill.due_date}`} bill={bill} payOnDate={period.pay_date} />
+                <BillRow
+                  key={`${bill.bill_id}-${bill.due_date}`}
+                  bill={bill}
+                  payOnDate={period.pay_date}
+                  onRefetch={onRefetch}
+                />
               ))}
             </ul>
           )}
