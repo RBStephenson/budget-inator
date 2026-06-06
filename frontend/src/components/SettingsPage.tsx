@@ -116,7 +116,6 @@ export function SettingsPage() {
 
   async function handleImport(file: File) {
     setImportStatus("busy");
-    setImportError(null);
     try {
       const text = await file.text();
       const payload = JSON.parse(text) as unknown;
