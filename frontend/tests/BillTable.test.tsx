@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 import { BillTable } from "../src/components/BillTable";
@@ -97,6 +97,111 @@ describe("BillTable", () => {
     await userEvent.click(screen.getByRole("button", { name: /inactive bills/i }));
     expect(screen.getByText("Inactive")).toBeInTheDocument();
   });
+
+  // ── Search ────────────────────────────────────────────────────────────────
+
+  it("filters bills by name when typing in the search box", async () => {
+    const bills = [
+      makeApiBill({ id: 1, name: "Rent" }),
+      makeApiBill({ id: 2, name: "Netflix" }),
+      makeApiBill({ id: 3, name: "Internet" }),
+    ];
+    render(<BillTable bills={bills} onEdit={vi.fn()} onDeactivate={vi.fn()} />);
+    await userEvent.type(screen.getByRole("searchbox", { name: /search bills/i }), "net");
+    expect(screen.getByText("Netflix")).toBeInTheDocument();
+    expect(screen.getByText("Internet")).toBeInTheDocument();
+    expect(screen.queryByText("Rent")).not.toBeInTheDocument();
+  });
+
+  it("search is case-insensitive", async () => {
+    render(
+      <BillTable
+        bills={[makeApiBill({ name: "Rent" })]}
+        onEdit={vi.fn()}
+        onDeactivate={vi.fn()}
+      />,
+    );
+    await userEvent.type(screen.getByRole("searchbox", { name: /search bills/i }), "RENT");
+    expect(screen.getByText("Rent")).toBeInTheDocument();
+  });
+
+  it("shows an empty-state message when no bills match the search", async () => {
+    render(
+      <BillTable
+        bills={[makeApiBill({ name: "Rent" })]}
+        onEdit={vi.fn()}
+        onDeactivate={vi.fn()}
+      />,
+    );
+    await userEvent.type(screen.getByRole("searchbox", { name: /search bills/i }), "zzz");
+    expect(screen.getByText(/no bills match/i)).toBeInTheDocument();
+  });
+
+  // ── Category filter ────────────────────────────────────────────────────────
+
+  it("filters bills by category", async () => {
+    const bills = [
+      makeApiBill({ id: 1, name: "Rent", category: "housing" }),
+      makeApiBill({ id: 2, name: "Netflix", category: "subscriptions" }),
+    ];
+    render(<BillTable bills={bills} onEdit={vi.fn()} onDeactivate={vi.fn()} />);
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: /filter by category/i }),
+      "housing",
+    );
+    expect(screen.getByText("Rent")).toBeInTheDocument();
+    expect(screen.queryByText("Netflix")).not.toBeInTheDocument();
+  });
+
+  it("composes search and category filter", async () => {
+    const bills = [
+      makeApiBill({ id: 1, name: "Rent", category: "housing" }),
+      makeApiBill({ id: 2, name: "Rental storage", category: "other" }),
+      makeApiBill({ id: 3, name: "Netflix", category: "subscriptions" }),
+    ];
+    render(<BillTable bills={bills} onEdit={vi.fn()} onDeactivate={vi.fn()} />);
+    await userEvent.type(screen.getByRole("searchbox", { name: /search bills/i }), "rent");
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: /filter by category/i }),
+      "housing",
+    );
+    expect(screen.getByText("Rent")).toBeInTheDocument();
+    expect(screen.queryByText("Rental storage")).not.toBeInTheDocument();
+    expect(screen.queryByText("Netflix")).not.toBeInTheDocument();
+  });
+
+  it("shows a Clear filters button when a filter is active and removes it on click", async () => {
+    render(
+      <BillTable
+        bills={[makeApiBill({ name: "Rent" })]}
+        onEdit={vi.fn()}
+        onDeactivate={vi.fn()}
+      />,
+    );
+    const searchBox = screen.getByRole("searchbox", { name: /search bills/i });
+    await userEvent.type(searchBox, "r");
+    expect(screen.getByRole("button", { name: /clear filters/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /clear filters/i }));
+    expect(screen.queryByRole("button", { name: /clear filters/i })).not.toBeInTheDocument();
+    expect(searchBox).toHaveValue("");
+  });
+
+  it("footer shows filtered bill count and total when a filter is active", async () => {
+    const bills = [
+      makeApiBill({ id: 1, name: "Rent", amount: "1000.00", recurrence: "monthly", category: "housing" }),
+      makeApiBill({ id: 2, name: "Netflix", amount: "20.00", recurrence: "monthly", category: "subscriptions" }),
+    ];
+    render(<BillTable bills={bills} onEdit={vi.fn()} onDeactivate={vi.fn()} />);
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: /filter by category/i }),
+      "housing",
+    );
+    expect(screen.getByText(/1 bill.*filtered/i)).toBeInTheDocument();
+    expect(screen.getByText("$12,000.00")).toBeInTheDocument();
+    expect(screen.queryByText("$240.00")).not.toBeInTheDocument();
+  });
+
+  // ── Sort (existing, kept for completeness) ────────────────────────────────
 
   it("sorts by annual cost when that sort is selected", async () => {
     const bills = [

@@ -1,7 +1,8 @@
 import { useState } from "react";
-import type { Bill } from "../types/bill";
+import type { Bill, BillCategory } from "../types/bill";
 import {
   CATEGORY_LABELS,
+  CATEGORY_ORDER,
   RECURRENCE_LABELS,
   annualCost,
 } from "../types/bill";
@@ -30,9 +31,17 @@ function fmtDue(bill: Bill): string {
 export function BillTable({ bills, onEdit, onDeactivate }: Props) {
   const [sort, setSort] = useState<SortKey>("name");
   const [showInactive, setShowInactive] = useState(false);
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<BillCategory | "">("");
 
-  const active = bills.filter((b) => b.is_active);
-  const inactive = bills.filter((b) => !b.is_active);
+  function applyFilters(list: Bill[]): Bill[] {
+    const q = search.trim().toLowerCase();
+    return list.filter((b) => {
+      if (q && !b.name.toLowerCase().includes(q)) return false;
+      if (categoryFilter && b.category !== categoryFilter) return false;
+      return true;
+    });
+  }
 
   function sorted(list: Bill[]): Bill[] {
     return [...list].sort((a, b) => {
@@ -41,11 +50,52 @@ export function BillTable({ bills, onEdit, onDeactivate }: Props) {
     });
   }
 
-  const totalAnnual = active.reduce((sum, b) => sum + annualCost(b), 0);
+  const active = bills.filter((b) => b.is_active);
+  const inactive = bills.filter((b) => !b.is_active);
+
+  const filteredActive = sorted(applyFilters(active));
+  const filteredInactive = sorted(applyFilters(inactive));
+
+  const hasFilter = search.trim() !== "" || categoryFilter !== "";
+  const totalAnnual = filteredActive.reduce((sum, b) => sum + annualCost(b), 0);
+
+  function clearFilters() {
+    setSearch("");
+    setCategoryFilter("");
+  }
 
   return (
     <div className="bill-table-wrap">
       <div className="bill-table-controls">
+        <input
+          className="bill-table-search"
+          type="search"
+          placeholder="Search bills…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          aria-label="Search bills"
+        />
+
+        <select
+          className="bill-table-category-filter"
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value as BillCategory | "")}
+          aria-label="Filter by category"
+        >
+          <option value="">All categories</option>
+          {CATEGORY_ORDER.map((c) => (
+            <option key={c} value={c}>
+              {CATEGORY_LABELS[c]}
+            </option>
+          ))}
+        </select>
+
+        {hasFilter && (
+          <button className="btn-clear-filters" onClick={clearFilters}>
+            Clear filters
+          </button>
+        )}
+
         <span className="bill-table-controls__label">Sort by</span>
         <button
           className={`btn-sort${sort === "name" ? " btn-sort--active" : ""}`}
@@ -76,48 +126,57 @@ export function BillTable({ bills, onEdit, onDeactivate }: Props) {
           </tr>
         </thead>
         <tbody>
-          {sorted(active).map((bill) => (
-            <tr key={bill.id}>
-              <td className="bill-table__name">{bill.name}</td>
-              <td>{CATEGORY_LABELS[bill.category]}</td>
-              <td className="bill-table__num">
-                {fmtCurrency(parseFloat(bill.amount))}
-                {bill.is_variable && (
-                  <span className="bill-table__estimated"> est.</span>
-                )}
-              </td>
-              <td className="bill-table__num">{fmtCurrency(annualCost(bill))}</td>
-              <td>{RECURRENCE_LABELS[bill.recurrence]}</td>
-              <td>{fmtDue(bill)}</td>
-              <td className="bill-table__num">
-                {bill.grace_period_days > 0 ? `${bill.grace_period_days}d` : "—"}
-              </td>
-              <td className="bill-table__center">
-                {bill.is_variable ? "Yes" : "—"}
-              </td>
-              <td className="bill-table__actions">
-                <button
-                  className="btn-action"
-                  onClick={() => onEdit(bill)}
-                  aria-label={`Edit ${bill.name}`}
-                >
-                  Edit
-                </button>
-                <button
-                  className="btn-action btn-action--danger"
-                  onClick={() => onDeactivate(bill)}
-                  aria-label={`Deactivate ${bill.name}`}
-                >
-                  Deactivate
-                </button>
+          {filteredActive.length === 0 ? (
+            <tr>
+              <td colSpan={9} className="bill-table__empty">
+                {hasFilter ? "No bills match the current filters." : "No active bills."}
               </td>
             </tr>
-          ))}
+          ) : (
+            filteredActive.map((bill) => (
+              <tr key={bill.id}>
+                <td className="bill-table__name">{bill.name}</td>
+                <td>{CATEGORY_LABELS[bill.category]}</td>
+                <td className="bill-table__num">
+                  {fmtCurrency(parseFloat(bill.amount))}
+                  {bill.is_variable && (
+                    <span className="bill-table__estimated"> est.</span>
+                  )}
+                </td>
+                <td className="bill-table__num">{fmtCurrency(annualCost(bill))}</td>
+                <td>{RECURRENCE_LABELS[bill.recurrence]}</td>
+                <td>{fmtDue(bill)}</td>
+                <td className="bill-table__num">
+                  {bill.grace_period_days > 0 ? `${bill.grace_period_days}d` : "—"}
+                </td>
+                <td className="bill-table__center">
+                  {bill.is_variable ? "Yes" : "—"}
+                </td>
+                <td className="bill-table__actions">
+                  <button
+                    className="btn-action"
+                    onClick={() => onEdit(bill)}
+                    aria-label={`Edit ${bill.name}`}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="btn-action btn-action--danger"
+                    onClick={() => onDeactivate(bill)}
+                    aria-label={`Deactivate ${bill.name}`}
+                  >
+                    Deactivate
+                  </button>
+                </td>
+              </tr>
+            ))
+          )}
         </tbody>
         <tfoot>
           <tr>
             <td colSpan={3} className="bill-table__footer-label">
-              Total annual cost ({active.length} bill{active.length !== 1 ? "s" : ""})
+              Total annual cost ({filteredActive.length} bill{filteredActive.length !== 1 ? "s" : ""}
+              {hasFilter ? ", filtered" : ""})
             </td>
             <td className="bill-table__num bill-table__footer-total">
               {fmtCurrency(totalAnnual)}
@@ -127,14 +186,15 @@ export function BillTable({ bills, onEdit, onDeactivate }: Props) {
         </tfoot>
       </table>
 
-      {inactive.length > 0 && (
+      {(filteredInactive.length > 0 || (!hasFilter && inactive.length > 0)) && (
         <div className="bill-table__inactive">
           <button
             className="btn-toggle"
             onClick={() => setShowInactive((v) => !v)}
             aria-expanded={showInactive}
           >
-            {showInactive ? "▲" : "▼"} Inactive bills ({inactive.length})
+            {showInactive ? "▲" : "▼"} Inactive bills (
+            {hasFilter ? `${filteredInactive.length} of ${inactive.length}` : inactive.length})
           </button>
           {showInactive && (
             <table className="bill-table bill-table--inactive">
@@ -148,25 +208,33 @@ export function BillTable({ bills, onEdit, onDeactivate }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {sorted(inactive).map((bill) => (
-                  <tr key={bill.id}>
-                    <td className="bill-table__name">{bill.name}</td>
-                    <td>{CATEGORY_LABELS[bill.category]}</td>
-                    <td className="bill-table__num">
-                      {fmtCurrency(parseFloat(bill.amount))}
-                    </td>
-                    <td>{RECURRENCE_LABELS[bill.recurrence]}</td>
-                    <td className="bill-table__actions">
-                      <button
-                        className="btn-action"
-                        onClick={() => onEdit(bill)}
-                        aria-label={`Edit ${bill.name}`}
-                      >
-                        Reactivate / Edit
-                      </button>
+                {filteredInactive.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="bill-table__empty">
+                      No inactive bills match the current filters.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredInactive.map((bill) => (
+                    <tr key={bill.id}>
+                      <td className="bill-table__name">{bill.name}</td>
+                      <td>{CATEGORY_LABELS[bill.category]}</td>
+                      <td className="bill-table__num">
+                        {fmtCurrency(parseFloat(bill.amount))}
+                      </td>
+                      <td>{RECURRENCE_LABELS[bill.recurrence]}</td>
+                      <td className="bill-table__actions">
+                        <button
+                          className="btn-action"
+                          onClick={() => onEdit(bill)}
+                          aria-label={`Edit ${bill.name}`}
+                        >
+                          Reactivate / Edit
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           )}
