@@ -37,6 +37,12 @@ body {
   color: #6366f1;
 }
 
+.app-nav {
+  display: flex;
+  gap: 1.25rem;
+  align-items: center;
+}
+
 .app-nav__link {
   font-size: 0.875rem;
   color: #6b7280;
