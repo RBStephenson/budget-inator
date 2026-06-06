@@ -20,7 +20,7 @@ from reportlab.platypus import (
 
 from app.schemas.monthly import MonthlySummaryResponse
 from app.schemas.schedule import AssignedBillOut, PayPeriodOut
-from app.services.report_service import ReportBillListItem, ReportData
+from app.services.report_service import ReportData
 
 # Canonical category display order, shared with the dashboard grouping.
 _CATEGORY_ORDER = [
@@ -251,82 +251,6 @@ def _period_flowables(period: PayPeriodOut, styles) -> list:
     return flow
 
 
-def _bill_list_flowables(items: list[ReportBillListItem], styles) -> list:
-    flow: list = [Paragraph("Full Bill List", styles["section"])]
-    if not items:
-        flow.append(Paragraph("No active bills.", styles["empty"]))
-        return flow
-
-    header = ["Bill", "Amount", "Annual cost", "Recurrence", "Due", "Grace"]
-    data: list[list] = [header]
-    style_cmds: list[tuple] = [
-        ("BACKGROUND", (0, 0), (-1, 0), _HEADER_BG),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 8),
-        ("ALIGN", (1, 0), (2, -1), "RIGHT"),
-        ("ALIGN", (5, 0), (5, -1), "CENTER"),
-        ("GRID", (0, 0), (-1, -1), 0.5, _GRID),
-        ("TOPPADDING", (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-    ]
-
-    # Group alphabetical bills by category in canonical order.
-    total_annual = Decimal("0")
-    by_cat: dict[str, list[ReportBillListItem]] = {}
-    for item in items:
-        by_cat.setdefault(item.category, []).append(item)
-
-    for cat in _CATEGORY_ORDER:
-        cat_items = by_cat.get(cat)
-        if not cat_items:
-            continue
-        row_idx = len(data)
-        data.append([_CATEGORY_LABELS.get(cat, cat), "", "", "", "", ""])
-        style_cmds.append(("SPAN", (0, row_idx), (-1, row_idx)))
-        style_cmds.append(("BACKGROUND", (0, row_idx), (-1, row_idx), _CATEGORY_BG))
-        style_cmds.append(("FONTNAME", (0, row_idx), (0, row_idx), "Helvetica-Bold"))
-
-        cat_annual = Decimal("0")
-        for item in cat_items:
-            amount_str = ("~" if item.is_variable else "") + _money(item.amount)
-            data.append(
-                [
-                    item.name,
-                    amount_str,
-                    _money(item.annual_cost),
-                    item.recurrence_label,
-                    item.due_label,
-                    f"{item.grace_days}d" if item.grace_days else "—",
-                ]
-            )
-            cat_annual += item.annual_cost
-            total_annual += item.annual_cost
-
-        sub_row = len(data)
-        data.append(["", "", _money(cat_annual), "", "", ""])
-        style_cmds.append(("BACKGROUND", (0, sub_row), (-1, sub_row), _SUBTOTAL_BG))
-        style_cmds.append(("FONTNAME", (2, sub_row), (2, sub_row), "Helvetica-Bold"))
-
-    total_row = len(data)
-    data.append(["Total annual cost", "", _money(total_annual), "", "", ""])
-    style_cmds.append(("SPAN", (0, total_row), (1, total_row)))
-    style_cmds.append(("FONTNAME", (0, total_row), (-1, total_row), "Helvetica-Bold"))
-    style_cmds.append(("LINEABOVE", (0, total_row), (-1, total_row), 1, _MUTED))
-
-    col_widths = [
-        1.9 * inch,
-        1.0 * inch,
-        1.0 * inch,
-        1.0 * inch,
-        0.8 * inch,
-        0.5 * inch,
-    ]
-    table = Table(data, colWidths=col_widths, hAlign="LEFT")
-    table.setStyle(TableStyle(style_cmds))
-    flow.append(table)
-    return flow
-
 
 def _monthly_flowables(monthly: MonthlySummaryResponse, styles) -> list:
     flow: list = [Paragraph("Monthly Summary", styles["section"])]
@@ -415,10 +339,7 @@ def render_budget_pdf(report: ReportData) -> bytes:
         for period in report.schedule.periods:
             flow.extend(_period_flowables(period, styles))
 
-    # Section 2 — Full Bill List
-    flow.extend(_bill_list_flowables(report.bill_list, styles))
-
-    # Section 3 — Monthly Summary
+    # Section 2 — Monthly Summary
     flow.extend(_monthly_flowables(report.monthly, styles))
 
     footer = _make_footer(report.generated_on, margin)

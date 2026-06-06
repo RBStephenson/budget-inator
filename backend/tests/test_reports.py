@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from app.models import Bill, BillInstance, PaySchedule
 from app.services.pdf_report import _make_footer, _money, render_budget_pdf
-from app.services.report_service import build_report_data
+from app.services.report_service import ReportData, build_report_data
 
 
 class _FakeCanvas:
@@ -118,51 +118,21 @@ class TestBudgetPdfEndpoint:
 
 
 class TestReportData:
-    def test_includes_schedule_bills_and_monthly(self, client: TestClient, db) -> None:
+    def test_returns_report_data_with_schedule_and_monthly(
+        self, client: TestClient, db
+    ) -> None:
         _make_schedule(db, first_paycheck=date(2025, 1, 3))
         _make_bill(db, name="Rent", amount="800.00", due_day=10)
 
         report = build_report_data(db, date(2025, 1, 3), date(2025, 1, 30))
+        assert isinstance(report, ReportData)
         assert len(report.schedule.periods) >= 1
-        assert len(report.bill_list) == 1
-        assert report.bill_list[0].name == "Rent"
         assert len(report.monthly.months) >= 1
 
     def test_default_range_returns_six_periods(self, client: TestClient, db) -> None:
         _make_schedule(db, first_paycheck=date.today())
         report = build_report_data(db)
         assert len(report.schedule.periods) == 6
-
-    def test_bill_list_sorted_alphabetically(self, client: TestClient, db) -> None:
-        _make_schedule(db)
-        _make_bill(db, name="Zebra", due_day=5, category="other")
-        _make_bill(db, name="Apple", due_day=6, category="other")
-
-        report = build_report_data(db)
-        names = [b.name for b in report.bill_list]
-        assert names == ["Apple", "Zebra"]
-
-    def test_annual_cost_for_monthly_bill(self, client: TestClient, db) -> None:
-        _make_schedule(db)
-        _make_bill(db, name="Rent", amount="100.00", recurrence="monthly", due_day=10)
-        report = build_report_data(db)
-        rent = next(b for b in report.bill_list if b.name == "Rent")
-        assert rent.annual_cost == 1200  # 100 * 12
-
-    def test_annual_cost_for_biweekly_bill(self, client: TestClient, db) -> None:
-        _make_schedule(db)
-        _make_bill(
-            db,
-            name="Insurance",
-            amount="50.00",
-            recurrence="biweekly",
-            due_day=None,
-            due_date=date(2025, 1, 10),
-            category="insurance",
-        )
-        report = build_report_data(db)
-        ins = next(b for b in report.bill_list if b.name == "Insurance")
-        assert ins.annual_cost == 1300  # 50 * 26
 
 
 class TestPdfRendering:

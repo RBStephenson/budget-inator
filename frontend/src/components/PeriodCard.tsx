@@ -1,19 +1,8 @@
 import { useState } from "react";
 import type { PayPeriod } from "../types/schedule";
-import type { BillCategory } from "../types/bill";
-import { CATEGORY_LABELS } from "../types/bill";
+import { CATEGORY_LABELS, CATEGORY_ORDER } from "../types/bill";
 import { BillRow } from "./BillRow";
 import { putPayPeriodOverride, deletePayPeriodOverride } from "../api/payPeriodOverrides";
-
-const CATEGORY_ORDER: BillCategory[] = [
-  "housing",
-  "utilities",
-  "subscriptions",
-  "insurance",
-  "debt",
-  "savings",
-  "other",
-];
 
 interface Props {
   period: PayPeriod;
