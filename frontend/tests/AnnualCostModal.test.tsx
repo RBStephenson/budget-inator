@@ -61,8 +61,8 @@ describe("AnnualCostModal", () => {
     mockBills([makeApiBill({ name: "Rent", amount: "1200.00", recurrence: "monthly" })]);
     render(<AnnualCostModal onClose={() => {}} />);
     await waitFor(() => screen.getByText("Rent"));
-    // monthly $1200 × 12 = $14,400/yr
-    expect(screen.getByText("$14,400.00")).toBeInTheDocument();
+    // $14,400/yr appears in the bill row, category subtotal, and grand total
+    expect(screen.getAllByText("$14,400.00")[0]).toBeInTheDocument();
   });
 
   it("shows the tilde prefix on per-payment amount for variable bills", async () => {

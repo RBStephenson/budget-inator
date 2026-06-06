@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
 import { listBills } from "../api/bills";
-import type { Bill } from "../types/bill";
+import type { Bill, BillCategory } from "../types/bill";
 import { CATEGORY_LABELS, CATEGORY_ORDER, annualCost } from "../types/bill";
 
 function fmt(amount: number): string {
