@@ -2,7 +2,14 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { BillsPage } from "../src/components/BillsPage";
+import { ToastProvider } from "../src/context/ToastContext";
 import { makeApiBill } from "./fixtures";
+
+// BillsPage opens BillFormModal, which calls useToast(); wrap renders that
+// reach the modal in a ToastProvider.
+function renderWithToast(ui: React.ReactElement) {
+  return render(<ToastProvider>{ui}</ToastProvider>);
+}
 
 function mockListBills(bills: ReturnType<typeof makeApiBill>[], ok = true) {
   vi.spyOn(globalThis, "fetch").mockResolvedValue({
@@ -47,7 +54,7 @@ describe("BillsPage", () => {
 
   it("opens the add modal when the Add Bill button is clicked", async () => {
     mockListBills([]);
-    render(<BillsPage />);
+    renderWithToast(<BillsPage />);
     await waitFor(() =>
       expect(screen.getByText(/no bills yet/i)).toBeInTheDocument(),
     );
@@ -57,7 +64,7 @@ describe("BillsPage", () => {
 
   it("opens the edit modal when Edit is clicked on a bill", async () => {
     mockListBills([makeApiBill({ name: "Rent" })]);
-    render(<BillsPage />);
+    renderWithToast(<BillsPage />);
     await waitFor(() => expect(screen.getByText("Rent")).toBeInTheDocument());
     await userEvent.click(screen.getByRole("button", { name: /edit rent/i }));
     expect(screen.getByText("Edit bill")).toBeInTheDocument();

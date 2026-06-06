@@ -58,6 +58,9 @@ export function BillTable({ bills, onEdit, onDeactivate }: Props) {
 
   const hasFilter = search.trim() !== "" || categoryFilter !== "";
   const totalAnnual = filteredActive.reduce((sum, b) => sum + annualCost(b), 0);
+  const footerLabel = `Total annual cost (${filteredActive.length} bill${
+    filteredActive.length !== 1 ? "s" : ""
+  }${hasFilter ? ", filtered" : ""})`;
 
   function clearFilters() {
     setSearch("");
@@ -175,8 +178,7 @@ export function BillTable({ bills, onEdit, onDeactivate }: Props) {
         <tfoot>
           <tr>
             <td colSpan={3} className="bill-table__footer-label">
-              Total annual cost ({filteredActive.length} bill{filteredActive.length !== 1 ? "s" : ""}
-              {hasFilter ? ", filtered" : ""})
+              {footerLabel}
             </td>
             <td className="bill-table__num bill-table__footer-total">
               {fmtCurrency(totalAnnual)}

@@ -46,13 +46,14 @@ describe("ErrorBoundary", () => {
 
     expect(screen.getByRole("heading", { name: /something went wrong/i })).toBeInTheDocument();
 
-    // After clicking Try again the boundary resets; re-render with a healthy child
-    await user.click(screen.getByRole("button", { name: /try again/i }));
+    // Swap in a healthy child while the fallback is still showing, then click
+    // Try again so the boundary resets and re-renders the now-healthy child.
     rerender(
       <ErrorBoundary>
         <Bomb shouldThrow={false} />
       </ErrorBoundary>,
     );
+    await user.click(screen.getByRole("button", { name: /try again/i }));
 
     expect(screen.getByText("All good")).toBeInTheDocument();
   });

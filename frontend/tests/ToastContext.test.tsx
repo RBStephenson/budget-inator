@@ -1,8 +1,11 @@
-import { act, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ToastContainer } from "../src/components/ToastContainer";
 import { ToastProvider, useToast } from "../src/context/ToastContext";
+
+// These tests drive auto-dismiss timing with fake timers, so clicks use the
+// synchronous fireEvent rather than userEvent (userEvent relies on real timers
+// internally and would deadlock under vi.useFakeTimers()).
 
 function makeTestHarness(message = "Hello world", variant?: "success" | "error" | "info") {
   function Trigger() {
@@ -19,6 +22,10 @@ function makeTestHarness(message = "Hello world", variant?: "success" | "error" 
   );
 }
 
+function showToast() {
+  fireEvent.click(screen.getByRole("button", { name: /show toast/i }));
+}
+
 describe("ToastContext — basic behaviour", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
@@ -28,52 +35,52 @@ describe("ToastContext — basic behaviour", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("shows a toast after addToast is called", async () => {
+  it("shows a toast after addToast is called", () => {
     makeTestHarness("Hello world", "info");
-    await userEvent.click(screen.getByRole("button", { name: /show toast/i }));
+    showToast();
     expect(screen.getByRole("alert")).toHaveTextContent("Hello world");
   });
 
-  it("auto-dismisses an info toast after 4 seconds", async () => {
+  it("auto-dismisses an info toast after 4 seconds", () => {
     makeTestHarness("msg", "info");
-    await userEvent.click(screen.getByRole("button", { name: /show toast/i }));
+    showToast();
     expect(screen.getByRole("alert")).toBeInTheDocument();
     act(() => vi.advanceTimersByTime(4000));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("does not dismiss before the timeout elapses", async () => {
+  it("does not dismiss before the timeout elapses", () => {
     makeTestHarness("msg", "info");
-    await userEvent.click(screen.getByRole("button", { name: /show toast/i }));
+    showToast();
     act(() => vi.advanceTimersByTime(3999));
     expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 
-  it("dismisses manually when the dismiss button is clicked", async () => {
+  it("dismisses manually when the dismiss button is clicked", () => {
     makeTestHarness("msg", "info");
-    await userEvent.click(screen.getByRole("button", { name: /show toast/i }));
-    await userEvent.click(
+    showToast();
+    fireEvent.click(
       screen.getByRole("button", { name: /dismiss notification/i }),
     );
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("stacks multiple toasts", async () => {
+  it("stacks multiple toasts", () => {
     makeTestHarness("msg", "info");
-    await userEvent.click(screen.getByRole("button", { name: /show toast/i }));
-    await userEvent.click(screen.getByRole("button", { name: /show toast/i }));
-    await userEvent.click(screen.getByRole("button", { name: /show toast/i }));
+    showToast();
+    showToast();
+    showToast();
     expect(screen.getAllByRole("alert")).toHaveLength(3);
   });
 
-  it("removes only the dismissed toast when multiple are shown", async () => {
+  it("removes only the dismissed toast when multiple are shown", () => {
     makeTestHarness("msg", "info");
-    await userEvent.click(screen.getByRole("button", { name: /show toast/i }));
-    await userEvent.click(screen.getByRole("button", { name: /show toast/i }));
+    showToast();
+    showToast();
     const dismissButtons = screen.getAllByRole("button", {
       name: /dismiss notification/i,
     });
-    await userEvent.click(dismissButtons[0]);
+    fireEvent.click(dismissButtons[0]);
     expect(screen.getAllByRole("alert")).toHaveLength(1);
   });
 });
@@ -82,41 +89,41 @@ describe("ToastContext — variant timing", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it("auto-dismisses a success toast after 4 seconds", async () => {
+  it("auto-dismisses a success toast after 4 seconds", () => {
     makeTestHarness("msg", "success");
-    await userEvent.click(screen.getByRole("button", { name: /show toast/i }));
+    showToast();
     act(() => vi.advanceTimersByTime(4000));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("auto-dismisses an error toast after 6 seconds (not before)", async () => {
+  it("auto-dismisses an error toast after 6 seconds (not before)", () => {
     makeTestHarness("msg", "error");
-    await userEvent.click(screen.getByRole("button", { name: /show toast/i }));
+    showToast();
     act(() => vi.advanceTimersByTime(5999));
     expect(screen.getByRole("alert")).toBeInTheDocument();
     act(() => vi.advanceTimersByTime(1));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("applies toast--success class for success variant", async () => {
+  it("applies toast--success class for success variant", () => {
     makeTestHarness("msg", "success");
-    await userEvent.click(screen.getByRole("button", { name: /show toast/i }));
+    showToast();
     expect(screen.getByRole("alert")).toHaveClass("toast--success");
   });
 
-  it("applies toast--error class for error variant", async () => {
+  it("applies toast--error class for error variant", () => {
     makeTestHarness("msg", "error");
-    await userEvent.click(screen.getByRole("button", { name: /show toast/i }));
+    showToast();
     expect(screen.getByRole("alert")).toHaveClass("toast--error");
   });
 
-  it("applies toast--info class for info variant", async () => {
+  it("applies toast--info class for info variant", () => {
     makeTestHarness("msg", "info");
-    await userEvent.click(screen.getByRole("button", { name: /show toast/i }));
+    showToast();
     expect(screen.getByRole("alert")).toHaveClass("toast--info");
   });
 
-  it("defaults to info variant when no variant is provided", async () => {
+  it("defaults to info variant when no variant is provided", () => {
     function DefaultTrigger() {
       const { addToast } = useToast();
       return <button onClick={() => addToast("default")}>Show toast</button>;
@@ -127,7 +134,7 @@ describe("ToastContext — variant timing", () => {
         <ToastContainer />
       </ToastProvider>,
     );
-    await userEvent.click(screen.getByRole("button", { name: /show toast/i }));
+    showToast();
     expect(screen.getByRole("alert")).toHaveClass("toast--info");
   });
 });

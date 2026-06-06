@@ -197,7 +197,8 @@ describe("BillTable", () => {
       "housing",
     );
     expect(screen.getByText(/1 bill.*filtered/i)).toBeInTheDocument();
-    expect(screen.getByText("$12,000.00")).toBeInTheDocument();
+    // $12,000.00 appears in both the Rent row and the footer total
+    expect(screen.getAllByText("$12,000.00")).toHaveLength(2);
     expect(screen.queryByText("$240.00")).not.toBeInTheDocument();
   });
 
