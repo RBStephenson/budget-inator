@@ -16,11 +16,27 @@ A personal budget management application that helps you track bills against your
 
 ## Features
 
-- **Pay schedule configuration** — enter your net salary and pay frequency (bi-weekly, semi-monthly, monthly, etc.)
-- **Bill management** — track bills with amounts, due dates, recurrence (monthly, bi-weekly, quarterly, etc.), and optional grace periods
-- **Pay period assignment** — automatically determines which bills are due in each pay period, paying early when needed to avoid being late
-- **Late-payment flagging** — bills that cannot be covered before their due date are flagged prominently
-- **Running balance** — see what remains after bills for each pay period
+**Dashboard**
+- Toggle between **By Pay Period** and **By Month** views
+- Current pay period shown as a hero card; upcoming periods listed below
+- Bills grouped by category within each period, with per-category subtotals
+- Running balance showing the **available-to-spend** amount (green ≥ 20%, amber < 20%, red = overspent)
+- Sticky **flagged bills banner** when any bill cannot be paid on time
+- **Pay date override** — adjust the pay date on any individual period
+- **Mark bills paid, skipped, or pending** inline on the dashboard
+- **Variable bill actuals** — enter the real amount for variable bills directly on the period card
+
+**Bill management**
+- Add, edit, and deactivate bills
+- Recurrences: Monthly, Bi-weekly, Weekly, Quarterly, Semi-annual, Annual, One-time
+- Categories: Housing, Utilities, Subscriptions, Insurance, Debt, Savings, Other
+- Optional **grace period** — how many days after the due date you can still pay without being late
+- **Variable flag** — marks bills whose amount changes each cycle
+
+**Reports & exports**
+- **Annual cost breakdown** — modal showing per-payment and annual cost for every active bill, grouped by category with subtotals
+- **PDF report** — downloadable budget report covering the pay period schedule and a monthly income/bills/net summary
+- **JSON backup** — export and import your full data set; delete all data and start fresh
 
 ## Tech Stack
 
@@ -30,6 +46,7 @@ A personal budget management application that helps you track bills against your
 | Frontend | React 18 + TypeScript + Vite |
 | Database | SQLite (dev) / PostgreSQL (prod) |
 | Testing | pytest (backend) + Vitest (frontend) |
+| Packaging | PyInstaller — single-file Windows & Linux executables |
 
 ## Project Structure
 
@@ -45,11 +62,13 @@ budget-inator/
 ├── frontend/         # React + Vite app
 │   ├── src/
 │   │   ├── components/
-│   │   ├── pages/
 │   │   └── api/      # API client
 │   └── tests/
+├── packaging/        # PyInstaller spec and standalone entry point
 └── .github/          # CI/CD and repo config
 ```
+
+See [docs/user-guide.md](docs/user-guide.md) for a full walkthrough of every feature.
 
 ## Getting Started
 
