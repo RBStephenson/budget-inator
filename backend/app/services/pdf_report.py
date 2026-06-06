@@ -251,7 +251,6 @@ def _period_flowables(period: PayPeriodOut, styles) -> list:
     return flow
 
 
-
 def _monthly_flowables(monthly: MonthlySummaryResponse, styles) -> list:
     flow: list = [Paragraph("Monthly Summary", styles["section"])]
     if not monthly.months:
