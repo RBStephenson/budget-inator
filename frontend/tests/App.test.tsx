@@ -42,11 +42,18 @@ describe("App", () => {
     expect(screen.getByText("Budget-inator")).toBeInTheDocument();
   });
 
-  it("renders a settings nav link on every page", async () => {
+  it("renders settings and help nav links on every page", async () => {
     mockScheduleFetch();
     render(<App />);
     await waitFor(() => expect(screen.queryByText(/loading/i)).not.toBeInTheDocument());
     expect(screen.getByRole("link", { name: /settings/i })).toHaveAttribute("href", "/settings");
+    expect(screen.getByRole("link", { name: /^help$/i })).toHaveAttribute("href", "/help");
+  });
+
+  it("renders HelpPage when path is /help", () => {
+    window.history.pushState({}, "", "/help");
+    render(<App />);
+    expect(screen.getByRole("heading", { name: /^help$/i })).toBeInTheDocument();
   });
 
   it("renders SettingsPage when path is /settings", async () => {

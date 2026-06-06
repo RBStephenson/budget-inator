@@ -2,18 +2,20 @@ import { useEffect, useState } from "react";
 import { BillsPage } from "./components/BillsPage";
 import { Dashboard } from "./components/Dashboard";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { HelpPage } from "./components/HelpPage";
 import { Link } from "./components/Link";
 import { NotFound } from "./components/NotFound";
 import { SettingsPage } from "./components/SettingsPage";
 import "./App.css";
 
-type Page = "dashboard" | "bills" | "settings" | "not-found";
+type Page = "dashboard" | "bills" | "settings" | "help" | "not-found";
 
 function getPage(): Page {
   const path = window.location.pathname;
   if (path === "/" || path === "") return "dashboard";
   if (path.startsWith("/bills")) return "bills";
   if (path.startsWith("/settings")) return "settings";
+  if (path.startsWith("/help")) return "help";
   return "not-found";
 }
 
@@ -36,6 +38,9 @@ export default function App() {
             </Link>
           </h1>
           <nav className="app-nav">
+            <Link href="/help" className="app-nav__link">
+              Help
+            </Link>
             <Link href="/settings" className="app-nav__link">
               Settings
             </Link>
@@ -46,6 +51,8 @@ export default function App() {
             <BillsPage />
           ) : page === "settings" ? (
             <SettingsPage />
+          ) : page === "help" ? (
+            <HelpPage />
           ) : page === "not-found" ? (
             <NotFound />
           ) : (
