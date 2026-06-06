@@ -1289,3 +1289,39 @@ body {
     grid-column: 1 / -1;
   }
 }
+
+/* ── Not-found page ───────────────────────────────────────────────────────── */
+.not-found {
+  max-width: 480px;
+  margin: 4rem auto;
+  text-align: center;
+  padding: 0 1rem;
+}
+
+.not-found__title {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.not-found__body {
+  color: var(--color-muted, #6b7280);
+  margin-bottom: 1.5rem;
+}
+
+/* ── Error boundary ───────────────────────────────────────────────────────── */
+.error-boundary {
+  max-width: 480px;
+  margin: 4rem auto;
+  text-align: center;
+  padding: 0 1rem;
+}
+
+.error-boundary__title {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.error-boundary__body {
+  color: var(--color-muted, #6b7280);
+  margin-bottom: 1.5rem;
+}

@@ -2,10 +2,11 @@ import { useState } from "react";
 import { useSchedule } from "../hooks/useSchedule";
 import { useMonthlySchedule } from "../hooks/useMonthlySchedule";
 import { downloadBudgetPdf } from "../api/reports";
-import { FlaggedBillsBanner } from "./FlaggedBillsBanner";
-import { PeriodCard } from "./PeriodCard";
-import { MonthCard } from "./MonthCard";
 import { AnnualCostModal } from "./AnnualCostModal";
+import { FlaggedBillsBanner } from "./FlaggedBillsBanner";
+import { Link } from "./Link";
+import { MonthCard } from "./MonthCard";
+import { PeriodCard } from "./PeriodCard";
 
 type DashboardView = "periods" | "monthly";
 
@@ -126,9 +127,9 @@ export function Dashboard() {
       )}
 
       <div className="dashboard__actions">
-        <a href="/bills" className="btn btn--primary">
+        <Link href="/bills" className="btn btn--primary">
           + Add Bill
-        </a>
+        </Link>
         <button
           className="btn btn--secondary"
           onClick={() => setShowAnnualCost(true)}

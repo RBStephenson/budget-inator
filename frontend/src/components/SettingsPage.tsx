@@ -6,6 +6,7 @@ import {
   updatePaySchedule,
 } from "../api/paySchedule";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { Link } from "./Link";
 import type { PayFrequency, PaySchedule } from "../types/paySchedule";
 import { FREQUENCY_LABELS } from "../types/paySchedule";
 
@@ -158,7 +159,7 @@ export function SettingsPage() {
     <div className="settings-page">
       <div className="settings-page__header">
         <div>
-          <a href="/" className="back-link">← Dashboard</a>
+          <Link href="/" className="back-link">← Dashboard</Link>
           <h2 className="settings-page__title">Pay schedule</h2>
         </div>
       </div>

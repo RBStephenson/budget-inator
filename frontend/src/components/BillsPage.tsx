@@ -5,6 +5,7 @@ import type { Bill } from "../types/bill";
 import { BillFormModal } from "./BillFormModal";
 import { BillTable } from "./BillTable";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { Link } from "./Link";
 
 export function BillsPage() {
   const { bills, status, refetch } = useBills();
@@ -35,7 +36,7 @@ export function BillsPage() {
     <div className="bills-page">
       <div className="bills-page__header">
         <div>
-          <a href="/" className="back-link">← Dashboard</a>
+          <Link href="/" className="back-link">← Dashboard</Link>
           <h2 className="bills-page__title">Bills</h2>
         </div>
         <button className="btn btn--primary" onClick={() => setAddOpen(true)}>
