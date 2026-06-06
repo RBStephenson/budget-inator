@@ -2,7 +2,18 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { SettingsPage } from "../src/components/SettingsPage";
+import { ToastContainer } from "../src/components/ToastContainer";
+import { ToastProvider } from "../src/context/ToastContext";
 import { makePaySchedule } from "./fixtures";
+
+function renderWithToast(ui: React.ReactElement) {
+  return render(
+    <ToastProvider>
+      {ui}
+      <ToastContainer />
+    </ToastProvider>,
+  );
+}
 
 function mockFetch404() {
   vi.spyOn(globalThis, "fetch").mockResolvedValue({
@@ -37,13 +48,13 @@ afterEach(() => vi.restoreAllMocks());
 describe("SettingsPage", () => {
   it("shows loading state initially", () => {
     vi.spyOn(globalThis, "fetch").mockReturnValue(new Promise(() => {}));
-    render(<SettingsPage />);
+    renderWithToast(<SettingsPage />);
     expect(screen.getByText(/loading settings/i)).toBeInTheDocument();
   });
 
   it("shows error state when GET fails", async () => {
     mockFetchError();
-    render(<SettingsPage />);
+    renderWithToast(<SettingsPage />);
     await waitFor(() =>
       expect(screen.getByText(/could not load settings/i)).toBeInTheDocument(),
     );
@@ -51,7 +62,7 @@ describe("SettingsPage", () => {
 
   it("shows create form with intro text when no schedule exists", async () => {
     mockFetch404();
-    render(<SettingsPage />);
+    renderWithToast(<SettingsPage />);
     await waitFor(() =>
       expect(screen.getByText(/enter your pay details/i)).toBeInTheDocument(),
     );
@@ -62,7 +73,7 @@ describe("SettingsPage", () => {
 
   it("shows edit form pre-populated when a schedule exists", async () => {
     mockFetchOk(makePaySchedule({ net_salary: "3500.00", beginning_balance: "800.00" }));
-    render(<SettingsPage />);
+    renderWithToast(<SettingsPage />);
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /save changes/i })).toBeInTheDocument(),
     );
@@ -73,7 +84,7 @@ describe("SettingsPage", () => {
 
   it("shows validation errors when submitted with empty fields", async () => {
     mockFetch404();
-    render(<SettingsPage />);
+    renderWithToast(<SettingsPage />);
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /save and go to dashboard/i })).toBeInTheDocument(),
     );
@@ -100,7 +111,7 @@ describe("SettingsPage", () => {
         json: async () => created,
       } as Response);
 
-    render(<SettingsPage />);
+    renderWithToast(<SettingsPage />);
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /save and go to dashboard/i })).toBeInTheDocument(),
     );
@@ -140,7 +151,7 @@ describe("SettingsPage", () => {
         json: async () => updated,
       } as Response);
 
-    render(<SettingsPage />);
+    renderWithToast(<SettingsPage />);
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /save changes/i })).toBeInTheDocument(),
     );
@@ -173,7 +184,7 @@ describe("SettingsPage", () => {
         json: async () => existing,
       } as Response);
 
-    render(<SettingsPage />);
+    renderWithToast(<SettingsPage />);
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /save changes/i })).toBeInTheDocument(),
     );
@@ -199,7 +210,7 @@ describe("SettingsPage", () => {
         json: async () => ({}),
       } as Response);
 
-    render(<SettingsPage />);
+    renderWithToast(<SettingsPage />);
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /save changes/i })).toBeInTheDocument(),
     );
@@ -225,7 +236,7 @@ describe("SettingsPage — data management", () => {
 
   it("renders export, import, and delete buttons", async () => {
     mockScheduleLoad();
-    render(<SettingsPage />);
+    renderWithToast(<SettingsPage />);
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /export/i })).toBeInTheDocument(),
     );
@@ -255,7 +266,7 @@ describe("SettingsPage — data management", () => {
       revokeObjectURL: vi.fn(),
     });
 
-    render(<SettingsPage />);
+    renderWithToast(<SettingsPage />);
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /export backup/i })).toBeInTheDocument(),
     );
@@ -276,7 +287,7 @@ describe("SettingsPage — data management", () => {
         ok: true, status: 204, json: async () => ({}),
       } as Response);
 
-    render(<SettingsPage />);
+    renderWithToast(<SettingsPage />);
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /delete all data/i })).toBeInTheDocument(),
     );
@@ -296,7 +307,7 @@ describe("SettingsPage — data management", () => {
 
   it("shows confirm dialog and cancel dismisses it", async () => {
     mockScheduleLoad();
-    render(<SettingsPage />);
+    renderWithToast(<SettingsPage />);
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /delete all data/i })).toBeInTheDocument(),
     );

@@ -2,7 +2,18 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Dashboard } from "../src/components/Dashboard";
+import { ToastContainer } from "../src/components/ToastContainer";
+import { ToastProvider } from "../src/context/ToastContext";
 import { makeBill, makePeriod, makeSchedule, makeMonthlySummary } from "./fixtures";
+
+function renderWithToast(ui: React.ReactElement) {
+  return render(
+    <ToastProvider>
+      {ui}
+      <ToastContainer />
+    </ToastProvider>,
+  );
+}
 
 function mockFetch(data: unknown, ok = true) {
   vi.spyOn(globalThis, "fetch").mockResolvedValue({
@@ -20,13 +31,13 @@ describe("Dashboard", () => {
   it("shows a loading state initially", () => {
     // Never resolves — keeps component in loading state
     vi.spyOn(globalThis, "fetch").mockReturnValue(new Promise(() => {}));
-    render(<Dashboard />);
+    renderWithToast(<Dashboard />);
     expect(screen.getByText(/loading/i)).toBeInTheDocument();
   });
 
   it("shows an error state when the API fails", async () => {
     mockFetch({}, false);
-    render(<Dashboard />);
+    renderWithToast(<Dashboard />);
     await waitFor(() =>
       expect(screen.getByText(/could not load schedule/i)).toBeInTheDocument(),
     );
@@ -39,7 +50,7 @@ describe("Dashboard", () => {
       statusText: "Not Found",
       json: async () => ({}),
     } as Response);
-    render(<Dashboard />);
+    renderWithToast(<Dashboard />);
     await waitFor(() =>
       expect(screen.getByText(/welcome to budget-inator/i)).toBeInTheDocument(),
     );
@@ -48,7 +59,7 @@ describe("Dashboard", () => {
 
   it("shows an empty state when there are no periods", async () => {
     mockFetch(makeSchedule([]));
-    render(<Dashboard />);
+    renderWithToast(<Dashboard />);
     await waitFor(() =>
       expect(screen.getByText(/no pay periods found/i)).toBeInTheDocument(),
     );
@@ -56,7 +67,7 @@ describe("Dashboard", () => {
 
   it("renders the current period hero card", async () => {
     mockFetch(makeSchedule([makePeriod()]));
-    render(<Dashboard />);
+    renderWithToast(<Dashboard />);
     await waitFor(() =>
       expect(screen.getByText("Current period")).toBeInTheDocument(),
     );
@@ -69,7 +80,7 @@ describe("Dashboard", () => {
       makePeriod({ period_index: 2, period_start: "2025-01-31", period_end: "2025-02-13" }),
     ];
     mockFetch(makeSchedule(periods));
-    render(<Dashboard />);
+    renderWithToast(<Dashboard />);
     await waitFor(() =>
       expect(screen.getByText("Upcoming periods")).toBeInTheDocument(),
     );
@@ -79,7 +90,7 @@ describe("Dashboard", () => {
 
   it("does not render the upcoming section when there is only one period", async () => {
     mockFetch(makeSchedule([makePeriod()]));
-    render(<Dashboard />);
+    renderWithToast(<Dashboard />);
     await waitFor(() =>
       expect(screen.getByText("Current period")).toBeInTheDocument(),
     );
@@ -93,7 +104,7 @@ describe("Dashboard", () => {
     });
     const schedule = makeSchedule([period]);
     mockFetch(schedule);
-    render(<Dashboard />);
+    renderWithToast(<Dashboard />);
     await waitFor(() =>
       expect(screen.getByRole("alert")).toBeInTheDocument(),
     );
@@ -101,7 +112,7 @@ describe("Dashboard", () => {
 
   it("does not render the flagged bills banner when there are no flagged bills", async () => {
     mockFetch(makeSchedule([makePeriod()]));
-    render(<Dashboard />);
+    renderWithToast(<Dashboard />);
     await waitFor(() =>
       expect(screen.getByText("Current period")).toBeInTheDocument(),
     );
@@ -110,7 +121,7 @@ describe("Dashboard", () => {
 
   it("renders the Add Bill action button", async () => {
     mockFetch(makeSchedule([makePeriod()]));
-    render(<Dashboard />);
+    renderWithToast(<Dashboard />);
     await waitFor(() =>
       expect(screen.getByRole("link", { name: /add bill/i })).toBeInTheDocument(),
     );
@@ -118,7 +129,7 @@ describe("Dashboard", () => {
 
   it("renders the Annual Cost button", async () => {
     mockFetch(makeSchedule([makePeriod()]));
-    render(<Dashboard />);
+    renderWithToast(<Dashboard />);
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /annual cost/i })).toBeInTheDocument(),
     );
@@ -143,7 +154,7 @@ describe("Dashboard", () => {
         json: async () => makeSchedule([makePeriod()]),
       } as Response);
     });
-    render(<Dashboard />);
+    renderWithToast(<Dashboard />);
     await waitFor(() => screen.getByRole("button", { name: /annual cost/i }));
     await user.click(screen.getByRole("button", { name: /annual cost/i }));
     await waitFor(() =>
@@ -153,7 +164,7 @@ describe("Dashboard", () => {
 
   it("shows the view toggle buttons", async () => {
     mockFetch(makeSchedule([makePeriod()]));
-    render(<Dashboard />);
+    renderWithToast(<Dashboard />);
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /by pay period/i })).toBeInTheDocument(),
     );
@@ -183,7 +194,7 @@ describe("Dashboard — monthly view toggle", () => {
   it("switches to monthly view when 'By Month' is clicked", async () => {
     const user = userEvent.setup();
     mockBothEndpoints();
-    render(<Dashboard />);
+    renderWithToast(<Dashboard />);
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /by month/i })).toBeInTheDocument(),
     );
@@ -196,7 +207,7 @@ describe("Dashboard — monthly view toggle", () => {
   it("hides pay-period cards when monthly view is active", async () => {
     const user = userEvent.setup();
     mockBothEndpoints();
-    render(<Dashboard />);
+    renderWithToast(<Dashboard />);
     await waitFor(() => screen.getByText("Current period"));
     await user.click(screen.getByRole("button", { name: /by month/i }));
     await waitFor(() => screen.getByText(/january 2025/i));
@@ -206,7 +217,7 @@ describe("Dashboard — monthly view toggle", () => {
   it("switches back to pay-period view when 'By Pay Period' is clicked", async () => {
     const user = userEvent.setup();
     mockBothEndpoints();
-    render(<Dashboard />);
+    renderWithToast(<Dashboard />);
     await waitFor(() => screen.getByText("Current period"));
     await user.click(screen.getByRole("button", { name: /by month/i }));
     await waitFor(() => screen.getByText(/january 2025/i));
@@ -252,7 +263,7 @@ describe("Dashboard — PDF download", () => {
 
   it("renders the Download PDF button", async () => {
     mockScheduleAnd(pdfOk);
-    render(<Dashboard />);
+    renderWithToast(<Dashboard />);
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /download pdf/i })).toBeInTheDocument(),
     );
@@ -264,7 +275,7 @@ describe("Dashboard — PDF download", () => {
       .spyOn(HTMLAnchorElement.prototype, "click")
       .mockImplementation(() => {});
     mockScheduleAnd(pdfOk);
-    render(<Dashboard />);
+    renderWithToast(<Dashboard />);
     await waitFor(() => screen.getByRole("button", { name: /download pdf/i }));
     await user.click(screen.getByRole("button", { name: /download pdf/i }));
     await waitFor(() => expect(clickSpy).toHaveBeenCalledOnce());
@@ -281,7 +292,7 @@ describe("Dashboard — PDF download", () => {
         headers: new Headers(),
       } as Response),
     );
-    render(<Dashboard />);
+    renderWithToast(<Dashboard />);
     await waitFor(() => screen.getByRole("button", { name: /download pdf/i }));
     await user.click(screen.getByRole("button", { name: /download pdf/i }));
     await waitFor(() =>

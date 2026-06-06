@@ -6,6 +6,8 @@ import { HelpPage } from "./components/HelpPage";
 import { Link } from "./components/Link";
 import { NotFound } from "./components/NotFound";
 import { SettingsPage } from "./components/SettingsPage";
+import { ToastContainer } from "./components/ToastContainer";
+import { ToastProvider } from "./context/ToastContext";
 import "./App.css";
 
 type Page = "dashboard" | "bills" | "settings" | "help" | "not-found";
@@ -30,6 +32,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
+      <ToastProvider>
       <div className="app">
         <header className="app-header">
           <h1>
@@ -59,7 +62,9 @@ export default function App() {
             <Dashboard />
           )}
         </main>
+        <ToastContainer />
       </div>
+      </ToastProvider>
     </ErrorBoundary>
   );
 }

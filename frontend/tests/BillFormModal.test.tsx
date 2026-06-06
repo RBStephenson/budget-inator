@@ -2,7 +2,18 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { BillFormModal } from "../src/components/BillFormModal";
+import { ToastContainer } from "../src/components/ToastContainer";
+import { ToastProvider } from "../src/context/ToastContext";
 import { makeApiBill } from "./fixtures";
+
+function renderWithToast(ui: React.ReactElement) {
+  return render(
+    <ToastProvider>
+      {ui}
+      <ToastContainer />
+    </ToastProvider>,
+  );
+}
 
 function mockFetch(ok = true) {
   vi.spyOn(globalThis, "fetch").mockResolvedValue({
@@ -70,7 +81,7 @@ describe("BillFormModal — add mode", () => {
 
 describe("BillFormModal — edit mode", () => {
   it("renders the edit bill title", () => {
-    render(
+    renderWithToast(
       <BillFormModal bill={makeApiBill()} onSave={vi.fn()} onClose={vi.fn()} />,
     );
     expect(screen.getByRole("heading", { name: "Edit bill" })).toBeInTheDocument();
@@ -114,7 +125,7 @@ describe("BillFormModal — edit mode", () => {
 
   it("shows a server error when the API call fails", async () => {
     mockFetch(false);
-    render(
+    renderWithToast(
       <BillFormModal bill={makeApiBill()} onSave={vi.fn()} onClose={vi.fn()} />,
     );
     await userEvent.click(screen.getByRole("button", { name: /save changes/i }));
