@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createBill, updateBill } from "../api/bills";
+import { useToast } from "../context/ToastContext";
 import type { Bill, BillCategory, BillRecurrence } from "../types/bill";
 import { CATEGORY_LABELS, RECURRENCE_LABELS } from "../types/bill";
 
@@ -42,7 +43,7 @@ export function BillFormModal({ bill, onSave, onClose }: Props) {
   const [form, setForm] = useState<FormState>(() => initialState(bill));
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [serverError, setServerError] = useState("");
+  const { addToast } = useToast();
   const nameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -83,7 +84,6 @@ export function BillFormModal({ bill, onSave, onClose }: Props) {
     e.preventDefault();
     if (!validate()) return;
     setSubmitting(true);
-    setServerError("");
     try {
       const payload = {
         name: form.name.trim(),
@@ -106,7 +106,7 @@ export function BillFormModal({ bill, onSave, onClose }: Props) {
       }
       onSave();
     } catch {
-      setServerError("Failed to save bill. Please try again.");
+      addToast("Failed to save bill. Please try again.", "error");
     } finally {
       setSubmitting(false);
     }
@@ -240,8 +240,6 @@ export function BillFormModal({ bill, onSave, onClose }: Props) {
               />
             </div>
           </div>
-
-          {serverError && <p className="form-error form-error--server">{serverError}</p>}
 
           <div className="modal__footer">
             <button type="button" className="btn btn--ghost" onClick={onClose}>

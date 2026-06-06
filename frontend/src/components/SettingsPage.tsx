@@ -5,7 +5,9 @@ import {
   getPaySchedule,
   updatePaySchedule,
 } from "../api/paySchedule";
+import { useToast } from "../context/ToastContext";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { Link } from "./Link";
 import type { PayFrequency, PaySchedule } from "../types/paySchedule";
 import { FREQUENCY_LABELS } from "../types/paySchedule";
 
@@ -40,9 +42,9 @@ export function SettingsPage() {
 
   const [exportStatus, setExportStatus] = useState<DataStatus>("idle");
   const [importStatus, setImportStatus] = useState<DataStatus>("idle");
-  const [importError, setImportError] = useState<string | null>(null);
   const [deleteStatus, setDeleteStatus] = useState<DataStatus>("idle");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const { addToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -107,13 +109,13 @@ export function SettingsPage() {
       setExportStatus("done");
       setTimeout(() => setExportStatus("idle"), 3000);
     } catch {
-      setExportStatus("error");
+      setExportStatus("idle");
+      addToast("Export failed. Please try again.", "error");
     }
   }
 
   async function handleImport(file: File) {
     setImportStatus("busy");
-    setImportError(null);
     try {
       const text = await file.text();
       const payload = JSON.parse(text) as unknown;
@@ -121,8 +123,8 @@ export function SettingsPage() {
       setImportStatus("done");
       setTimeout(() => setImportStatus("idle"), 3000);
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : "Import failed");
-      setImportStatus("error");
+      setImportStatus("idle");
+      addToast(err instanceof Error ? err.message : "Import failed.", "error");
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
@@ -136,7 +138,8 @@ export function SettingsPage() {
       setDeleteStatus("done");
       setTimeout(() => setDeleteStatus("idle"), 3000);
     } catch {
-      setDeleteStatus("error");
+      setDeleteStatus("idle");
+      addToast("Delete failed. Please try again.", "error");
     }
   }
 
@@ -158,7 +161,7 @@ export function SettingsPage() {
     <div className="settings-page">
       <div className="settings-page__header">
         <div>
-          <a href="/" className="back-link">← Dashboard</a>
+          <Link href="/" className="back-link">← Dashboard</Link>
           <h2 className="settings-page__title">Pay schedule</h2>
         </div>
       </div>
@@ -287,9 +290,6 @@ export function SettingsPage() {
             {exportStatus === "done" && (
               <span className="settings-data__ok">✓ Downloaded</span>
             )}
-            {exportStatus === "error" && (
-              <span className="settings-data__err">Export failed</span>
-            )}
           </div>
 
           <div className="settings-data__item">
@@ -314,9 +314,6 @@ export function SettingsPage() {
             {importStatus === "done" && (
               <span className="settings-data__ok">✓ Imported</span>
             )}
-            {importStatus === "error" && (
-              <span className="settings-data__err">{importError ?? "Import failed"}</span>
-            )}
           </div>
 
           <div className="settings-data__item">
@@ -333,9 +330,6 @@ export function SettingsPage() {
             </button>
             {deleteStatus === "done" && (
               <span className="settings-data__ok">✓ All data deleted</span>
-            )}
-            {deleteStatus === "error" && (
-              <span className="settings-data__err">Delete failed</span>
             )}
           </div>
         </div>
