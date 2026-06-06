@@ -67,6 +67,16 @@ export const RECURRENCE_LABELS: Record<BillRecurrence, string> = {
   one_time: "One-time",
 };
 
+export const CATEGORY_ORDER: BillCategory[] = [
+  "housing",
+  "utilities",
+  "subscriptions",
+  "insurance",
+  "debt",
+  "savings",
+  "other",
+];
+
 export const CATEGORY_LABELS: Record<BillCategory, string> = {
   housing: "Housing",
   utilities: "Utilities",

@@ -5,6 +5,7 @@ import { downloadBudgetPdf } from "../api/reports";
 import { FlaggedBillsBanner } from "./FlaggedBillsBanner";
 import { PeriodCard } from "./PeriodCard";
 import { MonthCard } from "./MonthCard";
+import { AnnualCostModal } from "./AnnualCostModal";
 
 type DashboardView = "periods" | "monthly";
 
@@ -12,6 +13,7 @@ export function Dashboard() {
   const [view, setView] = useState<DashboardView>("periods");
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState(false);
+  const [showAnnualCost, setShowAnnualCost] = useState(false);
   const { data, status, refetch } = useSchedule();
   const {
     data: monthlyData,
@@ -129,6 +131,12 @@ export function Dashboard() {
         </a>
         <button
           className="btn btn--secondary"
+          onClick={() => setShowAnnualCost(true)}
+        >
+          Annual Cost
+        </button>
+        <button
+          className="btn btn--secondary"
           onClick={handleDownloadPdf}
           disabled={downloading}
         >
@@ -140,6 +148,10 @@ export function Dashboard() {
           </span>
         )}
       </div>
+
+      {showAnnualCost && (
+        <AnnualCostModal onClose={() => setShowAnnualCost(false)} />
+      )}
     </div>
   );
 }

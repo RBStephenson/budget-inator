@@ -116,6 +116,41 @@ describe("Dashboard", () => {
     );
   });
 
+  it("renders the Annual Cost button", async () => {
+    mockFetch(makeSchedule([makePeriod()]));
+    render(<Dashboard />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /annual cost/i })).toBeInTheDocument(),
+    );
+  });
+
+  it("opens the Annual Cost modal when the button is clicked", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
+      const u = String(url);
+      if (u.includes("/bills")) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          json: async () => [],
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: async () => makeSchedule([makePeriod()]),
+      } as Response);
+    });
+    render(<Dashboard />);
+    await waitFor(() => screen.getByRole("button", { name: /annual cost/i }));
+    await user.click(screen.getByRole("button", { name: /annual cost/i }));
+    await waitFor(() =>
+      expect(screen.getByText("Annual Cost Breakdown")).toBeInTheDocument(),
+    );
+  });
+
   it("shows the view toggle buttons", async () => {
     mockFetch(makeSchedule([makePeriod()]));
     render(<Dashboard />);
