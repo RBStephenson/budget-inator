@@ -166,7 +166,7 @@ Changes take effect immediately when saved. Updating the pay frequency or first 
 
 Found at the bottom of the Settings page.
 
-**Export backup** — downloads a `budget-inator-backup-YYYY-MM-DD.json` file containing your full pay schedule, all bills, and all bill instance overrides (payment statuses and actual amounts). Keep this somewhere safe if you ever need to migrate or recover.
+**Export backup** — downloads a `budget-inator-backup-YYYY-MM-DD.json` file containing your full pay schedule, all bills, all bill instance overrides (payment statuses and actual amounts), and adjusted pay dates. Keep this somewhere safe if you ever need to migrate or recover.
 
 **Import backup** — restores from a backup file. This **overwrites all current data** and cannot be undone. Import is intended for migration and recovery, not for merging two data sets.
 

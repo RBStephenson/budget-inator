@@ -277,7 +277,8 @@ export function SettingsPage() {
         <div className="settings-data__row">
           <div className="settings-data__item">
             <p className="settings-data__desc">
-              Download a JSON backup of your pay schedule and bills.
+              Download a JSON backup of your pay schedule, bills, and
+              payment history.
             </p>
             <button
               className="btn btn--secondary"
