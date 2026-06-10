@@ -82,7 +82,9 @@ def patch_bill(bill_id: int, body: BillUpdate, db: Session = Depends(get_db)) ->
         bill.is_variable = body.is_variable
     if body.is_active is not None:
         bill.is_active = body.is_active
-    if body.notes is not None:
+    # Only update notes when the field was sent: omitting it preserves the
+    # stored value, an explicit null clears it.
+    if "notes" in body.model_fields_set:
         bill.notes = body.notes
 
     db.commit()

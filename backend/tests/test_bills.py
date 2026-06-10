@@ -219,6 +219,27 @@ class TestPatchBill:
         assert r.status_code == 200
         assert r.json()["is_active"] is True
 
+    def test_updates_notes(self, client: TestClient) -> None:
+        created = client.post("/bills", json=MONTHLY_BILL).json()
+        r = client.patch(f"/bills/{created['id']}", json={"notes": "Autopay on 1st"})
+        assert r.status_code == 200
+        assert r.json()["notes"] == "Autopay on 1st"
+
+    def test_explicit_null_clears_notes(self, client: TestClient) -> None:
+        """Regression for #80: clearing notes in the edit modal must persist."""
+        payload = {**MONTHLY_BILL, "notes": "Autopay on 1st"}
+        created = client.post("/bills", json=payload).json()
+        r = client.patch(f"/bills/{created['id']}", json={"notes": None})
+        assert r.status_code == 200
+        assert r.json()["notes"] is None
+
+    def test_omitting_notes_preserves_them(self, client: TestClient) -> None:
+        payload = {**MONTHLY_BILL, "notes": "Autopay on 1st"}
+        created = client.post("/bills", json=payload).json()
+        r = client.patch(f"/bills/{created['id']}", json={"name": "Apartment Rent"})
+        assert r.status_code == 200
+        assert r.json()["notes"] == "Autopay on 1st"
+
     def test_empty_patch_is_no_op(self, client: TestClient) -> None:
         created = client.post("/bills", json=MONTHLY_BILL).json()
         r = client.patch(f"/bills/{created['id']}", json={})
