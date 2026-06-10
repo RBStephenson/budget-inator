@@ -1,14 +1,20 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { BillsPage } from "../src/components/BillsPage";
+import { ToastContainer } from "../src/components/ToastContainer";
 import { ToastProvider } from "../src/context/ToastContext";
 import { makeApiBill } from "./fixtures";
 
-// BillsPage opens BillFormModal, which calls useToast(); wrap renders that
-// reach the modal in a ToastProvider.
-function renderWithToast(ui: React.ReactElement) {
-  return render(<ToastProvider>{ui}</ToastProvider>);
+// BillsPage calls useToast(); wrap every render in a ToastProvider with a
+// ToastContainer so error toasts can be asserted.
+function render(ui: React.ReactElement) {
+  return rtlRender(
+    <ToastProvider>
+      {ui}
+      <ToastContainer />
+    </ToastProvider>,
+  );
 }
 
 function mockListBills(bills: ReturnType<typeof makeApiBill>[], ok = true) {
@@ -54,7 +60,7 @@ describe("BillsPage", () => {
 
   it("opens the add modal when the Add Bill button is clicked", async () => {
     mockListBills([]);
-    renderWithToast(<BillsPage />);
+    render(<BillsPage />);
     await waitFor(() =>
       expect(screen.getByText(/no bills yet/i)).toBeInTheDocument(),
     );
@@ -64,7 +70,7 @@ describe("BillsPage", () => {
 
   it("opens the edit modal when Edit is clicked on a bill", async () => {
     mockListBills([makeApiBill({ name: "Rent" })]);
-    renderWithToast(<BillsPage />);
+    render(<BillsPage />);
     await waitFor(() => expect(screen.getByText("Rent")).toBeInTheDocument());
     await userEvent.click(screen.getByRole("button", { name: /edit rent/i }));
     expect(screen.getByText("Edit bill")).toBeInTheDocument();
@@ -86,6 +92,37 @@ describe("BillsPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /deactivate rent/i }));
     await userEvent.click(screen.getByRole("button", { name: /cancel/i }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("shows an error toast and keeps the dialog open when deactivate fails", async () => {
+    // GET /bills succeeds; the deactivate PATCH fails
+    vi.spyOn(globalThis, "fetch").mockImplementation((_url, init) => {
+      if (init?.method === "PATCH") {
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          statusText: "Internal Server Error",
+          json: async () => ({}),
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: async () => [makeApiBill({ name: "Rent" })],
+      } as Response);
+    });
+    render(<BillsPage />);
+    await waitFor(() => expect(screen.getByText("Rent")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /deactivate rent/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Deactivate" }));
+    await waitFor(() =>
+      expect(
+        screen.getByText(/could not deactivate "Rent"/i),
+      ).toBeInTheDocument(),
+    );
+    // Dialog stays open so the user can retry or cancel
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   it("renders the back-to-dashboard link", async () => {

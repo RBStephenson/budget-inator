@@ -1,8 +1,15 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { PeriodCard } from "../src/components/PeriodCard";
+import { ToastProvider } from "../src/context/ToastContext";
 import { makeBill, makePeriod } from "./fixtures";
+
+// PeriodCard renders BillRow, which calls useToast(); wrap every render in
+// a ToastProvider.
+function render(ui: React.ReactElement) {
+  return rtlRender(<ToastProvider>{ui}</ToastProvider>);
+}
 
 beforeEach(() => vi.restoreAllMocks());
 afterEach(() => vi.restoreAllMocks());

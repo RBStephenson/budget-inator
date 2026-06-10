@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { patchBillInstance } from "../api/billInstances";
+import { useToast } from "../context/ToastContext";
 import type { AssignedBill } from "../types/schedule";
 
 interface Props {
@@ -26,6 +27,7 @@ export function BillRow({ bill, payOnDate, onRefetch }: Props) {
   const [saving, setSaving] = useState(false);
   const [editingActual, setEditingActual] = useState(false);
   const [actualInput, setActualInput] = useState("");
+  const { addToast } = useToast();
   const isLate = bill.status === "late_flagged";
   const isPaid = bill.status === "paid";
   const isSkipped = bill.status === "skipped";
@@ -35,6 +37,8 @@ export function BillRow({ bill, payOnDate, onRefetch }: Props) {
     try {
       await patchBillInstance(bill.bill_id, bill.due_date, newStatus);
       onRefetch?.();
+    } catch {
+      addToast("Could not update the bill status. Please try again.", "error");
     } finally {
       setSaving(false);
     }
@@ -49,6 +53,9 @@ export function BillRow({ bill, payOnDate, onRefetch }: Props) {
       setEditingActual(false);
       setActualInput("");
       onRefetch?.();
+    } catch {
+      // Leave the editor open so the entered amount isn't lost
+      addToast("Could not save the actual amount. Please try again.", "error");
     } finally {
       setSaving(false);
     }
