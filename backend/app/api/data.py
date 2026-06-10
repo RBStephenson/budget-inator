@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, status
@@ -11,13 +11,13 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Bill, BillInstance, PaySchedule
-from app.models.enums import BillCategory, BillRecurrence, PayFrequency
+from app.models.enums import BillCategory, BillRecurrence, BillStatus, PayFrequency
 from app.models.pay_period_override import PayPeriodOverride
 from app.utils import utcnow
 
 router = APIRouter(prefix="/data", tags=["data"])
 
-EXPORT_VERSION = 1
+EXPORT_VERSION = 2
 
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
@@ -43,10 +43,28 @@ class ExportBill(BaseModel):
     notes: str | None
 
 
+class ExportBillInstance(BaseModel):
+    # Index into the exported bills list (bill IDs are not stable across
+    # import, so instances reference bills by position).
+    bill_index: int
+    due_date: date
+    estimated_amount: Decimal
+    actual_amount: Decimal | None
+    status: BillStatus
+    paid_at: datetime | None
+
+
+class ExportPayPeriodOverride(BaseModel):
+    original_pay_date: date
+    overridden_pay_date: date
+
+
 class ExportPayload(BaseModel):
     version: int
     pay_schedule: ExportPaySchedule | None
     bills: list[ExportBill]
+    bill_instances: list[ExportBillInstance]
+    pay_period_overrides: list[ExportPayPeriodOverride]
 
 
 class ImportBill(BaseModel):
@@ -79,6 +97,26 @@ class ImportBill(BaseModel):
         return self
 
 
+class ImportBillInstance(BaseModel):
+    bill_index: int = Field(ge=0)
+    due_date: date
+    estimated_amount: Decimal
+    actual_amount: Decimal | None = None
+    status: BillStatus
+    paid_at: datetime | None = None
+
+
+class ImportPayPeriodOverride(BaseModel):
+    original_pay_date: date
+    overridden_pay_date: date
+
+    @model_validator(mode="after")
+    def dates_differ(self) -> ImportPayPeriodOverride:
+        if self.original_pay_date == self.overridden_pay_date:
+            raise ValueError("overridden_pay_date must differ from original_pay_date")
+        return self
+
+
 class ImportPaySchedule(BaseModel):
     net_salary: Decimal
     first_paycheck_date: date
@@ -97,6 +135,8 @@ class ImportPayload(BaseModel):
     version: int
     pay_schedule: ImportPaySchedule | None = None
     bills: list[ImportBill] = []
+    bill_instances: list[ImportBillInstance] = []
+    pay_period_overrides: list[ImportPayPeriodOverride] = []
 
     @field_validator("version")
     @classmethod
@@ -104,6 +144,32 @@ class ImportPayload(BaseModel):
         if v != EXPORT_VERSION:
             raise ValueError(f"unsupported export version: {v}")
         return v
+
+    @model_validator(mode="after")
+    def referential_integrity(self) -> ImportPayload:
+        seen_instances: set[tuple[int, date]] = set()
+        for inst in self.bill_instances:
+            if inst.bill_index >= len(self.bills):
+                raise ValueError(
+                    f"bill_instances references bill_index {inst.bill_index} "
+                    f"but only {len(self.bills)} bills are present"
+                )
+            key = (inst.bill_index, inst.due_date)
+            if key in seen_instances:
+                raise ValueError(
+                    f"duplicate bill instance for bill_index {inst.bill_index} "
+                    f"on {inst.due_date}"
+                )
+            seen_instances.add(key)
+
+        seen_overrides: set[date] = set()
+        for ov in self.pay_period_overrides:
+            if ov.original_pay_date in seen_overrides:
+                raise ValueError(
+                    f"duplicate pay-period override for {ov.original_pay_date}"
+                )
+            seen_overrides.add(ov.original_pay_date)
+        return self
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -113,6 +179,10 @@ class ImportPayload(BaseModel):
 def export_data(db: Session = Depends(get_db)) -> ExportPayload:
     sched = db.query(PaySchedule).first()
     bills = db.query(Bill).order_by(Bill.id).all()
+    instances = db.query(BillInstance).order_by(BillInstance.id).all()
+    overrides = (
+        db.query(PayPeriodOverride).order_by(PayPeriodOverride.original_pay_date).all()
+    )
 
     pay_schedule = None
     if sched is not None:
@@ -139,10 +209,33 @@ def export_data(db: Session = Depends(get_db)) -> ExportPayload:
         for b in bills
     ]
 
+    bill_index_by_id = {b.id: i for i, b in enumerate(bills)}
+    export_instances = [
+        ExportBillInstance(
+            bill_index=bill_index_by_id[r.bill_id],
+            due_date=r.due_date,
+            estimated_amount=r.estimated_amount,
+            actual_amount=r.actual_amount,
+            status=BillStatus(r.status),
+            paid_at=r.paid_at,
+        )
+        for r in instances
+    ]
+
+    export_overrides = [
+        ExportPayPeriodOverride(
+            original_pay_date=r.original_pay_date,
+            overridden_pay_date=r.overridden_pay_date,
+        )
+        for r in overrides
+    ]
+
     return ExportPayload(
         version=EXPORT_VERSION,
         pay_schedule=pay_schedule,
         bills=export_bills,
+        bill_instances=export_instances,
+        pay_period_overrides=export_overrides,
     )
 
 
@@ -169,19 +262,48 @@ def import_data(body: ImportPayload, db: Session = Depends(get_db)) -> None:
             )
         )
 
+    created_bills: list[Bill] = []
     for b in body.bills:
+        bill = Bill(
+            name=b.name,
+            estimated_amount=b.amount,
+            recurrence=b.recurrence,
+            due_day=b.due_day,
+            first_due_date=b.due_date,
+            grace_period_days=b.grace_period_days,
+            category=b.category,
+            is_variable=b.is_variable,
+            is_active=b.is_active,
+            notes=b.notes,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(bill)
+        created_bills.append(bill)
+
+    # Flush so created bills get IDs for the instance FKs
+    db.flush()
+
+    for inst in body.bill_instances:
         db.add(
-            Bill(
-                name=b.name,
-                estimated_amount=b.amount,
-                recurrence=b.recurrence,
-                due_day=b.due_day,
-                first_due_date=b.due_date,
-                grace_period_days=b.grace_period_days,
-                category=b.category,
-                is_variable=b.is_variable,
-                is_active=b.is_active,
-                notes=b.notes,
+            BillInstance(
+                bill_id=created_bills[inst.bill_index].id,
+                pay_period_id=None,
+                due_date=inst.due_date,
+                estimated_amount=inst.estimated_amount,
+                actual_amount=inst.actual_amount,
+                status=inst.status,
+                paid_at=inst.paid_at,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+
+    for ov in body.pay_period_overrides:
+        db.add(
+            PayPeriodOverride(
+                original_pay_date=ov.original_pay_date,
+                overridden_pay_date=ov.overridden_pay_date,
                 created_at=now,
                 updated_at=now,
             )
