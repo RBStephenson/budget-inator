@@ -83,6 +83,50 @@ class TestUpsertBillInstance:
         assert resp.status_code == 200
         assert resp.json()["actual_amount"] == "750.00"
 
+    def test_marking_paid_preserves_actual_amount(self, client: TestClient, db):
+        """Regression for #77: Paid without actual_amount must not wipe it."""
+        bill = _make_bill(db)
+        client.patch(
+            f"/bill-instances/{bill.id}/2025-01-01",
+            json={"status": "pending", "actual_amount": "750.00"},
+        )
+        resp = client.patch(
+            f"/bill-instances/{bill.id}/2025-01-01",
+            json={"status": "paid"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "paid"
+        assert data["actual_amount"] == "750.00"
+
+    def test_undo_preserves_actual_amount(self, client: TestClient, db):
+        bill = _make_bill(db)
+        client.patch(
+            f"/bill-instances/{bill.id}/2025-01-01",
+            json={"status": "paid", "actual_amount": "750.00"},
+        )
+        resp = client.patch(
+            f"/bill-instances/{bill.id}/2025-01-01",
+            json={"status": "pending"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "pending"
+        assert data["actual_amount"] == "750.00"
+
+    def test_explicit_null_clears_actual_amount(self, client: TestClient, db):
+        bill = _make_bill(db)
+        client.patch(
+            f"/bill-instances/{bill.id}/2025-01-01",
+            json={"status": "pending", "actual_amount": "750.00"},
+        )
+        resp = client.patch(
+            f"/bill-instances/{bill.id}/2025-01-01",
+            json={"status": "pending", "actual_amount": None},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["actual_amount"] is None
+
     def test_returns_404_for_unknown_bill(self, client: TestClient):
         resp = client.patch(
             "/bill-instances/9999/2025-01-01",

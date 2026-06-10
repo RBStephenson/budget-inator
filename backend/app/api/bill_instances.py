@@ -68,7 +68,10 @@ def upsert_bill_instance(
         db.add(inst)
     else:
         inst.status = body.status
-        inst.actual_amount = body.actual_amount
+        # Only update actual_amount when the field was sent: omitting it
+        # preserves the stored value, an explicit null clears it.
+        if "actual_amount" in body.model_fields_set:
+            inst.actual_amount = body.actual_amount
         inst.paid_at = now if body.status == BillStatus.paid else None
         inst.updated_at = now
 
