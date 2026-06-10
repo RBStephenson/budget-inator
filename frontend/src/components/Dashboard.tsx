@@ -88,6 +88,25 @@ export function Dashboard() {
         </button>
       </div>
 
+      <div className="dashboard__actions">
+        <Link href="/bills" className="btn btn--primary">
+          + Add Bill
+        </Link>
+        <button
+          className="btn btn--secondary"
+          onClick={() => setShowAnnualCost(true)}
+        >
+          Annual Cost
+        </button>
+        <button
+          className="btn btn--secondary"
+          onClick={handleDownloadPdf}
+          disabled={downloading}
+        >
+          {downloading ? "Generating PDF…" : "Download PDF"}
+        </button>
+      </div>
+
       {view === "periods" && data && data.periods.length > 0 && (
         <>
           {data.summary.total_flagged_bills > 0 && (
@@ -125,25 +144,6 @@ export function Dashboard() {
           ))}
         </section>
       )}
-
-      <div className="dashboard__actions">
-        <Link href="/bills" className="btn btn--primary">
-          + Add Bill
-        </Link>
-        <button
-          className="btn btn--secondary"
-          onClick={() => setShowAnnualCost(true)}
-        >
-          Annual Cost
-        </button>
-        <button
-          className="btn btn--secondary"
-          onClick={handleDownloadPdf}
-          disabled={downloading}
-        >
-          {downloading ? "Generating PDF…" : "Download PDF"}
-        </button>
-      </div>
 
       {showAnnualCost && (
         <AnnualCostModal onClose={() => setShowAnnualCost(false)} />

@@ -127,6 +127,20 @@ describe("Dashboard", () => {
     );
   });
 
+  it("renders the actions row above the period cards", async () => {
+    mockFetch(makeSchedule([makePeriod()]));
+    renderWithToast(<Dashboard />);
+    await waitFor(() =>
+      expect(screen.getByText("Current period")).toBeInTheDocument(),
+    );
+    const addBill = screen.getByRole("link", { name: /add bill/i });
+    const hero = screen.getByText("Current period");
+    // Add Bill must precede the hero card in document order
+    expect(
+      addBill.compareDocumentPosition(hero) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("renders the Annual Cost button", async () => {
     mockFetch(makeSchedule([makePeriod()]));
     renderWithToast(<Dashboard />);
