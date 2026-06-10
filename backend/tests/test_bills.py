@@ -260,6 +260,64 @@ class TestPatchBill:
         r = client.patch("/bills/999", json={"name": "Ghost"})
         assert r.status_code == 404
 
+    def test_switches_to_monthly_with_due_day(self, client: TestClient) -> None:
+        created = client.post("/bills", json=ANCHOR_BILL).json()
+        r = client.patch(
+            f"/bills/{created['id']}", json={"recurrence": "monthly", "due_day": 5}
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["recurrence"] == "monthly"
+        assert data["due_day"] == 5
+        assert data["due_date"] is None  # anchor cleared
+
+    def test_switches_to_weekly_with_due_date(self, client: TestClient) -> None:
+        created = client.post("/bills", json=MONTHLY_BILL).json()
+        r = client.patch(
+            f"/bills/{created['id']}",
+            json={"recurrence": "weekly", "due_date": "2024-03-01"},
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["recurrence"] == "weekly"
+        assert data["due_date"] == "2024-03-01"
+        assert data["due_day"] is None  # month-day cleared
+
+    def test_rejects_switch_to_monthly_without_due_day(
+        self, client: TestClient
+    ) -> None:
+        """Regression for #79: this used to persist and 500 GET /schedule."""
+        created = client.post("/bills", json=ANCHOR_BILL).json()
+        r = client.patch(f"/bills/{created['id']}", json={"recurrence": "monthly"})
+        assert r.status_code == 422
+
+        # Bill is unchanged and still consistent
+        bill = client.get(f"/bills/{created['id']}").json()
+        assert bill["recurrence"] == "biweekly"
+        assert bill["due_date"] == "2024-01-10"
+
+    def test_rejects_switch_to_non_monthly_without_due_date(
+        self, client: TestClient
+    ) -> None:
+        created = client.post("/bills", json=MONTHLY_BILL).json()
+        r = client.patch(f"/bills/{created['id']}", json={"recurrence": "weekly"})
+        assert r.status_code == 422
+        bill = client.get(f"/bills/{created['id']}").json()
+        assert bill["recurrence"] == "monthly"
+        assert bill["due_day"] == 1
+
+    def test_rejects_due_date_on_monthly_bill(self, client: TestClient) -> None:
+        created = client.post("/bills", json=MONTHLY_BILL).json()
+        r = client.patch(f"/bills/{created['id']}", json={"due_date": "2024-03-01"})
+        assert r.status_code == 422
+        assert client.get(f"/bills/{created['id']}").json()["due_date"] is None
+
+    def test_rejects_due_day_on_anchor_bill(self, client: TestClient) -> None:
+        created = client.post("/bills", json=ANCHOR_BILL).json()
+        r = client.patch(f"/bills/{created['id']}", json={"due_day": 5})
+        assert r.status_code == 422
+        assert client.get(f"/bills/{created['id']}").json()["due_day"] is None
+
 
 class TestDeleteBill:
     def test_soft_deletes_bill(self, client: TestClient) -> None:
