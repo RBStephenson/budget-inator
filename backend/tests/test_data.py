@@ -219,6 +219,39 @@ class TestImport:
         resp = client.post("/data/import", json=payload)
         assert resp.status_code == 422
 
+    def test_import_rejects_out_of_range_due_day(self, client: TestClient, db):
+        payload = {
+            "version": 2,
+            "bills": [
+                {
+                    "name": "Bad",
+                    "amount": "10.00",
+                    "recurrence": "monthly",
+                    "due_day": 31,
+                    "category": "other",
+                }
+            ],
+        }
+        resp = client.post("/data/import", json=payload)
+        assert resp.status_code == 422
+
+    def test_import_rejects_bill_with_both_due_fields(self, client: TestClient, db):
+        payload = {
+            "version": 2,
+            "bills": [
+                {
+                    "name": "Bad",
+                    "amount": "10.00",
+                    "recurrence": "monthly",
+                    "due_day": 1,
+                    "due_date": "2025-01-01",
+                    "category": "other",
+                }
+            ],
+        }
+        resp = client.post("/data/import", json=payload)
+        assert resp.status_code == 422
+
     def test_import_rejects_out_of_range_bill_index(self, client: TestClient, db):
         payload = {
             "version": 2,

@@ -86,14 +86,25 @@ class ImportBill(BaseModel):
             raise ValueError("amount must be greater than 0")
         return v
 
+    @field_validator("due_day")
+    @classmethod
+    def due_day_range(cls, v: int | None) -> int | None:
+        if v is not None and not (1 <= v <= 28):
+            raise ValueError("due_day must be between 1 and 28")
+        return v
+
     @model_validator(mode="after")
     def due_date_rules(self) -> ImportBill:
         if self.recurrence == BillRecurrence.monthly:
             if self.due_day is None:
                 raise ValueError("due_day is required for monthly recurrence")
+            if self.due_date is not None:
+                raise ValueError("due_date must be omitted for monthly recurrence")
         else:
             if self.due_date is None:
                 raise ValueError("due_date is required for non-monthly recurrence")
+            if self.due_day is not None:
+                raise ValueError("due_day must be omitted for non-monthly recurrence")
         return self
 
 

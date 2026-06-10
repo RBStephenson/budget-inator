@@ -9,6 +9,33 @@ from app.schemas.bill import BillCreate, BillRead, BillUpdate
 router = APIRouter(prefix="/bills", tags=["bills"])
 
 
+def _validate_due_fields(bill: Bill, db: Session) -> None:
+    """Reject a patched bill whose recurrence/due fields are inconsistent.
+
+    Mirrors BillCreate.due_date_rules but checks the RESULTING state, so a
+    partial PATCH (e.g. switching recurrence without supplying the matching
+    due field) cannot persist a bill that breaks the schedule projection.
+    """
+    error: str | None = None
+    if bill.recurrence == BillRecurrence.monthly:
+        if bill.due_day is None:
+            error = "due_day is required for monthly recurrence"
+        elif bill.first_due_date is not None:
+            error = "due_date must be omitted for monthly recurrence"
+    else:
+        if bill.first_due_date is None:
+            error = "due_date is required for non-monthly recurrence"
+        elif bill.due_day is not None:
+            error = "due_day must be omitted for non-monthly recurrence"
+
+    if error is not None:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=error,
+        )
+
+
 def _get_bill_or_404(bill_id: int, db: Session) -> Bill:
     row = db.get(Bill, bill_id)
     if row is None:
@@ -86,6 +113,8 @@ def patch_bill(bill_id: int, body: BillUpdate, db: Session = Depends(get_db)) ->
     # stored value, an explicit null clears it.
     if "notes" in body.model_fields_set:
         bill.notes = body.notes
+
+    _validate_due_fields(bill, db)
 
     db.commit()
     db.refresh(bill)
