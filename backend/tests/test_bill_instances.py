@@ -127,6 +127,57 @@ class TestUpsertBillInstance:
         assert resp.status_code == 200
         assert resp.json()["actual_amount"] is None
 
+    def test_back_dates_paid_at_when_supplied(self, client: TestClient, db):
+        """#69: an explicit paid_at is stored instead of the server time."""
+        bill = _make_bill(db)
+        resp = client.patch(
+            f"/bill-instances/{bill.id}/2025-01-01",
+            json={"status": "paid", "paid_at": "2025-01-03T00:00:00"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["paid_at"] == "2025-01-03T00:00:00"
+
+    def test_accepts_date_only_paid_at(self, client: TestClient, db):
+        """The frontend sends a YYYY-MM-DD date; it coerces to midnight."""
+        bill = _make_bill(db)
+        resp = client.patch(
+            f"/bill-instances/{bill.id}/2025-01-01",
+            json={"status": "paid", "paid_at": "2025-01-03"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["paid_at"].startswith("2025-01-03")
+
+    def test_defaults_paid_at_to_now_when_omitted(self, client: TestClient, db):
+        bill = _make_bill(db)
+        resp = client.patch(
+            f"/bill-instances/{bill.id}/2025-01-01",
+            json={"status": "paid"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["paid_at"] is not None
+
+    def test_back_dates_paid_at_on_existing_instance(self, client: TestClient, db):
+        bill = _make_bill(db)
+        client.patch(
+            f"/bill-instances/{bill.id}/2025-01-01",
+            json={"status": "pending"},
+        )
+        resp = client.patch(
+            f"/bill-instances/{bill.id}/2025-01-01",
+            json={"status": "paid", "paid_at": "2024-12-28T00:00:00"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["paid_at"] == "2024-12-28T00:00:00"
+
+    def test_paid_at_ignored_for_non_paid_status(self, client: TestClient, db):
+        bill = _make_bill(db)
+        resp = client.patch(
+            f"/bill-instances/{bill.id}/2025-01-01",
+            json={"status": "skipped", "paid_at": "2025-01-03T00:00:00"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["paid_at"] is None
+
     def test_returns_404_for_unknown_bill(self, client: TestClient):
         resp = client.patch(
             "/bill-instances/9999/2025-01-01",

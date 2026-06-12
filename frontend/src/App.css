@@ -685,6 +685,20 @@ body {
   gap: 0.25rem;
 }
 
+.bill-row__paid-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.bill-row__paid-input {
+  width: 8.5rem;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.85rem;
+}
+
 /* ── Buttons ────────────────────────────────────────────────────────────────── */
 
 .btn {
