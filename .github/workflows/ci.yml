@@ -18,7 +18,7 @@ jobs:
       has_backend: ${{ steps.check.outputs.has_backend }}
       has_frontend: ${{ steps.check.outputs.has_frontend }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Check which directories exist
         id: check
         run: |
