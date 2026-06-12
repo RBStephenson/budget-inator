@@ -8,6 +8,7 @@ from decimal import Decimal
 
 from app.models.enums import BillRecurrence, PayFrequency
 from app.services.pay_period_engine import (
+    ActualAnchor,
     BillInput,
     PayPeriodResult,
     assign_bills,
@@ -139,6 +140,71 @@ class TestRollingBalance:
         )
         assert periods[0].remaining_balance == Decimal("-500.00")
         assert periods[1].opening_balance == Decimal("2000.00")
+
+
+class TestActualsReanchor:
+    """#55: confirmed payday actuals override the computed projection."""
+
+    # biweekly from 2024-01-05 → pay dates 01-05, 01-19, 02-02
+
+    def test_actual_balance_reanchors_opening(self) -> None:
+        actuals = {date(2024, 1, 5): ActualAnchor(actual_balance=Decimal("1000.00"))}
+        periods = project(
+            date(2024, 1, 5),
+            PayFrequency.biweekly,
+            2,
+            SALARY,
+            Decimal("500.00"),
+            [],
+            actuals,
+        )
+        # Opening is the actual balance, not beginning_balance + salary.
+        assert periods[0].opening_balance == Decimal("1000.00")
+        # Next period rolls forward from there (deposit already reflected).
+        assert periods[1].opening_balance == Decimal("3500.00")
+
+    def test_actual_balance_on_later_period_only_affects_from_there(self) -> None:
+        actuals = {date(2024, 1, 19): ActualAnchor(actual_balance=Decimal("999.00"))}
+        periods = project(
+            date(2024, 1, 5), PayFrequency.biweekly, 3, SALARY, ZERO, [], actuals
+        )
+        assert periods[0].opening_balance == SALARY  # unchanged
+        assert periods[1].opening_balance == Decimal("999.00")  # re-anchored
+        assert periods[2].opening_balance == Decimal("3499.00")  # 999 + salary
+
+    def test_actual_net_pay_overrides_salary_for_that_period_only(self) -> None:
+        actuals = {date(2024, 1, 5): ActualAnchor(actual_net_pay=Decimal("100.00"))}
+        periods = project(
+            date(2024, 1, 5), PayFrequency.biweekly, 2, SALARY, ZERO, [], actuals
+        )
+        # Period 0 uses the actual net pay...
+        assert periods[0].opening_balance == Decimal("100.00")
+        # ...but period 1 reverts to the assumed salary (100 + 2500).
+        assert periods[1].opening_balance == Decimal("2600.00")
+
+    def test_actual_balance_takes_precedence_over_net_pay(self) -> None:
+        actuals = {
+            date(2024, 1, 5): ActualAnchor(
+                actual_net_pay=Decimal("100.00"),
+                actual_balance=Decimal("777.00"),
+            )
+        }
+        periods = project(
+            date(2024, 1, 5), PayFrequency.biweekly, 1, SALARY, ZERO, [], actuals
+        )
+        assert periods[0].opening_balance == Decimal("777.00")
+
+    def test_empty_actuals_leaves_projection_unchanged(self) -> None:
+        periods = project(
+            date(2024, 1, 5),
+            PayFrequency.biweekly,
+            1,
+            SALARY,
+            Decimal("500.00"),
+            [],
+            {},
+        )
+        assert periods[0].opening_balance == Decimal("3000.00")
 
 
 # ---------------------------------------------------------------------------

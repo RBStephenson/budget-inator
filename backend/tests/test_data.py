@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from decimal import Decimal
 
 from fastapi.testclient import TestClient
 
 from app.models import Bill, BillInstance, PaySchedule
+from app.models.pay_period_actual import PayPeriodActual
 from app.models.pay_period_override import PayPeriodOverride
 
 
@@ -61,18 +63,19 @@ class TestExport:
         resp = client.get("/data/export")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["version"] == 2
+        assert data["version"] == 3
         assert data["pay_schedule"] is None
         assert data["bills"] == []
         assert data["bill_instances"] == []
         assert data["pay_period_overrides"] == []
+        assert data["pay_period_actuals"] == []
 
     def test_export_with_data(self, client: TestClient, db):
         _seed(db)
         resp = client.get("/data/export")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["version"] == 2
+        assert data["version"] == 3
         assert data["pay_schedule"]["net_salary"] == "2000.00"
         assert data["pay_schedule"]["frequency"] == "biweekly"
         assert len(data["bills"]) == 1
@@ -364,3 +367,79 @@ class TestDelete:
         assert resp.status_code == 204
         assert db.query(BillInstance).count() == 0
         assert db.query(PayPeriodOverride).count() == 0
+
+
+class TestPayPeriodActualsRoundTrip:
+    """#55: payday actuals survive export/import; older v2 backups still load."""
+
+    def test_export_includes_actuals(self, client: TestClient, db):
+        db.add(
+            PayPeriodActual(
+                pay_date=date(2025, 1, 3),
+                actual_net_pay="2100.00",
+                actual_balance="3450.00",
+            )
+        )
+        db.commit()
+        data = client.get("/data/export").json()
+        assert data["pay_period_actuals"] == [
+            {
+                "pay_date": "2025-01-03",
+                "actual_net_pay": "2100.00",
+                "actual_balance": "3450.00",
+            }
+        ]
+
+    def test_round_trip_restores_actuals(self, client: TestClient, db):
+        db.add(
+            PayPeriodActual(
+                pay_date=date(2025, 1, 3),
+                actual_net_pay=None,
+                actual_balance="3450.00",
+            )
+        )
+        db.commit()
+        exported = client.get("/data/export").json()
+
+        client.delete("/data")
+        assert db.query(PayPeriodActual).count() == 0
+
+        resp = client.post("/data/import", json=exported)
+        assert resp.status_code == 204
+        rows = db.query(PayPeriodActual).all()
+        assert len(rows) == 1
+        assert rows[0].pay_date == date(2025, 1, 3)
+        assert rows[0].actual_balance == Decimal("3450.00")
+        assert rows[0].actual_net_pay is None
+
+    def test_v2_payload_without_actuals_still_imports(self, client: TestClient, db):
+        resp = client.post("/data/import", json={"version": 2, "bills": []})
+        assert resp.status_code == 204
+        assert db.query(PayPeriodActual).count() == 0
+
+    def test_import_rejects_empty_actual_entry(self, client: TestClient, db):
+        payload = {
+            "version": 3,
+            "bills": [],
+            "pay_period_actuals": [{"pay_date": "2025-01-03"}],
+        }
+        resp = client.post("/data/import", json=payload)
+        assert resp.status_code == 422
+
+    def test_import_rejects_duplicate_actuals(self, client: TestClient, db):
+        payload = {
+            "version": 3,
+            "bills": [],
+            "pay_period_actuals": [
+                {"pay_date": "2025-01-03", "actual_balance": "1.00"},
+                {"pay_date": "2025-01-03", "actual_balance": "2.00"},
+            ],
+        }
+        resp = client.post("/data/import", json=payload)
+        assert resp.status_code == 422
+
+    def test_delete_clears_actuals(self, client: TestClient, db):
+        db.add(PayPeriodActual(pay_date=date(2025, 1, 3), actual_balance="1.00"))
+        db.commit()
+        client.delete("/data")
+        assert db.query(PayPeriodActual).count() == 0

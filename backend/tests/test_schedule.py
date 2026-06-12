@@ -8,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.models import Bill, PaySchedule
+from app.models.pay_period_actual import PayPeriodActual
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -371,3 +372,22 @@ def test_category_reflects_bill_category(client: TestClient, db):
     all_bills = [b for p in resp.json()["periods"] for b in p["assigned_bills"]]
     netflix = next(b for b in all_bills if b["name"] == "Netflix")
     assert netflix["category"] == "subscriptions"
+
+
+def test_actual_balance_reanchors_schedule_opening(client: TestClient, db):
+    """#55: a confirmed actual balance overrides the computed opening balance."""
+    # begin 500 + salary 1000 → computed opening would be 1500
+    _make_schedule(db, first_paycheck=date(2025, 1, 3))
+    db.add(
+        PayPeriodActual(
+            pay_date=date(2025, 1, 3),
+            actual_net_pay=None,
+            actual_balance="2000.00",
+        )
+    )
+    db.commit()
+
+    resp = client.get("/schedule?from=2025-01-03&to=2025-01-10")
+    assert resp.status_code == 200
+    periods = resp.json()["periods"]
+    assert periods[0]["opening_balance"] == "2000.00"
