@@ -184,6 +184,14 @@ describe("Dashboard", () => {
     );
     expect(screen.getByRole("button", { name: /by month/i })).toBeInTheDocument();
   });
+
+  it("renders the Past periods toggle (#69)", async () => {
+    mockFetch(makeSchedule([makePeriod()]));
+    renderWithToast(<Dashboard />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /past periods/i })).toBeInTheDocument(),
+    );
+  });
 });
 
 describe("Dashboard — monthly view toggle", () => {

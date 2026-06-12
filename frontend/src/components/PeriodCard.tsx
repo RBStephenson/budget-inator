@@ -8,6 +8,8 @@ interface Props {
   period: PayPeriod;
   isHero?: boolean;
   onRefetch?: () => void;
+  /** Overrides the header label (defaults to "Current period"/"Upcoming"). */
+  label?: string;
 }
 
 function fmtDate(isoDate: string): string {
@@ -42,7 +44,8 @@ function balanceColor(remaining: string, opening: string): BalanceColor {
   return rem / open >= 0.2 ? "green" : "amber";
 }
 
-export function PeriodCard({ period, isHero = false, onRefetch }: Props) {
+export function PeriodCard({ period, isHero = false, onRefetch, label }: Props) {
+  const headerLabel = label ?? (isHero ? "Current period" : "Upcoming");
   const [expanded, setExpanded] = useState(isHero);
   const [editingPayDate, setEditingPayDate] = useState(false);
   const [payDateInput, setPayDateInput] = useState("");
@@ -106,7 +109,7 @@ export function PeriodCard({ period, isHero = false, onRefetch }: Props) {
         aria-expanded={expanded}
       >
         <div className="period-card__dates">
-          <span className="period-card__label">{isHero ? "Current period" : "Upcoming"}</span>
+          <span className="period-card__label">{headerLabel}</span>
           <div className="period-card__range-line">
             <span className="period-card__range">
               {fmtDate(period.period_start)} – {fmtDate(period.period_end)}
