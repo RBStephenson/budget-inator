@@ -248,12 +248,18 @@ def build_schedule(
     instances: _InstanceMap = {}
     override_map: _OverrideMap = {}
     if window:
-        window_start = window[0].period_start
         window_end = window[-1].period_end
+        # Past-due bills are pulled forward into the current period, so an
+        # assigned bill's due date can precede the window's first period_start
+        # (see assign_bills' 365-day look-back). Anchor the overlay query to the
+        # earliest assigned due date, not period_start, or paid/skipped records
+        # for those past-due bills get dropped and the bill renders as unpaid.
+        assigned_due_dates = [b.due_date for p in window for b in p.assigned_bills]
+        instance_lower_bound = min([window[0].period_start, *assigned_due_dates])
         rows = (
             db.query(BillInstance)
             .filter(
-                BillInstance.due_date >= window_start,
+                BillInstance.due_date >= instance_lower_bound,
                 BillInstance.due_date <= window_end,
             )
             .all()
