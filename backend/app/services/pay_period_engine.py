@@ -45,6 +45,19 @@ class PayPeriodResult:
         return self.opening_balance - sum(b.amount for b in self.assigned_bills)
 
 
+@dataclass
+class ActualAnchor:
+    """Confirmed payday actuals for a single pay date (see #55).
+
+    ``actual_balance`` is the real post-deposit account balance; when present it
+    re-anchors the period's opening balance. ``actual_net_pay`` overrides the
+    assumed salary for that period only.
+    """
+
+    actual_net_pay: Decimal | None = None
+    actual_balance: Decimal | None = None
+
+
 # ---------------------------------------------------------------------------
 # Date helpers
 # ---------------------------------------------------------------------------
@@ -110,6 +123,7 @@ def apply_rolling_balances(
     periods: list[PayPeriodResult],
     net_salary: Decimal,
     beginning_balance: Decimal,
+    actuals: dict[date, ActualAnchor] | None = None,
 ) -> None:
     """
     Set opening_balance on each period using rolling carry-over.
@@ -117,12 +131,28 @@ def apply_rolling_balances(
     Period 0 opens with beginning_balance + net_salary.
     Each subsequent period opens with previous remaining_balance + net_salary.
     Must be called AFTER bills are assigned so remaining_balance is accurate.
+
+    Confirmed payday actuals (#55) override the computed values:
+    - ``actual_balance`` is the real post-deposit balance, so it becomes the
+      period's opening balance directly and everything after rolls forward from
+      there (the deposit is already reflected, so net pay is not re-added).
+    - otherwise ``actual_net_pay`` replaces the assumed salary for that period.
     """
+    actuals = actuals or {}
     for i, p in enumerate(periods):
+        anchor = actuals.get(p.pay_date)
+        if anchor is not None and anchor.actual_balance is not None:
+            p.opening_balance = anchor.actual_balance
+            continue
+        income = (
+            anchor.actual_net_pay
+            if anchor is not None and anchor.actual_net_pay is not None
+            else net_salary
+        )
         if i == 0:
-            p.opening_balance = beginning_balance + net_salary
+            p.opening_balance = beginning_balance + income
         else:
-            p.opening_balance = periods[i - 1].remaining_balance + net_salary
+            p.opening_balance = periods[i - 1].remaining_balance + income
 
 
 # ---------------------------------------------------------------------------
@@ -322,9 +352,10 @@ def project(
     net_salary: Decimal,
     beginning_balance: Decimal,
     bills: list[BillInput],
+    actuals: dict[date, ActualAnchor] | None = None,
 ) -> list[PayPeriodResult]:
     """Generate periods, assign all bills, then apply rolling balances."""
     periods = build_periods(first_paycheck_date, frequency, num_periods)
     assign_bills(periods, bills)
-    apply_rolling_balances(periods, net_salary, beginning_balance)
+    apply_rolling_balances(periods, net_salary, beginning_balance, actuals)
     return periods

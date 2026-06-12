@@ -12,12 +12,15 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Bill, BillInstance, PaySchedule
 from app.models.enums import BillCategory, BillRecurrence, BillStatus, PayFrequency
+from app.models.pay_period_actual import PayPeriodActual
 from app.models.pay_period_override import PayPeriodOverride
 from app.utils import utcnow
 
 router = APIRouter(prefix="/data", tags=["data"])
 
-EXPORT_VERSION = 2
+EXPORT_VERSION = 3
+# Older backups we can still restore. v2 simply has no pay_period_actuals.
+SUPPORTED_IMPORT_VERSIONS = {2, 3}
 
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
@@ -59,12 +62,19 @@ class ExportPayPeriodOverride(BaseModel):
     overridden_pay_date: date
 
 
+class ExportPayPeriodActual(BaseModel):
+    pay_date: date
+    actual_net_pay: Decimal | None
+    actual_balance: Decimal | None
+
+
 class ExportPayload(BaseModel):
     version: int
     pay_schedule: ExportPaySchedule | None
     bills: list[ExportBill]
     bill_instances: list[ExportBillInstance]
     pay_period_overrides: list[ExportPayPeriodOverride]
+    pay_period_actuals: list[ExportPayPeriodActual]
 
 
 class ImportBill(BaseModel):
@@ -128,6 +138,20 @@ class ImportPayPeriodOverride(BaseModel):
         return self
 
 
+class ImportPayPeriodActual(BaseModel):
+    pay_date: date
+    actual_net_pay: Decimal | None = None
+    actual_balance: Decimal | None = None
+
+    @model_validator(mode="after")
+    def at_least_one(self) -> ImportPayPeriodActual:
+        if self.actual_net_pay is None and self.actual_balance is None:
+            raise ValueError(
+                "pay_period_actuals entries need actual_net_pay or actual_balance"
+            )
+        return self
+
+
 class ImportPaySchedule(BaseModel):
     net_salary: Decimal
     first_paycheck_date: date
@@ -148,11 +172,12 @@ class ImportPayload(BaseModel):
     bills: list[ImportBill] = []
     bill_instances: list[ImportBillInstance] = []
     pay_period_overrides: list[ImportPayPeriodOverride] = []
+    pay_period_actuals: list[ImportPayPeriodActual] = []
 
     @field_validator("version")
     @classmethod
     def supported_version(cls, v: int) -> int:
-        if v != EXPORT_VERSION:
+        if v not in SUPPORTED_IMPORT_VERSIONS:
             raise ValueError(f"unsupported export version: {v}")
         return v
 
@@ -180,6 +205,12 @@ class ImportPayload(BaseModel):
                     f"duplicate pay-period override for {ov.original_pay_date}"
                 )
             seen_overrides.add(ov.original_pay_date)
+
+        seen_actuals: set[date] = set()
+        for act in self.pay_period_actuals:
+            if act.pay_date in seen_actuals:
+                raise ValueError(f"duplicate pay-period actual for {act.pay_date}")
+            seen_actuals.add(act.pay_date)
         return self
 
 
@@ -194,6 +225,7 @@ def export_data(db: Session = Depends(get_db)) -> ExportPayload:
     overrides = (
         db.query(PayPeriodOverride).order_by(PayPeriodOverride.original_pay_date).all()
     )
+    actuals = db.query(PayPeriodActual).order_by(PayPeriodActual.pay_date).all()
 
     pay_schedule = None
     if sched is not None:
@@ -241,12 +273,22 @@ def export_data(db: Session = Depends(get_db)) -> ExportPayload:
         for r in overrides
     ]
 
+    export_actuals = [
+        ExportPayPeriodActual(
+            pay_date=r.pay_date,
+            actual_net_pay=r.actual_net_pay,
+            actual_balance=r.actual_balance,
+        )
+        for r in actuals
+    ]
+
     return ExportPayload(
         version=EXPORT_VERSION,
         pay_schedule=pay_schedule,
         bills=export_bills,
         bill_instances=export_instances,
         pay_period_overrides=export_overrides,
+        pay_period_actuals=export_actuals,
     )
 
 
@@ -255,6 +297,7 @@ def import_data(body: ImportPayload, db: Session = Depends(get_db)) -> None:
     # Delete all existing data in dependency order
     db.query(BillInstance).delete()
     db.query(PayPeriodOverride).delete()
+    db.query(PayPeriodActual).delete()
     db.query(Bill).delete()
     db.query(PaySchedule).delete()
 
@@ -320,6 +363,17 @@ def import_data(body: ImportPayload, db: Session = Depends(get_db)) -> None:
             )
         )
 
+    for act in body.pay_period_actuals:
+        db.add(
+            PayPeriodActual(
+                pay_date=act.pay_date,
+                actual_net_pay=act.actual_net_pay,
+                actual_balance=act.actual_balance,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+
     db.commit()
 
 
@@ -327,6 +381,7 @@ def import_data(body: ImportPayload, db: Session = Depends(get_db)) -> None:
 def delete_all_data(db: Session = Depends(get_db)) -> None:
     db.query(BillInstance).delete()
     db.query(PayPeriodOverride).delete()
+    db.query(PayPeriodActual).delete()
     db.query(Bill).delete()
     db.query(PaySchedule).delete()
     db.commit()

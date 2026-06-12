@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Bill, BillInstance, PaySchedule
 from app.models.enums import BillRecurrence, BillStatus, PayFrequency
+from app.models.pay_period_actual import PayPeriodActual
 from app.models.pay_period_override import PayPeriodOverride
 from app.schemas.monthly import (
     MonthlyBillItem,
@@ -31,6 +32,7 @@ from app.schemas.schedule import (
     ScheduleSummary,
 )
 from app.services.pay_period_engine import (
+    ActualAnchor,
     BillInput,
     PayPeriodResult,
     build_periods,
@@ -42,8 +44,26 @@ from app.services.pay_period_engine import (
 _InstanceMap = dict[tuple[int, date], BillInstance]
 # Keyed by original (computed) pay_date → overridden pay_date
 _OverrideMap = dict[date, date]
+# Keyed by pay_date → confirmed payday actuals (#55)
+_ActualsMap = dict[date, ActualAnchor]
 _BillIsVariable = dict[int, bool]
 _BillCategory = dict[int, str]
+
+
+def _load_actuals(db: Session) -> _ActualsMap:
+    """All confirmed payday actuals, keyed by pay date (see #55).
+
+    Loaded in full (not windowed) because an actual balance on a past payday
+    re-anchors every period after it, including those in the current window.
+    """
+    return {
+        row.pay_date: ActualAnchor(
+            actual_net_pay=row.actual_net_pay,
+            actual_balance=row.actual_balance,
+        )
+        for row in db.query(PayPeriodActual).all()
+    }
+
 
 _MIN_PERIOD_DAYS: dict[PayFrequency, int] = {
     PayFrequency.weekly: 7,
@@ -174,6 +194,7 @@ def build_schedule(
     bill_is_variable: _BillIsVariable = {b.id: b.is_variable for b in bill_rows}
     bill_category: _BillCategory = {b.id: b.category for b in bill_rows}
     bills = [_to_bill_input(b) for b in bill_rows]
+    actuals = _load_actuals(db)
 
     today = date.today()
 
@@ -181,7 +202,13 @@ def build_schedule(
         # Generate enough periods to find today + (default_count - 1) more
         num_needed = _periods_needed(first_paycheck, today, frequency) + default_count
         all_periods = project(
-            first_paycheck, frequency, num_needed, net_salary, beginning_balance, bills
+            first_paycheck,
+            frequency,
+            num_needed,
+            net_salary,
+            beginning_balance,
+            bills,
+            actuals,
         )
         current_idx = _find_current_index(all_periods, today)
         window = all_periods[current_idx : current_idx + default_count]
@@ -199,7 +226,13 @@ def build_schedule(
 
         num_needed = _periods_needed(first_paycheck, to_date, frequency)
         all_periods = project(
-            first_paycheck, frequency, num_needed, net_salary, beginning_balance, bills
+            first_paycheck,
+            frequency,
+            num_needed,
+            net_salary,
+            beginning_balance,
+            bills,
+            actuals,
         )
         # Include periods that overlap [from_date, to_date]
         window = [
@@ -344,14 +377,23 @@ def build_monthly_summary(
     first_paycheck = sched.first_paycheck_date
     net_salary = Decimal(str(sched.net_salary))
 
-    # Income per month: count pay periods whose period_start falls in the window
+    # Income per month: count pay periods whose period_start falls in the
+    # window. Confirmed actual net pay (#55) overrides the assumed salary for
+    # its own payday so the monthly view agrees with the pay-period view.
+    actuals = _load_actuals(db)
     num_needed = _periods_needed(first_paycheck, window_end, frequency)
     all_pay_periods = build_periods(first_paycheck, frequency, num_needed)
     income_by_month: dict[tuple[int, int], Decimal] = defaultdict(Decimal)
     for p in all_pay_periods:
         if window_start <= p.period_start <= window_end:
             key = (p.period_start.year, p.period_start.month)
-            income_by_month[key] += net_salary
+            anchor = actuals.get(p.pay_date)
+            income = (
+                anchor.actual_net_pay
+                if anchor is not None and anchor.actual_net_pay is not None
+                else net_salary
+            )
+            income_by_month[key] += income
 
     # Bills per month: find all due dates in the window
     bill_rows = db.query(Bill).filter(Bill.is_active.is_(True)).all()
