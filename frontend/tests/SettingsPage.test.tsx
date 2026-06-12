@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { SettingsPage } from "../src/components/SettingsPage";
 import { ToastContainer } from "../src/components/ToastContainer";
 import { ToastProvider } from "../src/context/ToastContext";
+import * as router from "../src/router";
 import { makePaySchedule } from "./fixtures";
 
 function renderWithToast(ui: React.ReactElement) {
@@ -168,6 +169,38 @@ describe("SettingsPage", () => {
     });
   });
 
+  it("navigates to the dashboard after first-time setup (#86)", async () => {
+    const created = makePaySchedule();
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+        json: async () => ({}),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: async () => created,
+      } as Response);
+    const navSpy = vi.spyOn(router, "navigate").mockImplementation(() => {});
+
+    renderWithToast(<SettingsPage />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /save and go to dashboard/i })).toBeInTheDocument(),
+    );
+
+    await userEvent.clear(screen.getByLabelText(/net salary/i));
+    await userEvent.type(screen.getByLabelText(/net salary/i), "2000");
+    await userEvent.clear(screen.getByLabelText(/current balance/i));
+    await userEvent.type(screen.getByLabelText(/current balance/i), "500");
+    await userEvent.type(screen.getByLabelText(/first paycheck date/i), "2025-01-03");
+    await userEvent.click(screen.getByRole("button", { name: /save and go to dashboard/i }));
+
+    await waitFor(() => expect(navSpy).toHaveBeenCalledWith("/"));
+  });
+
   it("shows saved confirmation after a successful save", async () => {
     const existing = makePaySchedule();
     vi.spyOn(globalThis, "fetch")
@@ -315,5 +348,83 @@ describe("SettingsPage — data management", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /cancel/i }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("returns to the create form after deleting all data (#81)", async () => {
+    // Load an existing schedule (edit mode), then delete all data.
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: async () => makePaySchedule(),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 204,
+        statusText: "No Content",
+        json: async () => ({}),
+      } as Response);
+
+    renderWithToast(<SettingsPage />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /save changes/i })).toBeInTheDocument(),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /delete all data/i }));
+    await userEvent.click(screen.getByRole("button", { name: /delete everything/i }));
+
+    // After delete the form must switch back to create mode, so a subsequent
+    // save POSTs a new schedule instead of PATCHing the deleted row (404).
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /save and go to dashboard/i }),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.getByText(/enter your pay details/i)).toBeInTheDocument();
+  });
+
+  it("refreshes the form from re-fetched data after import (#81)", async () => {
+    vi.spyOn(globalThis, "fetch")
+      // initial load: no schedule yet
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+        json: async () => ({}),
+      } as Response)
+      // POST /api/data/import
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 204,
+        statusText: "No Content",
+        json: async () => ({}),
+      } as Response)
+      // GET /api/pay-schedule re-fetch after import
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: async () => makePaySchedule({ net_salary: "4242.00" }),
+      } as Response);
+
+    renderWithToast(<SettingsPage />);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /save and go to dashboard/i }),
+      ).toBeInTheDocument(),
+    );
+
+    const backup = JSON.stringify({ version: 1 });
+    const file = new File([backup], "backup.json", { type: "application/json" });
+    // jsdom's File doesn't implement text(); browsers do. Provide it so
+    // handleImport can read the upload.
+    Object.defineProperty(file, "text", { value: () => Promise.resolve(backup) });
+    await userEvent.upload(screen.getByLabelText(/import backup file/i), file);
+
+    await waitFor(() =>
+      expect((screen.getByLabelText(/net salary/i) as HTMLInputElement).value).toBe("4242"),
+    );
+    // Re-fetched schedule means the page is now in edit mode.
+    expect(screen.getByRole("button", { name: /save changes/i })).toBeInTheDocument();
   });
 });
