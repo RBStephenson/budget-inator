@@ -8,6 +8,7 @@ import { FlaggedBillsBanner } from "./FlaggedBillsBanner";
 import { Link } from "./Link";
 import { MonthCard } from "./MonthCard";
 import { PastPeriods } from "./PastPeriods";
+import { PaydayActualsBanner } from "./PaydayActualsBanner";
 import { PeriodCard } from "./PeriodCard";
 
 type DashboardView = "periods" | "monthly";
@@ -117,6 +118,7 @@ export function Dashboard() {
             const [current, ...upcoming] = data.periods;
             return (
               <>
+                <PaydayActualsBanner period={current} onRecorded={refetch} />
                 <PeriodCard period={current} isHero onRefetch={refetch} />
                 {upcoming.length > 0 && (
                   <section className="dashboard__upcoming">

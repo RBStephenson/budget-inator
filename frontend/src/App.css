@@ -362,6 +362,46 @@ body {
   color: #b91c1c;
 }
 
+/* ── Payday actuals banner ──────────────────────────────────────────────────── */
+
+.payday-banner {
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+}
+
+.payday-banner__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.payday-banner__title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1e40af;
+}
+
+.payday-banner__cta {
+  flex-shrink: 0;
+}
+
+.payday-banner__form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-top: 0.85rem;
+}
+
+.payday-banner__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
 /* ── Period card ─────────────────────────────────────────────────────────────── */
 
 .period-card {
