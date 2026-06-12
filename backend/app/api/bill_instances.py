@@ -15,9 +15,25 @@ from app.utils import utcnow
 router = APIRouter(prefix="/bill-instances", tags=["bill-instances"])
 
 
+def _resolve_paid_at(body: BillInstanceWrite, now: datetime) -> datetime | None:
+    """Timestamp to store for a payment.
+
+    Only paid instances carry a ``paid_at``. When the caller supplied one we
+    honor it (back-dating); otherwise we stamp the current server time.
+    """
+    if body.status != BillStatus.paid:
+        return None
+    if "paid_at" in body.model_fields_set and body.paid_at is not None:
+        return body.paid_at
+    return now
+
+
 class BillInstanceWrite(BaseModel):
     status: BillStatus
     actual_amount: Decimal | None = None
+    # When marking paid, lets the caller back-date the payment. Falls back to
+    # the server time when omitted. Ignored unless status is paid.
+    paid_at: datetime | None = None
 
 
 class BillInstanceOut(BaseModel):
@@ -52,6 +68,7 @@ def upsert_bill_instance(
     )
 
     now = utcnow()
+    paid_at = _resolve_paid_at(body, now)
 
     if inst is None:
         inst = BillInstance(
@@ -61,7 +78,7 @@ def upsert_bill_instance(
             estimated_amount=bill.estimated_amount,
             actual_amount=body.actual_amount,
             status=body.status,
-            paid_at=now if body.status == BillStatus.paid else None,
+            paid_at=paid_at,
             created_at=now,
             updated_at=now,
         )
@@ -72,7 +89,7 @@ def upsert_bill_instance(
         # preserves the stored value, an explicit null clears it.
         if "actual_amount" in body.model_fields_set:
             inst.actual_amount = body.actual_amount
-        inst.paid_at = now if body.status == BillStatus.paid else None
+        inst.paid_at = paid_at
         inst.updated_at = now
 
     db.commit()

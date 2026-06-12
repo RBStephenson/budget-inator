@@ -23,19 +23,29 @@ function fmtCurrency(amount: string): string {
   });
 }
 
+function todayISO(): string {
+  return new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local time
+}
+
 export function BillRow({ bill, payOnDate, onRefetch }: Props) {
   const [saving, setSaving] = useState(false);
   const [editingActual, setEditingActual] = useState(false);
   const [actualInput, setActualInput] = useState("");
+  const [payingPaid, setPayingPaid] = useState(false);
+  const [paidDate, setPaidDate] = useState(todayISO());
   const { addToast } = useToast();
   const isLate = bill.status === "late_flagged";
   const isPaid = bill.status === "paid";
   const isSkipped = bill.status === "skipped";
 
-  async function markAs(newStatus: "paid" | "skipped" | "pending") {
+  async function markAs(
+    newStatus: "paid" | "skipped" | "pending",
+    paidAt?: string,
+  ) {
     setSaving(true);
     try {
-      await patchBillInstance(bill.bill_id, bill.due_date, newStatus);
+      await patchBillInstance(bill.bill_id, bill.due_date, newStatus, undefined, paidAt);
+      setPayingPaid(false);
       onRefetch?.();
     } catch {
       addToast("Could not update the bill status. Please try again.", "error");
@@ -110,12 +120,43 @@ export function BillRow({ bill, payOnDate, onRefetch }: Props) {
           >
             Undo
           </button>
+        ) : payingPaid ? (
+          <span className="bill-row__paid-edit">
+            <input
+              className="bill-row__paid-input"
+              type="date"
+              max={todayISO()}
+              value={paidDate}
+              onChange={(e) => setPaidDate(e.target.value)}
+              aria-label="Paid date"
+              autoFocus
+            />
+            <button
+              className="btn-action btn-action--confirm"
+              disabled={saving || !paidDate}
+              onClick={() => markAs("paid", paidDate)}
+              aria-label="Confirm paid date"
+            >
+              ✓
+            </button>
+            <button
+              className="btn-action"
+              disabled={saving}
+              onClick={() => setPayingPaid(false)}
+              aria-label="Cancel paid"
+            >
+              ✕
+            </button>
+          </span>
         ) : (
           <>
             <button
               className="btn-action btn-action--paid"
               disabled={saving}
-              onClick={() => markAs("paid")}
+              onClick={() => {
+                setPaidDate(todayISO());
+                setPayingPaid(true);
+              }}
             >
               Paid
             </button>
@@ -128,7 +169,7 @@ export function BillRow({ bill, payOnDate, onRefetch }: Props) {
             </button>
           </>
         )}
-        {bill.is_variable && !isPaid && !isSkipped && (
+        {bill.is_variable && !isPaid && !isSkipped && !payingPaid && (
           editingActual ? (
             <span className="bill-row__actual-edit">
               <input

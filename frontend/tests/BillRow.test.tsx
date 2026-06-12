@@ -1,4 +1,4 @@
-import { render as rtlRender, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { BillRow } from "../src/components/BillRow";
@@ -91,14 +91,44 @@ describe("BillRow", () => {
     expect(screen.getByText("$75.00")).toBeInTheDocument();
   });
 
-  it("calls onRefetch after marking paid", async () => {
+  it("reveals a paid-date input when Paid is clicked", async () => {
+    render(<BillRow bill={makeBill({ status: "on_time" })} payOnDate="2025-01-03" />);
+    await userEvent.click(screen.getByRole("button", { name: /^paid$/i }));
+    expect(screen.getByLabelText("Paid date")).toBeInTheDocument();
+  });
+
+  it("hides the paid-date input after cancel", async () => {
+    render(<BillRow bill={makeBill({ status: "on_time" })} payOnDate="2025-01-03" />);
+    await userEvent.click(screen.getByRole("button", { name: /^paid$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /cancel paid/i }));
+    expect(screen.queryByLabelText("Paid date")).not.toBeInTheDocument();
+  });
+
+  it("calls onRefetch after confirming a payment", async () => {
     mockPatch();
     const onRefetch = vi.fn();
     render(
       <BillRow bill={makeBill({ status: "on_time" })} payOnDate="2025-01-03" onRefetch={onRefetch} />,
     );
-    await userEvent.click(screen.getByRole("button", { name: /paid/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^paid$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /confirm paid date/i }));
     await waitFor(() => expect(onRefetch).toHaveBeenCalledOnce());
+  });
+
+  it("sends a back-dated paid_at when the date is changed (#69)", async () => {
+    mockPatch();
+    render(<BillRow bill={makeBill({ status: "on_time" })} payOnDate="2025-01-03" />);
+    await userEvent.click(screen.getByRole("button", { name: /^paid$/i }));
+    fireEvent.change(screen.getByLabelText("Paid date"), {
+      target: { value: "2025-01-02" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: /confirm paid date/i }));
+    await waitFor(() => {
+      const fetchMock = vi.mocked(globalThis.fetch);
+      const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string);
+      expect(body.status).toBe("paid");
+      expect(body.paid_at).toBe("2025-01-02");
+    });
   });
 
   it("calls onRefetch after skipping", async () => {
@@ -127,7 +157,8 @@ describe("BillRow", () => {
     render(
       <BillRow bill={makeBill({ status: "on_time" })} payOnDate="2025-01-03" onRefetch={onRefetch} />,
     );
-    await userEvent.click(screen.getByRole("button", { name: /paid/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^paid$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /confirm paid date/i }));
     await waitFor(() =>
       expect(
         screen.getByText(/could not update the bill status/i),
