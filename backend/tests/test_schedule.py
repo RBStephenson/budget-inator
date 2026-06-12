@@ -28,7 +28,11 @@ def _make_schedule(db, first_paycheck: date | None = None, net_salary: str = "10
 
 
 def _make_monthly_bill(
-    db, name: str = "Rent", amount: str = "800.00", due_day: int = 1
+    db,
+    name: str = "Rent",
+    amount: str = "800.00",
+    due_day: int = 1,
+    grace_period_days: int = 0,
 ):
     bill = Bill(
         name=name,
@@ -36,7 +40,7 @@ def _make_monthly_bill(
         recurrence="monthly",
         due_day=due_day,
         first_due_date=None,
-        grace_period_days=0,
+        grace_period_days=grace_period_days,
         category="housing",
         is_variable=False,
         is_active=True,
@@ -282,6 +286,39 @@ def test_paid_with_actual_amount_uses_actual_in_total(client: TestClient, db):
     assert float(period["total_bills"]) == pytest.approx(75.0)
     electric = next(b for b in period["assigned_bills"] if b["name"] == "Electric")
     assert float(electric["actual_amount"]) == pytest.approx(75.0)
+
+
+def test_paid_past_due_bill_pulled_into_period_shows_paid(client: TestClient, db):
+    """Regression: a past-due bill whose grace period pulls it into a later
+    period keeps its raw (earlier) due date. The paid overlay must still match
+    even though that due date precedes the requested window's first
+    period_start. Previously the instance was dropped and the bill rendered
+    unpaid with no way to undo.
+    """
+    # Biweekly from 2025-01-03 → periods: 01-31..02-13, 02-14..02-27, ...
+    _make_schedule(db, first_paycheck=date(2025, 1, 3))
+    # Monthly due on the 1st with a 15-day grace: the Feb 1 occurrence has an
+    # effective due of Feb 16, which lands in the 02-14..02-27 period.
+    bill = _make_monthly_bill(
+        db, name="Car Payment", amount="600.00", due_day=1, grace_period_days=15
+    )
+
+    # Mark the Feb 1 occurrence paid (raw due date, as the UI sends it).
+    patch = client.patch(
+        f"/bill-instances/{bill.id}/2025-02-01",
+        json={"status": "paid"},
+    )
+    assert patch.status_code == 200
+
+    # Request the period the bill was pulled into — its window_start (02-14) is
+    # AFTER the bill's due date (02-01).
+    resp = client.get("/schedule?from=2025-02-14&to=2025-02-27")
+    assert resp.status_code == 200
+    bills = [b for p in resp.json()["periods"] for b in p["assigned_bills"]]
+    car = next(b for b in bills if b["name"] == "Car Payment")
+    assert car["due_date"] == "2025-02-01"
+    assert car["status"] == "paid"
+    assert car["instance_id"] is not None
 
 
 def test_no_instance_leaves_status_as_on_time(client: TestClient, db):
