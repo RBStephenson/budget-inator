@@ -1,8 +1,21 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { BillRow } from "../src/components/BillRow";
+import { ToastContainer } from "../src/components/ToastContainer";
+import { ToastProvider } from "../src/context/ToastContext";
 import { makeBill } from "./fixtures";
+
+// BillRow calls useToast(); wrap every render in a ToastProvider with a
+// ToastContainer so error toasts can be asserted.
+function render(ui: React.ReactElement) {
+  return rtlRender(
+    <ToastProvider>
+      {ui}
+      <ToastContainer />
+    </ToastProvider>,
+  );
+}
 
 beforeEach(() => vi.restoreAllMocks());
 afterEach(() => vi.restoreAllMocks());
@@ -107,6 +120,21 @@ describe("BillRow", () => {
     await userEvent.click(screen.getByRole("button", { name: /undo/i }));
     await waitFor(() => expect(onRefetch).toHaveBeenCalledOnce());
   });
+
+  it("shows an error toast and skips refetch when marking paid fails", async () => {
+    mockPatch(false);
+    const onRefetch = vi.fn();
+    render(
+      <BillRow bill={makeBill({ status: "on_time" })} payOnDate="2025-01-03" onRefetch={onRefetch} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /paid/i }));
+    await waitFor(() =>
+      expect(
+        screen.getByText(/could not update the bill status/i),
+      ).toBeInTheDocument(),
+    );
+    expect(onRefetch).not.toHaveBeenCalled();
+  });
 });
 
 describe("BillRow — variable bill", () => {
@@ -183,6 +211,21 @@ describe("BillRow — variable bill", () => {
     const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string);
     expect(parseFloat(body.actual_amount)).toBeCloseTo(95.5);
     expect(body.status).toBe("pending");
+  });
+
+  it("shows an error toast and keeps the editor open when saving the actual fails", async () => {
+    mockPatch(false);
+    render(<BillRow bill={makeBill({ is_variable: true })} payOnDate="2025-01-03" />);
+    await userEvent.click(screen.getByRole("button", { name: /enter actual/i }));
+    await userEvent.type(screen.getByRole("spinbutton", { name: /actual amount/i }), "95.50");
+    await userEvent.click(screen.getByRole("button", { name: /confirm actual/i }));
+    await waitFor(() =>
+      expect(
+        screen.getByText(/could not save the actual amount/i),
+      ).toBeInTheDocument(),
+    );
+    // Editor stays open with the typed value intact
+    expect(screen.getByRole("spinbutton", { name: /actual amount/i })).toHaveValue(95.5);
   });
 
   it("hides input after cancel", async () => {

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { deactivateBill } from "../api/bills";
+import { useToast } from "../context/ToastContext";
 import { useBills } from "../hooks/useBills";
 import type { Bill } from "../types/bill";
 import { BillFormModal } from "./BillFormModal";
@@ -13,6 +14,7 @@ export function BillsPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [deactivateTarget, setDeactivateTarget] = useState<Bill | null>(null);
   const [deactivating, setDeactivating] = useState(false);
+  const { addToast } = useToast();
 
   async function handleDeactivateConfirm() {
     if (!deactivateTarget) return;
@@ -21,6 +23,12 @@ export function BillsPage() {
       await deactivateBill(deactivateTarget.id);
       setDeactivateTarget(null);
       refetch();
+    } catch {
+      // Keep the dialog open so the user can retry or cancel
+      addToast(
+        `Could not deactivate "${deactivateTarget.name}". Please try again.`,
+        "error",
+      );
     } finally {
       setDeactivating(false);
     }
