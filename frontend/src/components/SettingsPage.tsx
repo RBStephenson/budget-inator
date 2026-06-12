@@ -6,6 +6,7 @@ import {
   updatePaySchedule,
 } from "../api/paySchedule";
 import { useToast } from "../context/ToastContext";
+import { navigate } from "../router";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Link } from "./Link";
 import type { PayFrequency, PaySchedule } from "../types/paySchedule";
@@ -85,12 +86,15 @@ export function SettingsPage() {
       if (existing) {
         const updated = await updatePaySchedule(payload);
         setExisting(updated);
+        setSaveStatus("saved");
+        setTimeout(() => setSaveStatus("idle"), 3000);
       } else {
-        const created = await createPaySchedule(payload);
-        setExisting(created);
+        // First-time setup: create, then go to the dashboard (the button is
+        // labelled "Save and go to dashboard"). Don't touch state afterward —
+        // navigation unmounts this page.
+        await createPaySchedule(payload);
+        navigate("/");
       }
-      setSaveStatus("saved");
-      setTimeout(() => setSaveStatus("idle"), 3000);
     } catch {
       setSaveStatus("error");
     }
@@ -120,6 +124,12 @@ export function SettingsPage() {
       const text = await file.text();
       const payload = JSON.parse(text) as unknown;
       await importData(payload);
+      // Import replaces all data, so the loaded schedule/form is now stale —
+      // re-sync from the server before the user can save over it.
+      const sched = await getPaySchedule();
+      setExisting(sched);
+      setForm(initialForm(sched));
+      setErrors({});
       setImportStatus("done");
       setTimeout(() => setImportStatus("idle"), 3000);
     } catch (err) {
@@ -135,6 +145,12 @@ export function SettingsPage() {
     setDeleteStatus("busy");
     try {
       await deleteAllData();
+      // The schedule row is gone — reset to the create form so the next save
+      // POSTs a new schedule instead of PATCHing a deleted row (which 404s).
+      setExisting(null);
+      setForm(initialForm(null));
+      setErrors({});
+      setSaveStatus("idle");
       setDeleteStatus("done");
       setTimeout(() => setDeleteStatus("idle"), 3000);
     } catch {
