@@ -7,6 +7,7 @@ import { AnnualCostModal } from "./AnnualCostModal";
 import { FlaggedBillsBanner } from "./FlaggedBillsBanner";
 import { Link } from "./Link";
 import { MonthCard } from "./MonthCard";
+import { PastPeriods } from "./PastPeriods";
 import { PeriodCard } from "./PeriodCard";
 
 type DashboardView = "periods" | "monthly";
@@ -125,6 +126,7 @@ export function Dashboard() {
                     ))}
                   </section>
                 )}
+                <PastPeriods currentStart={current.period_start} />
               </>
             );
           })()}
