@@ -267,3 +267,26 @@ describe("BillRow — variable bill", () => {
     expect(screen.queryByRole("spinbutton", { name: /actual amount/i })).not.toBeInTheDocument();
   });
 });
+
+describe("BillRow — edit bill", () => {
+  it("does not render the Edit bill button when onEdit is not provided", () => {
+    render(<BillRow bill={makeBill({ name: "Rent" })} payOnDate="2025-01-03" />);
+    expect(screen.queryByRole("button", { name: /edit bill/i })).not.toBeInTheDocument();
+  });
+
+  it("renders the Edit bill button when onEdit is provided", () => {
+    render(
+      <BillRow bill={makeBill({ name: "Rent" })} payOnDate="2025-01-03" onEdit={vi.fn()} />,
+    );
+    expect(screen.getByRole("button", { name: /edit bill rent/i })).toBeInTheDocument();
+  });
+
+  it("calls onEdit with the bill_id when clicked", async () => {
+    const onEdit = vi.fn();
+    render(
+      <BillRow bill={makeBill({ bill_id: 42, name: "Rent" })} payOnDate="2025-01-03" onEdit={onEdit} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /edit bill rent/i }));
+    expect(onEdit).toHaveBeenCalledWith(42);
+  });
+});

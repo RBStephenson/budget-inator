@@ -35,6 +35,11 @@ export function Dashboard() {
     }
   }
 
+  function handleEditBill(billId: number) {
+    window.history.pushState({}, "", `/bills?edit=${billId}`);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }
+
   const isLoading =
     view === "periods" ? status === "loading" : monthlyStatus === "loading" || monthlyStatus === "idle";
   const isError =
@@ -119,12 +124,12 @@ export function Dashboard() {
             return (
               <>
                 <PaydayActualsBanner period={current} onRecorded={refetch} />
-                <PeriodCard period={current} isHero onRefetch={refetch} />
+                <PeriodCard period={current} isHero onRefetch={refetch} onEditBill={handleEditBill} />
                 {upcoming.length > 0 && (
                   <section className="dashboard__upcoming">
                     <h2 className="dashboard__upcoming-title">Upcoming periods</h2>
                     {upcoming.map((p) => (
-                      <PeriodCard key={p.period_index} period={p} onRefetch={refetch} />
+                      <PeriodCard key={p.period_index} period={p} onRefetch={refetch} onEditBill={handleEditBill} />
                     ))}
                   </section>
                 )}

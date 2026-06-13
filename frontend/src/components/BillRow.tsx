@@ -8,6 +8,7 @@ interface Props {
   bill: AssignedBill;
   payOnDate: string;
   onRefetch?: () => void;
+  onEdit?: (billId: number) => void;
 }
 
 function fmt(isoDate: string): string {
@@ -21,7 +22,7 @@ function todayISO(): string {
   return new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local time
 }
 
-export function BillRow({ bill, payOnDate, onRefetch }: Props) {
+export function BillRow({ bill, payOnDate, onRefetch, onEdit }: Props) {
   const [saving, setSaving] = useState(false);
   const [editingActual, setEditingActual] = useState(false);
   const [actualInput, setActualInput] = useState("");
@@ -162,6 +163,15 @@ export function BillRow({ bill, payOnDate, onRefetch }: Props) {
               Skip
             </button>
           </>
+        )}
+        {onEdit && (
+          <button
+            className="btn-action btn-action--edit-bill"
+            onClick={() => onEdit(bill.bill_id)}
+            aria-label={`Edit bill ${bill.name}`}
+          >
+            Edit bill
+          </button>
         )}
         {bill.is_variable && !isPaid && !isSkipped && !payingPaid && (
           editingActual ? (
