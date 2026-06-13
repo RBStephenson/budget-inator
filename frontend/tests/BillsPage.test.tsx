@@ -133,23 +133,4 @@ describe("BillsPage", () => {
     );
   });
 
-  it("auto-opens the edit modal when ?edit=<id> is in the URL", async () => {
-    const bill = makeApiBill({ id: 7, name: "Internet" });
-    mockListBills([bill]);
-    window.history.pushState({}, "", "/bills?edit=7");
-    render(<BillsPage />);
-    await waitFor(() =>
-      expect(screen.getByText("Edit bill")).toBeInTheDocument(),
-    );
-    expect(window.location.search).toBe("");
-  });
-
-  it("does not open a modal when the ?edit id does not match any bill", async () => {
-    mockListBills([makeApiBill({ id: 1, name: "Rent" })]);
-    window.history.pushState({}, "", "/bills?edit=999");
-    render(<BillsPage />);
-    await waitFor(() => expect(screen.getByText("Rent")).toBeInTheDocument());
-    expect(screen.queryByText("Edit bill")).not.toBeInTheDocument();
-    expect(window.location.search).toBe("?edit=999");
-  });
 });

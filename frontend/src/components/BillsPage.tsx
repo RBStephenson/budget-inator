@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { deactivateBill } from "../api/bills";
 import { useToast } from "../context/ToastContext";
 import { useBills } from "../hooks/useBills";
@@ -15,17 +15,6 @@ export function BillsPage() {
   const [deactivateTarget, setDeactivateTarget] = useState<Bill | null>(null);
   const [deactivating, setDeactivating] = useState(false);
   const { addToast } = useToast();
-
-  useEffect(() => {
-    if (status !== "ok") return;
-    const editId = new URLSearchParams(window.location.search).get("edit");
-    if (!editId) return;
-    const target = bills.find((b) => b.id === parseInt(editId, 10));
-    if (target) {
-      setEditBill(target);
-      window.history.replaceState({}, "", "/bills");
-    }
-  }, [status, bills]);
 
   async function handleDeactivateConfirm() {
     if (!deactivateTarget) return;

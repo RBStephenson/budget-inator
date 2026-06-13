@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { useSchedule } from "../hooks/useSchedule";
 import { useMonthlySchedule } from "../hooks/useMonthlySchedule";
+import { getBill } from "../api/bills";
 import { downloadBudgetPdf } from "../api/reports";
 import { useToast } from "../context/ToastContext";
+import type { Bill } from "../types/bill";
 import { AnnualCostModal } from "./AnnualCostModal";
+import { BillFormModal } from "./BillFormModal";
 import { FlaggedBillsBanner } from "./FlaggedBillsBanner";
 import { Link } from "./Link";
 import { MonthCard } from "./MonthCard";
@@ -17,6 +20,7 @@ export function Dashboard() {
   const [view, setView] = useState<DashboardView>("periods");
   const [downloading, setDownloading] = useState(false);
   const [showAnnualCost, setShowAnnualCost] = useState(false);
+  const [editBill, setEditBill] = useState<Bill | null>(null);
   const { addToast } = useToast();
   const { data, status, refetch } = useSchedule();
   const {
@@ -35,9 +39,13 @@ export function Dashboard() {
     }
   }
 
-  function handleEditBill(billId: number) {
-    window.history.pushState({}, "", `/bills?edit=${billId}`);
-    window.dispatchEvent(new PopStateEvent("popstate"));
+  async function handleEditBill(billId: number) {
+    try {
+      const bill = await getBill(billId);
+      setEditBill(bill);
+    } catch {
+      addToast("Could not load bill details. Please try again.", "error");
+    }
   }
 
   const isLoading =
@@ -156,6 +164,14 @@ export function Dashboard() {
 
       {showAnnualCost && (
         <AnnualCostModal onClose={() => setShowAnnualCost(false)} />
+      )}
+
+      {editBill && (
+        <BillFormModal
+          bill={editBill}
+          onSave={() => { setEditBill(null); refetch(); }}
+          onClose={() => setEditBill(null)}
+        />
       )}
     </div>
   );
