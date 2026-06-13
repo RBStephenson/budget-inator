@@ -6,6 +6,7 @@ import {
   RECURRENCE_LABELS,
   annualCost,
 } from "../types/bill";
+import { fmtCurrency } from "../utils/currency";
 
 interface Props {
   bills: Bill[];
@@ -14,10 +15,6 @@ interface Props {
 }
 
 type SortKey = "name" | "annual_cost";
-
-function fmtCurrency(n: number): string {
-  return n.toLocaleString(undefined, { style: "currency", currency: "USD" });
-}
 
 function fmtDue(bill: Bill): string {
   if (bill.recurrence === "monthly") return `Day ${bill.due_day}`;

@@ -1,4 +1,5 @@
 import type { AssignedBill, PayPeriod } from "../types/schedule";
+import { fmtCurrency } from "../utils/currency";
 
 interface Props {
   periods: PayPeriod[];
@@ -13,13 +14,6 @@ function fmtDate(isoDate: string): string {
   return new Date(isoDate + "T00:00:00").toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
-  });
-}
-
-function fmtCurrency(amount: string): string {
-  return parseFloat(amount).toLocaleString(undefined, {
-    style: "currency",
-    currency: "USD",
   });
 }
 

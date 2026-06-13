@@ -2,6 +2,7 @@ import { useState } from "react";
 import { patchBillInstance } from "../api/billInstances";
 import { useToast } from "../context/ToastContext";
 import type { AssignedBill } from "../types/schedule";
+import { fmtCurrency } from "../utils/currency";
 
 interface Props {
   bill: AssignedBill;
@@ -13,13 +14,6 @@ function fmt(isoDate: string): string {
   return new Date(isoDate + "T00:00:00").toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
-  });
-}
-
-function fmtCurrency(amount: string): string {
-  return parseFloat(amount).toLocaleString(undefined, {
-    style: "currency",
-    currency: "USD",
   });
 }
 

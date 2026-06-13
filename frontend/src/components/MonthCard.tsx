@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { MonthlySummary } from "../types/monthly";
 import { CATEGORY_LABELS } from "../types/bill";
 import type { BillCategory } from "../types/bill";
+import { fmtCurrency } from "../utils/currency";
 
 interface Props {
   summary: MonthlySummary;
@@ -12,13 +13,6 @@ function fmtMonth(monthStr: string): string {
   return new Date(year, month - 1, 1).toLocaleDateString(undefined, {
     month: "long",
     year: "numeric",
-  });
-}
-
-function fmtCurrency(amount: string | number): string {
-  return parseFloat(String(amount)).toLocaleString(undefined, {
-    style: "currency",
-    currency: "USD",
   });
 }
 
