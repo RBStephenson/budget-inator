@@ -342,7 +342,6 @@ def import_data(body: ImportPayload, db: Session = Depends(get_db)) -> None:
         db.add(
             BillInstance(
                 bill_id=created_bills[inst.bill_index].id,
-                pay_period_id=None,
                 due_date=inst.due_date,
                 estimated_amount=inst.estimated_amount,
                 actual_amount=inst.actual_amount,
