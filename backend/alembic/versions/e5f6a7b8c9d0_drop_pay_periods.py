@@ -56,9 +56,5 @@ def downgrade() -> None:
     op.create_index("ix_pay_periods_pay_date", "pay_periods", ["pay_date"])
 
     with op.batch_alter_table("bill_instances") as batch_op:
-        batch_op.add_column(
-            sa.Column("pay_period_id", sa.Integer(), nullable=True)
-        )
-        batch_op.create_index(
-            "ix_bill_instances_pay_period_id", ["pay_period_id"]
-        )
+        batch_op.add_column(sa.Column("pay_period_id", sa.Integer(), nullable=True))
+        batch_op.create_index("ix_bill_instances_pay_period_id", ["pay_period_id"])
