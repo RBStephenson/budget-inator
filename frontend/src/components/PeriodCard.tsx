@@ -3,6 +3,7 @@ import type { PayPeriod } from "../types/schedule";
 import { CATEGORY_LABELS, CATEGORY_ORDER } from "../types/bill";
 import { BillRow } from "./BillRow";
 import { putPayPeriodOverride, deletePayPeriodOverride } from "../api/payPeriodOverrides";
+import { fmtCurrency } from "../utils/currency";
 
 interface Props {
   period: PayPeriod;
@@ -24,13 +25,6 @@ function fmtDateShort(isoDate: string): string {
   return new Date(isoDate + "T00:00:00").toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
-  });
-}
-
-function fmtCurrency(amount: string | number): string {
-  return parseFloat(String(amount)).toLocaleString(undefined, {
-    style: "currency",
-    currency: "USD",
   });
 }
 

@@ -2,10 +2,7 @@ import { Fragment, useEffect, useState } from "react";
 import { listBills } from "../api/bills";
 import type { Bill, BillCategory } from "../types/bill";
 import { CATEGORY_LABELS, CATEGORY_ORDER, annualCost } from "../types/bill";
-
-function fmt(amount: number): string {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
-}
+import { fmtCurrency } from "../utils/currency";
 
 interface Props {
   onClose: () => void;
@@ -62,21 +59,21 @@ export function AnnualCostModal({ onClose }: Props) {
                   <tr key={b.id} className="annual-cost__bill-row">
                     <td>{b.name}</td>
                     <td className="annual-cost__num">
-                      {b.is_variable ? "~" : ""}{fmt(parseFloat(b.amount))}
+                      {b.is_variable ? "~" : ""}{fmtCurrency(parseFloat(b.amount))}
                     </td>
-                    <td className="annual-cost__num">{fmt(annualCost(b))}</td>
+                    <td className="annual-cost__num">{fmtCurrency(annualCost(b))}</td>
                   </tr>
                 ))}
                 <tr className="annual-cost__sub-row">
                   <td colSpan={2}>Subtotal</td>
-                  <td className="annual-cost__num">{fmt(catTotal)}</td>
+                  <td className="annual-cost__num">{fmtCurrency(catTotal)}</td>
                 </tr>
               </Fragment>
             );
           })}
           <tr className="annual-cost__total-row">
             <td colSpan={2}>Total annual cost</td>
-            <td className="annual-cost__num">{fmt(grandTotal)}</td>
+            <td className="annual-cost__num">{fmtCurrency(grandTotal)}</td>
           </tr>
         </tbody>
       </table>
