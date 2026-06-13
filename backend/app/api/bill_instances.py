@@ -73,7 +73,6 @@ def upsert_bill_instance(
     if inst is None:
         inst = BillInstance(
             bill_id=bill_id,
-            pay_period_id=None,
             due_date=due_date,
             estimated_amount=bill.estimated_amount,
             actual_amount=body.actual_amount,

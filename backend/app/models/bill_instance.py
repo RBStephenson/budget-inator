@@ -21,7 +21,6 @@ from app.utils import utcnow
 
 if TYPE_CHECKING:
     from app.models.bill import Bill
-    from app.models.pay_period import PayPeriod
 
 
 class BillInstance(Base):
@@ -31,9 +30,6 @@ class BillInstance(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     bill_id: Mapped[int] = mapped_column(
         ForeignKey("bills.id", ondelete="CASCADE"), index=True
-    )
-    pay_period_id: Mapped[int | None] = mapped_column(
-        ForeignKey("pay_periods.id", ondelete="CASCADE"), index=True, nullable=True
     )
     due_date: Mapped[date] = mapped_column(Date)
     estimated_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2))
@@ -53,9 +49,6 @@ class BillInstance(Base):
     )
 
     bill: Mapped[Bill] = relationship("Bill", back_populates="instances")
-    pay_period: Mapped[PayPeriod] = relationship(
-        "PayPeriod", back_populates="bill_instances"
-    )
 
 
 __all__ = ["BillInstance", "BillStatus"]
