@@ -1,6 +1,4 @@
-import { ApiError } from "./client";
-
-const BASE = "/api";
+import { patch } from "./client";
 
 export type InstanceStatus = "paid" | "skipped" | "pending";
 
@@ -17,10 +15,5 @@ export async function patchBillInstance(
   // back-date a payment. Only meaningful when marking paid.
   if (paidAt !== undefined) body.paid_at = paidAt;
 
-  const res = await fetch(`${BASE}/bill-instances/${billId}/${dueDate}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`);
+  return patch<void>(`/bill-instances/${billId}/${dueDate}`, body);
 }
