@@ -16,7 +16,7 @@ async function throwIfNotOk(res: Response): Promise<void> {
   try {
     const body = await res.json();
     if (typeof body?.detail === "string") message = body.detail;
-  } catch {}
+  } catch {} // eslint-disable-line no-empty
   throw new ApiError(res.status, message);
 }
 
