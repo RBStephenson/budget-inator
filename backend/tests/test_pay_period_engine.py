@@ -481,6 +481,66 @@ class TestGracePeriod:
 
 
 # ---------------------------------------------------------------------------
+# assign_bills — paid-bill relocation
+# ---------------------------------------------------------------------------
+
+
+class TestPaidBillRelocation:
+    """A paid occurrence is assigned to the period containing its paid date."""
+
+    def test_future_bill_paid_early_moves_to_current_period(self) -> None:
+        # Period 0: Jan 5–18; Period 1: Jan 19–Feb 1. Bill due Jan 25 (period 1)
+        # but paid Jan 10 (period 0) → should land in period 0.
+        periods = _biweekly_periods(3)
+        bill = _bill(due_day=25)
+        paid = {(bill.id, date(2024, 1, 25)): date(2024, 1, 10)}
+        assign_bills(periods, [bill], paid)
+        assert [b.due_date for b in periods[0].assigned_bills] == [date(2024, 1, 25)]
+        assert periods[1].assigned_bills == []
+
+    def test_past_bill_paid_late_moves_to_later_period(self) -> None:
+        # Bill due Jan 10 (period 0) but paid Jan 22 (period 1).
+        periods = _biweekly_periods(3)
+        bill = _bill(due_day=10)
+        paid = {(bill.id, date(2024, 1, 10)): date(2024, 1, 22)}
+        assign_bills(periods, [bill], paid)
+        assert periods[0].assigned_bills == []
+        assert [b.due_date for b in periods[1].assigned_bills] == [date(2024, 1, 10)]
+
+    def test_unpaid_bill_unaffected_by_relocation_map(self) -> None:
+        periods = _biweekly_periods(3)
+        bill = _bill(due_day=25)  # period 1
+        # Map keyed by a different occurrence → no relocation.
+        assign_bills(periods, [bill], {(99, date(2024, 1, 25)): date(2024, 1, 10)})
+        assert [b.due_date for b in periods[1].assigned_bills] == [date(2024, 1, 25)]
+
+    def test_paid_date_outside_periods_falls_back_to_due_date(self) -> None:
+        # Paid date before all periods → fall back to normal due-date assignment.
+        periods = _biweekly_periods(3)
+        bill = _bill(due_day=25)  # period 1
+        paid = {(bill.id, date(2024, 1, 25)): date(2023, 12, 1)}
+        assign_bills(periods, [bill], paid)
+        assert [b.due_date for b in periods[1].assigned_bills] == [date(2024, 1, 25)]
+
+    def test_relocation_shifts_rolling_balances(self) -> None:
+        # Bill due in period 1 but paid in period 0: the spend moves to period 0,
+        # so period 0's remaining drops and period 1 opens higher.
+        bill = _bill(amount="1000.00", due_day=25)  # period 1 normally
+        paid = {(bill.id, date(2024, 1, 25)): date(2024, 1, 10)}
+        periods = project(
+            date(2024, 1, 5),
+            PayFrequency.biweekly,
+            2,
+            SALARY,
+            ZERO,
+            [bill],
+            paid_dates=paid,
+        )
+        assert periods[0].remaining_balance == Decimal("1500.00")  # 2500 - 1000
+        assert periods[1].opening_balance == Decimal("4000.00")  # 1500 + 2500
+
+
+# ---------------------------------------------------------------------------
 # assign_bills — biweekly bill spanning multiple periods
 # ---------------------------------------------------------------------------
 
