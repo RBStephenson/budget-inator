@@ -166,11 +166,12 @@ export function BillRow({ bill, payOnDate, onRefetch, onEdit }: Props) {
         )}
         {onEdit && (
           <button
-            className="btn-action btn-action--edit-bill"
+            className="btn-icon"
             onClick={() => onEdit(bill.bill_id)}
             aria-label={`Edit bill ${bill.name}`}
+            title="Edit bill"
           >
-            Edit bill
+            ✏
           </button>
         )}
         {bill.is_variable && !isPaid && !isSkipped && !payingPaid && (
