@@ -321,6 +321,39 @@ def test_paid_past_due_bill_pulled_into_period_shows_paid(client: TestClient, db
     assert car["instance_id"] is not None
 
 
+def test_future_bill_paid_early_relocates_to_current_period(client: TestClient, db):
+    """A bill due next period but paid this period shows in this period, and the
+    spend reduces this period's remaining balance instead of the future one.
+    """
+    # Biweekly from 2025-01-03 → period 0: 01-03..01-16, period 1: 01-17..01-30
+    _make_schedule(db, first_paycheck=date(2025, 1, 3), net_salary="1000.00")
+    # Monthly due on the 20th → normally lands in period 1 (01-17..01-30).
+    bill = _make_monthly_bill(db, name="Rent", amount="800.00", due_day=20)
+
+    # Pay it on Jan 10 (period 0).
+    patch = client.patch(
+        f"/bill-instances/{bill.id}/2025-01-20",
+        json={"status": "paid", "paid_at": "2025-01-10T12:00:00"},
+    )
+    assert patch.status_code == 200
+
+    resp = client.get("/schedule?from=2025-01-03&to=2025-01-30")
+    assert resp.status_code == 200
+    periods = resp.json()["periods"]
+
+    p0_rent = [b for b in periods[0]["assigned_bills"] if b["name"] == "Rent"]
+    p1_rent = [b for b in periods[1]["assigned_bills"] if b["name"] == "Rent"]
+    assert len(p0_rent) == 1
+    assert p0_rent[0]["status"] == "paid"
+    assert p0_rent[0]["due_date"] == "2025-01-20"
+    assert p1_rent == []
+
+    # Spend moved into period 0: opening 1500 - 800 = 700; period 1 opens 1700.
+    assert float(periods[0]["total_bills"]) == pytest.approx(800.0)
+    assert float(periods[0]["remaining_balance"]) == pytest.approx(700.0)
+    assert float(periods[1]["opening_balance"]) == pytest.approx(1700.0)
+
+
 def test_no_instance_leaves_status_as_on_time(client: TestClient, db):
     _make_schedule(db, first_paycheck=date(2025, 1, 3))
     _make_monthly_bill(db, name="Rent", due_day=10)
