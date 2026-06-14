@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from decimal import Decimal
 
 import pytest
@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import Base
-from app.models import Bill, BillInstance, PayPeriod, PaySchedule
+from app.models import Bill, BillInstance, PaySchedule
 from app.models.enums import BillCategory, BillRecurrence, BillStatus, PayFrequency
 
 
@@ -38,19 +38,6 @@ def _bill(db: Session, **kwargs) -> Bill:
     db.add(bill)
     db.flush()
     return bill
-
-
-def _period(db: Session, start: date = date(2024, 1, 5), **kwargs) -> PayPeriod:
-    pp = PayPeriod(
-        start_date=start,
-        end_date=start + timedelta(days=13),
-        pay_date=start,
-        opening_balance=Decimal("500.00"),
-        **kwargs,
-    )
-    db.add(pp)
-    db.flush()
-    return pp
 
 
 # ---------------------------------------------------------------------------
@@ -216,37 +203,6 @@ class TestBill:
 
 
 # ---------------------------------------------------------------------------
-# PayPeriod
-# ---------------------------------------------------------------------------
-
-
-class TestPayPeriod:
-    def test_create_open(self, db):
-        pp = _period(db)
-        db.commit()
-        db.refresh(pp)
-
-        assert pp.id == 1
-        assert pp.closing_balance is None
-        assert pp.pay_date == date(2024, 1, 5)
-        assert isinstance(pp.created_at, datetime)
-
-    def test_create_closed(self, db):
-        pp = _period(db, closing_balance=Decimal("300.00"))
-        db.commit()
-        db.refresh(pp)
-
-        assert pp.closing_balance == Decimal("300.00")
-
-    def test_negative_closing_balance(self, db):
-        pp = _period(db, closing_balance=Decimal("-50.00"))
-        db.commit()
-        db.refresh(pp)
-
-        assert pp.closing_balance == Decimal("-50.00")
-
-
-# ---------------------------------------------------------------------------
 # BillStatus
 # ---------------------------------------------------------------------------
 
@@ -271,10 +227,8 @@ class TestBillStatus:
 class TestBillInstance:
     def test_create_pending(self, db):
         bill = _bill(db)
-        pp = _period(db)
         instance = BillInstance(
             bill_id=bill.id,
-            pay_period_id=pp.id,
             due_date=date(2024, 1, 20),
             estimated_amount=bill.estimated_amount,
         )
@@ -289,11 +243,9 @@ class TestBillInstance:
 
     def test_mark_paid(self, db):
         bill = _bill(db)
-        pp = _period(db)
         paid_at = datetime(2024, 1, 15, 10, 30)
         instance = BillInstance(
             bill_id=bill.id,
-            pay_period_id=pp.id,
             due_date=date(2024, 1, 20),
             estimated_amount=bill.estimated_amount,
             actual_amount=Decimal("14.99"),
@@ -310,10 +262,8 @@ class TestBillInstance:
 
     def test_mark_skipped(self, db):
         bill = _bill(db)
-        pp = _period(db)
         instance = BillInstance(
             bill_id=bill.id,
-            pay_period_id=pp.id,
             due_date=date(2024, 1, 20),
             estimated_amount=bill.estimated_amount,
             status=BillStatus.skipped,
@@ -326,11 +276,9 @@ class TestBillInstance:
 
     def test_relationship_bill(self, db):
         bill = _bill(db)
-        pp = _period(db)
         db.add(
             BillInstance(
                 bill_id=bill.id,
-                pay_period_id=pp.id,
                 due_date=date(2024, 1, 20),
                 estimated_amount=bill.estimated_amount,
             )
@@ -341,30 +289,11 @@ class TestBillInstance:
         assert len(bill.instances) == 1
         assert bill.instances[0].due_date == date(2024, 1, 20)
 
-    def test_relationship_pay_period(self, db):
-        bill = _bill(db)
-        pp = _period(db)
-        db.add(
-            BillInstance(
-                bill_id=bill.id,
-                pay_period_id=pp.id,
-                due_date=date(2024, 1, 20),
-                estimated_amount=bill.estimated_amount,
-            )
-        )
-        db.commit()
-        db.refresh(pp)
-
-        assert len(pp.bill_instances) == 1
-        assert pp.bill_instances[0].bill_id == bill.id
-
     def test_cascade_delete_bill_removes_instances(self, db):
         bill = _bill(db)
-        pp = _period(db)
         db.add(
             BillInstance(
                 bill_id=bill.id,
-                pay_period_id=pp.id,
                 due_date=date(2024, 1, 20),
                 estimated_amount=bill.estimated_amount,
             )
@@ -376,33 +305,12 @@ class TestBillInstance:
 
         assert db.query(BillInstance).count() == 0
 
-    def test_cascade_delete_period_removes_instances(self, db):
-        bill = _bill(db)
-        pp = _period(db)
-        db.add(
-            BillInstance(
-                bill_id=bill.id,
-                pay_period_id=pp.id,
-                due_date=date(2024, 1, 20),
-                estimated_amount=bill.estimated_amount,
-            )
-        )
-        db.commit()
-
-        db.delete(pp)
-        db.commit()
-
-        assert db.query(BillInstance).count() == 0
-
     def test_unique_bill_due_date_constraint(self, db):
         bill = _bill(db)
-        pp1 = _period(db, start=date(2024, 1, 5))
-        pp2 = _period(db, start=date(2024, 1, 19))
 
         db.add(
             BillInstance(
                 bill_id=bill.id,
-                pay_period_id=pp1.id,
                 due_date=date(2024, 1, 20),
                 estimated_amount=bill.estimated_amount,
             )
@@ -412,7 +320,6 @@ class TestBillInstance:
         db.add(
             BillInstance(
                 bill_id=bill.id,
-                pay_period_id=pp2.id,
                 due_date=date(2024, 1, 20),  # same bill + same due_date → violation
                 estimated_amount=bill.estimated_amount,
             )
@@ -422,12 +329,10 @@ class TestBillInstance:
 
     def test_same_bill_different_due_dates_allowed(self, db):
         bill = _bill(db)
-        pp = _period(db)
 
         db.add(
             BillInstance(
                 bill_id=bill.id,
-                pay_period_id=pp.id,
                 due_date=date(2024, 1, 7),
                 estimated_amount=bill.estimated_amount,
             )
@@ -435,8 +340,7 @@ class TestBillInstance:
         db.add(
             BillInstance(
                 bill_id=bill.id,
-                pay_period_id=pp.id,
-                due_date=date(2024, 1, 14),  # same period, different due_date → ok
+                due_date=date(2024, 1, 14),
                 estimated_amount=bill.estimated_amount,
             )
         )

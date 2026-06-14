@@ -50,6 +50,29 @@ _BillIsVariable = dict[int, bool]
 _BillCategory = dict[int, str]
 
 
+_PaidDatesMap = dict[tuple[int, date], date]
+
+
+def _load_paid_dates(db: Session) -> _PaidDatesMap:
+    """Paid date per instance, keyed by (bill_id, due_date) (see relocation).
+
+    Loaded in full (not windowed) because a bill paid early can belong to a
+    later period than its due date, and one paid late to an earlier one, so the
+    relocation must be visible regardless of which window is requested.
+    """
+    rows = (
+        db.query(BillInstance)
+        .filter(
+            BillInstance.status == BillStatus.paid,
+            BillInstance.paid_at.isnot(None),
+        )
+        .all()
+    )
+    return {
+        (r.bill_id, r.due_date): r.paid_at.date() for r in rows if r.paid_at is not None
+    }
+
+
 def _load_actuals(db: Session) -> _ActualsMap:
     """All confirmed payday actuals, keyed by pay date (see #55).
 
@@ -195,6 +218,7 @@ def build_schedule(
     bill_category: _BillCategory = {b.id: b.category for b in bill_rows}
     bills = [_to_bill_input(b) for b in bill_rows]
     actuals = _load_actuals(db)
+    paid_dates = _load_paid_dates(db)
 
     today = date.today()
 
@@ -209,6 +233,7 @@ def build_schedule(
             beginning_balance,
             bills,
             actuals,
+            paid_dates,
         )
         current_idx = _find_current_index(all_periods, today)
         window = all_periods[current_idx : current_idx + default_count]
@@ -233,6 +258,7 @@ def build_schedule(
             beginning_balance,
             bills,
             actuals,
+            paid_dates,
         )
         # Include periods that overlap [from_date, to_date]
         window = [

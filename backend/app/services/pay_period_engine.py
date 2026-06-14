@@ -286,9 +286,20 @@ def _find_period(
     return result
 
 
+def _find_period_containing(
+    periods: list[PayPeriodResult], when: date
+) -> PayPeriodResult | None:
+    """Return the period whose [period_start, period_end] contains *when*."""
+    for p in periods:
+        if p.period_start <= when <= p.period_end:
+            return p
+    return None
+
+
 def assign_bills(
     periods: list[PayPeriodResult],
     bills: list[BillInput],
+    paid_dates: dict[tuple[int, date], date] | None = None,
 ) -> list[PayPeriodResult]:
     """
     Assign bill occurrences to pay periods.  Mutates and returns *periods*.
@@ -297,10 +308,18 @@ def assign_bills(
     period_start <= effective_due_date (due_date + grace_period_days).  Bills
     whose effective due date precedes all period starts are attached to the
     first period and marked late_flagged.
+
+    *paid_dates* maps ``(bill_id, due_date)`` to the date a bill was actually
+    paid.  A paid occurrence is assigned to the period containing its paid date
+    instead of its due-date period, so the spend lands where the cash left the
+    account (e.g. a bill paid early moves from a future period into the current
+    one).  Falls back to the due-date rule when the paid date lands outside the
+    generated periods.
     """
     if not periods:
         return periods
 
+    paid_dates = paid_dates or {}
     period_start = periods[0].period_start
     window_end = periods[-1].period_end
 
@@ -314,15 +333,27 @@ def assign_bills(
         )
         for due_date in due_dates_for_bill(bill, gen_start, window_end):
             effective_due = due_date + timedelta(days=bill.grace_period_days)
-            if effective_due > window_end:
-                continue
-            period = _find_period(periods, effective_due)
-
-            if period is None:
-                status = "late_flagged"
-                period = periods[0]
-            else:
+            paid_on = paid_dates.get((bill.id, due_date))
+            paid_period = (
+                _find_period_containing(periods, paid_on)
+                if paid_on is not None
+                else None
+            )
+            period: PayPeriodResult
+            if paid_period is not None:
+                # Relocate the paid bill to the period it was actually paid in.
+                period = paid_period
                 status = "on_time"
+            else:
+                if effective_due > window_end:
+                    continue
+                due_period = _find_period(periods, effective_due)
+                if due_period is None:
+                    status = "late_flagged"
+                    period = periods[0]
+                else:
+                    status = "on_time"
+                    period = due_period
 
             period.assigned_bills.append(
                 AssignedBill(
@@ -353,9 +384,10 @@ def project(
     beginning_balance: Decimal,
     bills: list[BillInput],
     actuals: dict[date, ActualAnchor] | None = None,
+    paid_dates: dict[tuple[int, date], date] | None = None,
 ) -> list[PayPeriodResult]:
     """Generate periods, assign all bills, then apply rolling balances."""
     periods = build_periods(first_paycheck_date, frequency, num_periods)
-    assign_bills(periods, bills)
+    assign_bills(periods, bills, paid_dates)
     apply_rolling_balances(periods, net_salary, beginning_balance, actuals)
     return periods
