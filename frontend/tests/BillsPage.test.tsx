@@ -132,4 +132,5 @@ describe("BillsPage", () => {
       expect(screen.getByRole("link", { name: /dashboard/i })).toBeInTheDocument(),
     );
   });
+
 });

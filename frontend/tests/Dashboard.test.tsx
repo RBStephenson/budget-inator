@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Dashboard } from "../src/components/Dashboard";
 import { ToastContainer } from "../src/components/ToastContainer";
 import { ToastProvider } from "../src/context/ToastContext";
-import { makeBill, makePeriod, makeSchedule, makeMonthlySummary } from "./fixtures";
+import { makeBill, makeApiBill, makePeriod, makeSchedule, makeMonthlySummary } from "./fixtures";
 
 function renderWithToast(ui: React.ReactElement) {
   return render(
@@ -247,6 +247,90 @@ describe("Dashboard — monthly view toggle", () => {
     await waitFor(() =>
       expect(screen.getByText("Current period")).toBeInTheDocument(),
     );
+  });
+});
+
+describe("Dashboard — edit bill modal", () => {
+  beforeEach(() => vi.restoreAllMocks());
+  afterEach(() => vi.restoreAllMocks());
+
+  function mockScheduleWithBillAndGetById() {
+    const assignedBill = makeBill({ bill_id: 1, name: "Rent" });
+    const period = makePeriod({ assigned_bills: [assignedBill] });
+    const apiBill = makeApiBill({ id: 1, name: "Rent" });
+
+    vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
+      const u = String(url);
+      if (u.match(/\/bills\/\d+$/)) {
+        return Promise.resolve({
+          ok: true, status: 200, statusText: "OK",
+          json: async () => apiBill,
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true, status: 200, statusText: "OK",
+        json: async () => makeSchedule([period]),
+      } as Response);
+    });
+
+    return { period, apiBill };
+  }
+
+  it("opens the edit modal when Edit bill is clicked on a BillRow", async () => {
+    const user = userEvent.setup();
+    mockScheduleWithBillAndGetById();
+    renderWithToast(<Dashboard />);
+    // Hero card is expanded by default, so bill rows render without clicking
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /edit bill rent/i })).toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole("button", { name: /edit bill rent/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "Edit bill" })).toBeInTheDocument(),
+    );
+  });
+
+  it("closes the edit modal when onClose is triggered", async () => {
+    const user = userEvent.setup();
+    mockScheduleWithBillAndGetById();
+    renderWithToast(<Dashboard />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /edit bill rent/i })).toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole("button", { name: /edit bill rent/i }));
+    await waitFor(() => screen.getByRole("heading", { name: "Edit bill" }));
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+    expect(screen.queryByRole("heading", { name: "Edit bill" })).not.toBeInTheDocument();
+  });
+
+  it("shows an error toast when the bill fetch fails", async () => {
+    const user = userEvent.setup();
+    const assignedBill = makeBill({ bill_id: 1, name: "Rent" });
+    const period = makePeriod({ assigned_bills: [assignedBill] });
+
+    vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
+      const u = String(url);
+      if (u.match(/\/bills\/\d+$/)) {
+        return Promise.resolve({
+          ok: false, status: 500, statusText: "Server Error",
+          json: async () => ({}),
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true, status: 200, statusText: "OK",
+        json: async () => makeSchedule([period]),
+      } as Response);
+    });
+
+    renderWithToast(<Dashboard />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /edit bill rent/i })).toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole("button", { name: /edit bill rent/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(/could not load bill details/i),
+    );
+    expect(screen.queryByRole("heading", { name: "Edit bill" })).not.toBeInTheDocument();
   });
 });
 

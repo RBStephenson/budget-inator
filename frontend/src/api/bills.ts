@@ -5,6 +5,10 @@ export function listBills(): Promise<Bill[]> {
   return get<Bill[]>("/bills");
 }
 
+export function getBill(id: number): Promise<Bill> {
+  return get<Bill>(`/bills/${id}`);
+}
+
 export function createBill(data: BillCreate): Promise<Bill> {
   return post<Bill>("/bills", data);
 }

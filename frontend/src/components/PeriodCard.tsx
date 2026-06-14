@@ -9,6 +9,7 @@ interface Props {
   period: PayPeriod;
   isHero?: boolean;
   onRefetch?: () => void;
+  onEditBill?: (billId: number) => void;
   /** Overrides the header label (defaults to "Current period"/"Upcoming"). */
   label?: string;
 }
@@ -38,7 +39,7 @@ function balanceColor(remaining: string, opening: string): BalanceColor {
   return rem / open >= 0.2 ? "green" : "amber";
 }
 
-export function PeriodCard({ period, isHero = false, onRefetch, label }: Props) {
+export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, label }: Props) {
   const headerLabel = label ?? (isHero ? "Current period" : "Upcoming");
   const [expanded, setExpanded] = useState(isHero);
   const [editingPayDate, setEditingPayDate] = useState(false);
@@ -247,6 +248,7 @@ export function PeriodCard({ period, isHero = false, onRefetch, label }: Props) 
                           bill={bill}
                           payOnDate={period.pay_date}
                           onRefetch={onRefetch}
+                          onEdit={onEditBill}
                         />
                       ))}
                   </ul>
