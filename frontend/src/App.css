@@ -585,6 +585,8 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-width: 2rem;
+  min-height: 2rem;
   background: none;
   border: none;
   cursor: pointer;
