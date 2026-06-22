@@ -239,6 +239,12 @@ export function SettingsPage() {
                 setForm((f) => ({ ...f, first_paycheck_date: e.target.value }))
               }
             />
+            {form.frequency === "semimonthly" && (
+              <span className="form-hint">
+                Use a 1st/15th anchor for that pattern, or a paycheck after the
+                15th for a 15th/month-end schedule.
+              </span>
+            )}
             {errors.first_paycheck_date && (
               <span className="form-error">{errors.first_paycheck_date}</span>
             )}

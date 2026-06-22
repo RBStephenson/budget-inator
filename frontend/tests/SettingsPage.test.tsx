@@ -83,6 +83,15 @@ describe("SettingsPage", () => {
     expect((screen.getByLabelText(/current balance/i) as HTMLInputElement).value).toBe("800");
   });
 
+  it("explains how the semimonthly anchor selects the payday pattern", async () => {
+    mockFetchOk(makePaySchedule({ frequency: "semimonthly" }));
+    renderWithToast(<SettingsPage />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /save changes/i })).toBeInTheDocument(),
+    );
+    expect(screen.getByText(/15th\/month-end schedule/i)).toBeInTheDocument();
+  });
+
   it("shows validation errors when submitted with empty fields", async () => {
     mockFetch404();
     renderWithToast(<SettingsPage />);

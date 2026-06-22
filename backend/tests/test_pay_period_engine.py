@@ -81,6 +81,43 @@ class TestBuildPeriods:
         assert periods[2].period_start == date(2024, 2, 1)
         assert periods[3].period_start == date(2024, 2, 15)
 
+    def test_semimonthly_month_end_pattern_across_leap_february(self) -> None:
+        periods = build_periods(date(2024, 1, 31), PayFrequency.semimonthly, 5)
+        assert [period.pay_date for period in periods] == [
+            date(2024, 1, 31),
+            date(2024, 2, 15),
+            date(2024, 2, 29),
+            date(2024, 3, 15),
+            date(2024, 3, 31),
+        ]
+
+    def test_semimonthly_month_end_pattern_across_non_leap_february(self) -> None:
+        periods = build_periods(date(2025, 1, 31), PayFrequency.semimonthly, 3)
+        assert [period.pay_date for period in periods] == [
+            date(2025, 1, 31),
+            date(2025, 2, 15),
+            date(2025, 2, 28),
+        ]
+
+    def test_semimonthly_adjusted_month_end_anchor_keeps_pattern(self) -> None:
+        periods = build_periods(date(2026, 5, 29), PayFrequency.semimonthly, 4)
+        assert [period.pay_date for period in periods] == [
+            date(2026, 5, 29),
+            date(2026, 6, 15),
+            date(2026, 6, 30),
+            date(2026, 7, 15),
+        ]
+
+    def test_semimonthly_fifteenth_anchor_keeps_first_and_fifteenth_pattern(
+        self,
+    ) -> None:
+        periods = build_periods(date(2024, 1, 15), PayFrequency.semimonthly, 3)
+        assert [period.pay_date for period in periods] == [
+            date(2024, 1, 15),
+            date(2024, 2, 1),
+            date(2024, 2, 15),
+        ]
+
     def test_monthly_boundaries(self) -> None:
         periods = build_periods(date(2024, 1, 15), PayFrequency.monthly, 3)
         assert periods[0].period_start == date(2024, 1, 15)
