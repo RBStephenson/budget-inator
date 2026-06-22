@@ -91,9 +91,7 @@ def _next_pay_date(
         if semimonthly_month_end:
             # 15th → month-end; month-end → 15th of the next month.
             if current.day <= 15:
-                return current.replace(
-                    day=_days_in_month(current.year, current.month)
-                )
+                return current.replace(day=_days_in_month(current.year, current.month))
             next_month = _add_months(current.replace(day=1), 1)
             return next_month.replace(day=15)
         # 1st → 15th of same month; 15th → 1st of next month
