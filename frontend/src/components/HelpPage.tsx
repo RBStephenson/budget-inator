@@ -22,6 +22,11 @@ export function HelpPage() {
             <li><strong>First paycheck date</strong> — the anchor date used to compute all pay periods; use your most recent or next paycheck date</li>
             <li><strong>Current balance</strong> — what is in your account right now; used as the opening balance for the first period</li>
           </ul>
+          <p>
+            For semi-monthly schedules, an anchor on or before the 15th uses the
+            1st/15th pattern. An anchor after the 15th uses the 15th/month-end
+            pattern.
+          </p>
           <p>Save, then add your bills from the dashboard or the Bills page.</p>
         </section>
 
@@ -148,6 +153,10 @@ export function HelpPage() {
           <p>
             Update your net salary, pay frequency, first paycheck date, or current balance
             at any time. Changes restructure your pay periods immediately.
+          </p>
+          <p>
+            Semi-monthly schedules follow either the 1st/15th or
+            15th/month-end pattern based on the first paycheck date.
           </p>
 
           <h4 className="help-section__subtitle">Data management</h4>

@@ -3,7 +3,7 @@ export type PayFrequency = "weekly" | "biweekly" | "semimonthly" | "monthly";
 export const FREQUENCY_LABELS: Record<PayFrequency, string> = {
   weekly: "Weekly",
   biweekly: "Bi-weekly",
-  semimonthly: "Semi-monthly (1st & 15th)",
+  semimonthly: "Semi-monthly",
   monthly: "Monthly",
 };
 

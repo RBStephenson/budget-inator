@@ -30,7 +30,7 @@ When you open Budget-inator for the first time the dashboard shows a welcome scr
 |---|---|
 | Net salary | Your take-home pay per paycheck (after tax) |
 | Pay frequency | How often you get paid |
-| First paycheck date | The date of your most recent (or next) paycheck — this anchors all period calculations |
+| First paycheck date | The date of your most recent (or next) paycheck — this anchors all period calculations. For semi-monthly pay, dates on or before the 15th use the 1st/15th pattern; dates after the 15th use 15th/month-end |
 | Current balance | What is in your account right now |
 
 Save, and you will be taken back to the dashboard where your pay periods will appear. Add your first bill with **+ Add Bill**.
@@ -156,8 +156,8 @@ Navigate to **Settings** from the top navigation bar.
 | Field | Notes |
 |---|---|
 | Net salary | Your take-home pay per paycheck |
-| Pay frequency | Weekly · Bi-weekly · Semi-monthly (1st & 15th) · Monthly |
-| First paycheck date | Anchor date — all periods are computed forward and backward from this date |
+| Pay frequency | Weekly · Bi-weekly · Semi-monthly · Monthly |
+| First paycheck date | Anchor date — all periods are computed forward and backward from this date. Semi-monthly anchors on or before the 15th use 1st/15th; anchors after the 15th use 15th/month-end |
 | Current balance | What is in your account right now. Used as the opening balance for the first period |
 
 Changes take effect immediately when saved. Updating the pay frequency or first paycheck date will restructure all your pay periods and re-assign bills.

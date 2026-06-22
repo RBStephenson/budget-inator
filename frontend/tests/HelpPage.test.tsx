@@ -28,6 +28,11 @@ describe("HelpPage", () => {
     expect(screen.getByRole("link", { name: /dashboard/i })).toHaveAttribute("href", "/");
   });
 
+  it("documents both semimonthly payday patterns", () => {
+    render(<HelpPage />);
+    expect(screen.getAllByText(/15th\/month-end/i).length).toBeGreaterThan(0);
+  });
+
   it("navigates to / when the back link is clicked", async () => {
     const user = userEvent.setup();
     const pushState = vi.spyOn(history, "pushState");

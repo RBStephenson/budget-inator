@@ -77,12 +77,25 @@ def _add_months(d: date, months: int) -> date:
     return date(year, month, day)
 
 
-def _next_pay_date(current: date, frequency: PayFrequency) -> date:
+def _next_pay_date(
+    current: date,
+    frequency: PayFrequency,
+    *,
+    semimonthly_month_end: bool = False,
+) -> date:
     if frequency == PayFrequency.weekly:
         return current + timedelta(days=7)
     if frequency == PayFrequency.biweekly:
         return current + timedelta(days=14)
     if frequency == PayFrequency.semimonthly:
+        if semimonthly_month_end:
+            # 15th → month-end; month-end → 15th of the next month.
+            if current.day <= 15:
+                return current.replace(
+                    day=_days_in_month(current.year, current.month)
+                )
+            next_month = _add_months(current.replace(day=1), 1)
+            return next_month.replace(day=15)
         # 1st → 15th of same month; 15th → 1st of next month
         if current.day < 15:
             return current.replace(day=15)
@@ -102,10 +115,23 @@ def build_periods(
     num_periods: int,
 ) -> list[PayPeriodResult]:
     """Generate *num_periods* pay periods (boundaries only; balances set separately)."""
+    # A semimonthly anchor after the 15th represents the common
+    # 15th/month-end schedule. Derive this once from the original anchor so the
+    # pattern is not lost when subsequent generated dates land on the 15th.
+    semimonthly_month_end = (
+        frequency == PayFrequency.semimonthly and first_paycheck_date.day > 15
+    )
+
     # Need num_periods + 1 pay dates to know each period's end date.
     pay_dates: list[date] = [first_paycheck_date]
     for _ in range(num_periods):
-        pay_dates.append(_next_pay_date(pay_dates[-1], frequency))
+        pay_dates.append(
+            _next_pay_date(
+                pay_dates[-1],
+                frequency,
+                semimonthly_month_end=semimonthly_month_end,
+            )
+        )
 
     return [
         PayPeriodResult(
