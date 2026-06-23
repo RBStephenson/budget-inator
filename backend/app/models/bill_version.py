@@ -4,22 +4,38 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Date, DateTime, Integer, Numeric, String, Text, text
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
-from app.models.enums import BillCategory, BillRecurrence
 from app.utils import utcnow
 
 if TYPE_CHECKING:
-    from app.models.bill_instance import BillInstance
-    from app.models.bill_version import BillVersion
+    from app.models.bill import Bill
 
 
-class Bill(Base):
-    __tablename__ = "bills"
+class BillVersion(Base):
+    __tablename__ = "bill_versions"
+    __table_args__ = (
+        UniqueConstraint("bill_id", "effective_date", name="uq_bill_version_date"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    bill_id: Mapped[int] = mapped_column(
+        ForeignKey("bills.id", ondelete="CASCADE"), index=True
+    )
+    effective_date: Mapped[date] = mapped_column(Date, index=True)
     name: Mapped[str] = mapped_column(String)
     estimated_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     recurrence: Mapped[str] = mapped_column(String)
@@ -49,15 +65,7 @@ class Bill(Base):
         server_default=text("CURRENT_TIMESTAMP"),
     )
 
-    instances: Mapped[list[BillInstance]] = relationship(
-        "BillInstance", back_populates="bill", cascade="all, delete-orphan"
-    )
-    versions: Mapped[list[BillVersion]] = relationship(
-        "BillVersion",
-        back_populates="bill",
-        cascade="all, delete-orphan",
-        order_by="BillVersion.effective_date",
-    )
+    bill: Mapped[Bill] = relationship("Bill", back_populates="versions")
 
 
-__all__ = ["Bill", "BillCategory", "BillRecurrence"]
+__all__ = ["BillVersion"]

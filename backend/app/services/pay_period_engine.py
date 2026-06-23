@@ -21,6 +21,11 @@ class BillInput:
     first_due_date: date | None  # anchor date for non-monthly bills
     grace_period_days: int = 0
     due_day_is_month_end: bool = False
+    category: str = "other"
+    is_variable: bool = False
+    is_active: bool = True
+    active_start: date | None = None
+    active_end: date | None = None
 
 
 @dataclass
@@ -30,6 +35,8 @@ class AssignedBill:
     due_date: date
     amount: Decimal
     status: str  # "on_time" | "late_flagged"
+    category: str = "other"
+    is_variable: bool = False
 
 
 @dataclass
@@ -224,6 +231,15 @@ def due_dates_for_bill(
     bill: BillInput, window_start: date, window_end: date
 ) -> list[date]:
     """All due dates for *bill* that fall within [window_start, window_end]."""
+    if not bill.is_active:
+        return []
+    if bill.active_start is not None:
+        window_start = max(window_start, bill.active_start)
+    if bill.active_end is not None:
+        window_end = min(window_end, bill.active_end)
+    if window_start > window_end:
+        return []
+
     r = bill.recurrence
 
     if r == BillRecurrence.monthly:
@@ -398,6 +414,8 @@ def assign_bills(
                     due_date=due_date,
                     amount=bill.amount,
                     status=status,
+                    category=bill.category,
+                    is_variable=bill.is_variable,
                 )
             )
 

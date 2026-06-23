@@ -135,6 +135,32 @@ describe("BillFormModal — edit mode", () => {
     expect(screen.getByDisplayValue("Mortgage")).toBeInTheDocument();
   });
 
+  it("shows an effective date for forward-looking edits", () => {
+    renderWithToast(
+      <BillFormModal bill={makeApiBill()} onSave={vi.fn()} onClose={vi.fn()} />,
+    );
+    expect(screen.getByLabelText(/effective date/i)).toBeInTheDocument();
+    expect(screen.getByText(/from this date forward/i)).toBeInTheDocument();
+    expect(screen.getByText(/correct one occurrence/i)).toBeInTheDocument();
+  });
+
+  it("sends the selected effective date when editing", async () => {
+    mockFetch(true);
+    const onSave = vi.fn();
+    renderWithToast(
+      <BillFormModal bill={makeApiBill()} onSave={onSave} onClose={vi.fn()} />,
+    );
+    const effectiveDate = screen.getByLabelText(/effective date/i);
+    await userEvent.clear(effectiveDate);
+    await userEvent.type(effectiveDate, "2025-02-01");
+    await userEvent.click(screen.getByRole("button", { name: /save changes/i }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+    const request = vi.mocked(globalThis.fetch).mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(request.body as string)).toMatchObject({
+      effective_date: "2025-02-01",
+    });
+  });
+
   it("pre-fills the category dropdown", () => {
     renderWithToast(
       <BillFormModal

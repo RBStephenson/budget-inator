@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
@@ -5,6 +7,7 @@ from app.database import get_db
 from app.models import Bill
 from app.models.enums import BillCategory, BillRecurrence
 from app.schemas.bill import BillCreate, BillRead, BillUpdate
+from app.services.bill_versions import ensure_initial_version, record_bill_version
 
 router = APIRouter(prefix="/bills", tags=["bills"])
 
@@ -76,6 +79,8 @@ def create_bill(body: BillCreate, db: Session = Depends(get_db)) -> Bill:
         notes=body.notes,
     )
     db.add(bill)
+    db.flush()
+    record_bill_version(db, bill, date(1, 1, 1))
     db.commit()
     db.refresh(bill)
     return bill
@@ -89,6 +94,7 @@ def get_bill(bill_id: int, db: Session = Depends(get_db)) -> Bill:
 @router.patch("/{bill_id}", response_model=BillRead)
 def patch_bill(bill_id: int, body: BillUpdate, db: Session = Depends(get_db)) -> Bill:
     bill = _get_bill_or_404(bill_id, db)
+    ensure_initial_version(db, bill)
 
     if body.name is not None:
         bill.name = body.name
@@ -128,6 +134,7 @@ def patch_bill(bill_id: int, body: BillUpdate, db: Session = Depends(get_db)) ->
         bill.notes = body.notes
 
     _validate_due_fields(bill, db)
+    record_bill_version(db, bill, body.effective_date or date.today())
 
     db.commit()
     db.refresh(bill)
@@ -137,5 +144,7 @@ def patch_bill(bill_id: int, body: BillUpdate, db: Session = Depends(get_db)) ->
 @router.delete("/{bill_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_bill(bill_id: int, db: Session = Depends(get_db)) -> None:
     bill = _get_bill_or_404(bill_id, db)
+    ensure_initial_version(db, bill)
     bill.is_active = False
+    record_bill_version(db, bill, date.today())
     db.commit()

@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Bill, BillInstance, PaySchedule
+from app.models import Bill, BillInstance, BillVersion, PaySchedule
 from app.models.enums import BillCategory, BillRecurrence, BillStatus, PayFrequency
 from app.models.pay_period_actual import PayPeriodActual
 from app.models.pay_period_override import PayPeriodOverride
@@ -18,9 +18,10 @@ from app.utils import utcnow
 
 router = APIRouter(prefix="/data", tags=["data"])
 
-EXPORT_VERSION = 4
+EXPORT_VERSION = 5
 # v2 has no pay_period_actuals; v2/v3 have no month-end due-date flag.
-SUPPORTED_IMPORT_VERSIONS = {2, 3, 4}
+# v2-v4 have no bill_versions; imports backfill one baseline version per bill.
+SUPPORTED_IMPORT_VERSIONS = {2, 3, 4, 5}
 
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
@@ -58,6 +59,22 @@ class ExportBillInstance(BaseModel):
     paid_at: datetime | None
 
 
+class ExportBillVersion(BaseModel):
+    bill_index: int
+    effective_date: date
+    name: str
+    amount: Decimal
+    recurrence: BillRecurrence
+    due_day: int | None
+    due_day_is_month_end: bool
+    due_date: date | None
+    grace_period_days: int
+    category: BillCategory
+    is_variable: bool
+    is_active: bool
+    notes: str | None
+
+
 class ExportPayPeriodOverride(BaseModel):
     original_pay_date: date
     overridden_pay_date: date
@@ -73,6 +90,7 @@ class ExportPayload(BaseModel):
     version: int
     pay_schedule: ExportPaySchedule | None
     bills: list[ExportBill]
+    bill_versions: list[ExportBillVersion]
     bill_instances: list[ExportBillInstance]
     pay_period_overrides: list[ExportPayPeriodOverride]
     pay_period_actuals: list[ExportPayPeriodActual]
@@ -139,6 +157,60 @@ class ImportBillInstance(BaseModel):
     paid_at: datetime | None = None
 
 
+class ImportBillVersion(BaseModel):
+    bill_index: int = Field(ge=0)
+    effective_date: date
+    name: str
+    amount: Decimal
+    recurrence: BillRecurrence
+    due_day: int | None = None
+    due_day_is_month_end: bool = False
+    due_date: date | None = None
+    grace_period_days: int = Field(default=0, ge=0)
+    category: BillCategory
+    is_variable: bool = False
+    is_active: bool = True
+    notes: str | None = None
+
+    @field_validator("amount")
+    @classmethod
+    def amount_positive(cls, v: Decimal) -> Decimal:
+        if v <= 0:
+            raise ValueError("amount must be greater than 0")
+        return v
+
+    @field_validator("due_day")
+    @classmethod
+    def due_day_range(cls, v: int | None) -> int | None:
+        if v is not None and not (1 <= v <= 31):
+            raise ValueError("due_day must be between 1 and 31")
+        return v
+
+    @model_validator(mode="after")
+    def due_date_rules(self) -> ImportBillVersion:
+        if self.recurrence == BillRecurrence.monthly:
+            if self.due_day_is_month_end and self.due_day is not None:
+                raise ValueError(
+                    "due_day must be omitted when due_day_is_month_end is true"
+                )
+            if not self.due_day_is_month_end and self.due_day is None:
+                raise ValueError(
+                    "due_day is required unless due_day_is_month_end is true"
+                )
+            if self.due_date is not None:
+                raise ValueError("due_date must be omitted for monthly recurrence")
+        else:
+            if self.due_date is None:
+                raise ValueError("due_date is required for non-monthly recurrence")
+            if self.due_day is not None:
+                raise ValueError("due_day must be omitted for non-monthly recurrence")
+            if self.due_day_is_month_end:
+                raise ValueError(
+                    "due_day_is_month_end must be false for non-monthly recurrence"
+                )
+        return self
+
+
 class ImportPayPeriodOverride(BaseModel):
     original_pay_date: date
     overridden_pay_date: date
@@ -182,6 +254,7 @@ class ImportPayload(BaseModel):
     version: int
     pay_schedule: ImportPaySchedule | None = None
     bills: list[ImportBill] = []
+    bill_versions: list[ImportBillVersion] = []
     bill_instances: list[ImportBillInstance] = []
     pay_period_overrides: list[ImportPayPeriodOverride] = []
     pay_period_actuals: list[ImportPayPeriodActual] = []
@@ -196,6 +269,21 @@ class ImportPayload(BaseModel):
     @model_validator(mode="after")
     def referential_integrity(self) -> ImportPayload:
         seen_instances: set[tuple[int, date]] = set()
+        seen_versions: set[tuple[int, date]] = set()
+        for version in self.bill_versions:
+            if version.bill_index >= len(self.bills):
+                raise ValueError(
+                    f"bill_versions references bill_index {version.bill_index} "
+                    f"but only {len(self.bills)} bills are present"
+                )
+            key = (version.bill_index, version.effective_date)
+            if key in seen_versions:
+                raise ValueError(
+                    f"duplicate bill version for bill_index {version.bill_index} "
+                    f"on {version.effective_date}"
+                )
+            seen_versions.add(key)
+
         for inst in self.bill_instances:
             if inst.bill_index >= len(self.bills):
                 raise ValueError(
@@ -233,6 +321,11 @@ class ImportPayload(BaseModel):
 def export_data(db: Session = Depends(get_db)) -> ExportPayload:
     sched = db.query(PaySchedule).first()
     bills = db.query(Bill).order_by(Bill.id).all()
+    versions = (
+        db.query(BillVersion)
+        .order_by(BillVersion.bill_id, BillVersion.effective_date)
+        .all()
+    )
     instances = db.query(BillInstance).order_by(BillInstance.id).all()
     overrides = (
         db.query(PayPeriodOverride).order_by(PayPeriodOverride.original_pay_date).all()
@@ -266,6 +359,50 @@ def export_data(db: Session = Depends(get_db)) -> ExportPayload:
     ]
 
     bill_index_by_id = {b.id: i for i, b in enumerate(bills)}
+    versions_by_bill: dict[int, list[BillVersion]] = {b.id: [] for b in bills}
+    for version in versions:
+        if version.bill_id in versions_by_bill:
+            versions_by_bill[version.bill_id].append(version)
+
+    export_versions: list[ExportBillVersion] = []
+    for bill in bills:
+        bill_versions = versions_by_bill[bill.id]
+        if not bill_versions:
+            bill_versions = [
+                BillVersion(
+                    bill_id=bill.id,
+                    effective_date=date(1, 1, 1),
+                    name=bill.name,
+                    estimated_amount=bill.estimated_amount,
+                    recurrence=bill.recurrence,
+                    due_day=bill.due_day,
+                    due_day_is_month_end=bill.due_day_is_month_end,
+                    first_due_date=bill.first_due_date,
+                    grace_period_days=bill.grace_period_days,
+                    category=bill.category,
+                    is_variable=bill.is_variable,
+                    is_active=bill.is_active,
+                    notes=bill.notes,
+                )
+            ]
+        for version in bill_versions:
+            export_versions.append(
+                ExportBillVersion(
+                    bill_index=bill_index_by_id[version.bill_id],
+                    effective_date=version.effective_date,
+                    name=version.name,
+                    amount=version.estimated_amount,
+                    recurrence=BillRecurrence(version.recurrence),
+                    due_day=version.due_day,
+                    due_day_is_month_end=version.due_day_is_month_end,
+                    due_date=version.first_due_date,
+                    grace_period_days=version.grace_period_days,
+                    category=BillCategory(version.category),
+                    is_variable=version.is_variable,
+                    is_active=version.is_active,
+                    notes=version.notes,
+                )
+            )
     export_instances = [
         ExportBillInstance(
             bill_index=bill_index_by_id[r.bill_id],
@@ -299,6 +436,7 @@ def export_data(db: Session = Depends(get_db)) -> ExportPayload:
         version=EXPORT_VERSION,
         pay_schedule=pay_schedule,
         bills=export_bills,
+        bill_versions=export_versions,
         bill_instances=export_instances,
         pay_period_overrides=export_overrides,
         pay_period_actuals=export_actuals,
@@ -309,6 +447,7 @@ def export_data(db: Session = Depends(get_db)) -> ExportPayload:
 def import_data(body: ImportPayload, db: Session = Depends(get_db)) -> None:
     # Delete all existing data in dependency order
     db.query(BillInstance).delete()
+    db.query(BillVersion).delete()
     db.query(PayPeriodOverride).delete()
     db.query(PayPeriodActual).delete()
     db.query(Bill).delete()
@@ -352,6 +491,49 @@ def import_data(body: ImportPayload, db: Session = Depends(get_db)) -> None:
     # Flush so created bills get IDs for the instance FKs
     db.flush()
 
+    if body.bill_versions:
+        for version in body.bill_versions:
+            db.add(
+                BillVersion(
+                    bill_id=created_bills[version.bill_index].id,
+                    effective_date=version.effective_date,
+                    name=version.name,
+                    estimated_amount=version.amount,
+                    recurrence=version.recurrence,
+                    due_day=version.due_day,
+                    due_day_is_month_end=version.due_day_is_month_end,
+                    first_due_date=version.due_date,
+                    grace_period_days=version.grace_period_days,
+                    category=version.category,
+                    is_variable=version.is_variable,
+                    is_active=version.is_active,
+                    notes=version.notes,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+    else:
+        for bill in created_bills:
+            db.add(
+                BillVersion(
+                    bill_id=bill.id,
+                    effective_date=date(1, 1, 1),
+                    name=bill.name,
+                    estimated_amount=bill.estimated_amount,
+                    recurrence=bill.recurrence,
+                    due_day=bill.due_day,
+                    due_day_is_month_end=bill.due_day_is_month_end,
+                    first_due_date=bill.first_due_date,
+                    grace_period_days=bill.grace_period_days,
+                    category=bill.category,
+                    is_variable=bill.is_variable,
+                    is_active=bill.is_active,
+                    notes=bill.notes,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+
     for inst in body.bill_instances:
         db.add(
             BillInstance(
@@ -393,6 +575,7 @@ def import_data(body: ImportPayload, db: Session = Depends(get_db)) -> None:
 @router.delete("", status_code=status.HTTP_204_NO_CONTENT)
 def delete_all_data(db: Session = Depends(get_db)) -> None:
     db.query(BillInstance).delete()
+    db.query(BillVersion).delete()
     db.query(PayPeriodOverride).delete()
     db.query(PayPeriodActual).delete()
     db.query(Bill).delete()
