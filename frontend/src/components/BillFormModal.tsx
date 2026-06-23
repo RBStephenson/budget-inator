@@ -11,6 +11,7 @@ interface Props {
 }
 
 interface FormState {
+  effective_date: string;
   name: string;
   amount: string;
   recurrence: BillRecurrence;
@@ -23,8 +24,13 @@ interface FormState {
   notes: string;
 }
 
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function initialState(bill?: Bill): FormState {
   return {
+    effective_date: bill ? todayIso() : "",
     name: bill?.name ?? "",
     amount: bill ? String(parseFloat(bill.amount)) : "",
     recurrence: bill?.recurrence ?? "monthly",
@@ -92,6 +98,7 @@ export function BillFormModal({ bill, onSave, onClose }: Props) {
     setSubmitting(true);
     try {
       const payload = {
+        ...(bill ? { effective_date: form.effective_date || todayIso() } : {}),
         name: form.name.trim(),
         amount: form.amount,
         recurrence: form.recurrence,
@@ -143,6 +150,24 @@ export function BillFormModal({ bill, onSave, onClose }: Props) {
               />
               {errors.name && <span className="form-error">{errors.name}</span>}
             </div>
+
+            {bill && (
+              <div className="form-field">
+                <label htmlFor="bf-effective-date">Effective date</label>
+                <input
+                  id="bf-effective-date"
+                  type="date"
+                  value={form.effective_date}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, effective_date: e.target.value }))
+                  }
+                />
+                <span className="form-hint">
+                  Applies this edit from this date forward. Use payment status to
+                  correct one occurrence.
+                </span>
+              </div>
+            )}
 
             <div className="form-field">
               <label htmlFor="bf-amount">

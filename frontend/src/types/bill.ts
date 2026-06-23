@@ -47,6 +47,7 @@ export interface BillCreate {
 }
 
 export interface BillUpdate {
+  effective_date?: string | null;
   name?: string;
   amount?: string;
   recurrence?: BillRecurrence;

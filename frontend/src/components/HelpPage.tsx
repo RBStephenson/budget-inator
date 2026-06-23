@@ -72,6 +72,8 @@ export function HelpPage() {
             Go to <strong>Bills</strong> (via the <em>+ Add Bill</em> button or the
             Bills link). Use the edit button to modify a bill or deactivate it.
             Deactivated bills are hidden from the schedule but not permanently deleted.
+            Edits use an effective date, so past schedule, monthly summary, and PDF
+            history keep the bill terms that applied at the time.
           </p>
           <table className="help-table">
             <thead>
@@ -83,6 +85,14 @@ export function HelpPage() {
               <tr><td>Category</td><td>Housing · Utilities · Subscriptions · Insurance · Debt · Savings · Other</td></tr>
               <tr><td>Recurrence</td><td>Monthly · Bi-weekly · Weekly · Quarterly · Semi-annual · Annual · One-time</td></tr>
               <tr><td>Due day / Due date</td><td>For monthly bills enter the calendar day (1–31) or choose the last day of the month; for all others enter the specific date</td></tr>
+              <tr>
+                <td>Effective date</td>
+                <td>
+                  When editing, the date the new bill terms begin. Use payment
+                  status or actual amount controls to correct one specific occurrence
+                  instead.
+                </td>
+              </tr>
               <tr>
                 <td>Grace period</td>
                 <td>

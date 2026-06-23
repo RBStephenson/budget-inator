@@ -63,9 +63,10 @@ class TestExport:
         resp = client.get("/data/export")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["version"] == 4
+        assert data["version"] == 5
         assert data["pay_schedule"] is None
         assert data["bills"] == []
+        assert data["bill_versions"] == []
         assert data["bill_instances"] == []
         assert data["pay_period_overrides"] == []
         assert data["pay_period_actuals"] == []
@@ -75,7 +76,7 @@ class TestExport:
         resp = client.get("/data/export")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["version"] == 4
+        assert data["version"] == 5
         assert data["pay_schedule"]["net_salary"] == "2000.00"
         assert data["pay_schedule"]["frequency"] == "biweekly"
         assert len(data["bills"]) == 1
@@ -83,6 +84,9 @@ class TestExport:
         assert data["bills"][0]["amount"] == "1200.00"
         assert data["bills"][0]["recurrence"] == "monthly"
         assert data["bills"][0]["due_day_is_month_end"] is False
+        assert data["bill_versions"][0]["bill_index"] == 0
+        assert data["bill_versions"][0]["effective_date"] == "0001-01-01"
+        assert data["bill_versions"][0]["amount"] == "1200.00"
 
     def test_export_includes_inactive_bills(self, client: TestClient, db):
         db.add(
@@ -374,6 +378,7 @@ class TestImport:
         restored = client.get("/data/export").json()
         assert restored["pay_schedule"] == backup["pay_schedule"]
         assert restored["bills"] == backup["bills"]
+        assert restored["bill_versions"] == backup["bill_versions"]
         assert restored["bill_instances"] == backup["bill_instances"]
         assert restored["pay_period_overrides"] == backup["pay_period_overrides"]
 

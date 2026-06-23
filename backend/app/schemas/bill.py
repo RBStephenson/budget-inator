@@ -60,6 +60,7 @@ class BillCreate(BaseModel):
 
 
 class BillUpdate(BaseModel):
+    effective_date: date | None = None
     name: str | None = None
     amount: Decimal | None = None
     recurrence: BillRecurrence | None = None
