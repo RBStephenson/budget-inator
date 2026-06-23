@@ -22,6 +22,7 @@ export interface Bill {
   amount: string;
   recurrence: BillRecurrence;
   due_day: number | null;
+  due_day_is_month_end: boolean;
   due_date: string | null;
   grace_period_days: number;
   category: BillCategory;
@@ -37,6 +38,7 @@ export interface BillCreate {
   amount: string;
   recurrence: BillRecurrence;
   due_day?: number | null;
+  due_day_is_month_end?: boolean;
   due_date?: string | null;
   grace_period_days?: number;
   category: BillCategory;
@@ -49,6 +51,7 @@ export interface BillUpdate {
   amount?: string;
   recurrence?: BillRecurrence;
   due_day?: number | null;
+  due_day_is_month_end?: boolean;
   due_date?: string | null;
   grace_period_days?: number;
   category?: BillCategory;

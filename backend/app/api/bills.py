@@ -18,8 +18,10 @@ def _validate_due_fields(bill: Bill, db: Session) -> None:
     """
     error: str | None = None
     if bill.recurrence == BillRecurrence.monthly:
-        if bill.due_day is None:
-            error = "due_day is required for monthly recurrence"
+        if bill.due_day_is_month_end and bill.due_day is not None:
+            error = "due_day must be omitted when due_day_is_month_end is true"
+        elif not bill.due_day_is_month_end and bill.due_day is None:
+            error = "due_day is required unless due_day_is_month_end is true"
         elif bill.first_due_date is not None:
             error = "due_date must be omitted for monthly recurrence"
     else:
@@ -27,6 +29,8 @@ def _validate_due_fields(bill: Bill, db: Session) -> None:
             error = "due_date is required for non-monthly recurrence"
         elif bill.due_day is not None:
             error = "due_day must be omitted for non-monthly recurrence"
+        elif bill.due_day_is_month_end:
+            error = "due_day_is_month_end must be false for non-monthly recurrence"
 
     if error is not None:
         db.rollback()
@@ -64,6 +68,7 @@ def create_bill(body: BillCreate, db: Session = Depends(get_db)) -> Bill:
         estimated_amount=body.amount,
         recurrence=body.recurrence,
         due_day=body.due_day,
+        due_day_is_month_end=body.due_day_is_month_end,
         first_due_date=body.due_date,
         grace_period_days=body.grace_period_days,
         category=body.category,
@@ -93,14 +98,22 @@ def patch_bill(bill_id: int, body: BillUpdate, db: Session = Depends(get_db)) ->
         bill.recurrence = body.recurrence
     if body.due_day is not None:
         bill.due_day = body.due_day
+        bill.due_day_is_month_end = False
         # Clear the anchor date when switching to monthly
         if bill.recurrence == BillRecurrence.monthly:
             bill.first_due_date = None
+    if body.due_day_is_month_end is not None:
+        bill.due_day_is_month_end = body.due_day_is_month_end
+        if body.due_day_is_month_end:
+            bill.due_day = None
+            if bill.recurrence == BillRecurrence.monthly:
+                bill.first_due_date = None
     if body.due_date is not None:
         bill.first_due_date = body.due_date
         # Clear due_day when switching to a non-monthly anchor date
         if bill.recurrence != BillRecurrence.monthly:
             bill.due_day = None
+            bill.due_day_is_month_end = False
     if body.grace_period_days is not None:
         bill.grace_period_days = body.grace_period_days
     if body.category is not None:

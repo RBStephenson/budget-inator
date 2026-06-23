@@ -42,6 +42,7 @@ export function makeApiBill(overrides: Partial<Bill> = {}): Bill {
     amount: "1200.00",
     recurrence: "monthly",
     due_day: 1,
+    due_day_is_month_end: false,
     due_date: null,
     grace_period_days: 0,
     category: "housing",

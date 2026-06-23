@@ -82,7 +82,7 @@ export function HelpPage() {
               <tr><td>Amount</td><td>Regular payment amount; for variable bills this is your estimate</td></tr>
               <tr><td>Category</td><td>Housing · Utilities · Subscriptions · Insurance · Debt · Savings · Other</td></tr>
               <tr><td>Recurrence</td><td>Monthly · Bi-weekly · Weekly · Quarterly · Semi-annual · Annual · One-time</td></tr>
-              <tr><td>Due day / Due date</td><td>For monthly bills enter the calendar day (1–28); for all others enter the specific date</td></tr>
+              <tr><td>Due day / Due date</td><td>For monthly bills enter the calendar day (1–31) or choose the last day of the month; for all others enter the specific date</td></tr>
               <tr>
                 <td>Grace period</td>
                 <td>

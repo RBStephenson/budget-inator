@@ -15,6 +15,7 @@ interface FormState {
   amount: string;
   recurrence: BillRecurrence;
   due_day: string;
+  due_day_is_month_end: boolean;
   due_date: string;
   grace_period_days: string;
   category: BillCategory | "";
@@ -28,6 +29,7 @@ function initialState(bill?: Bill): FormState {
     amount: bill ? String(parseFloat(bill.amount)) : "",
     recurrence: bill?.recurrence ?? "monthly",
     due_day: bill?.due_day != null ? String(bill.due_day) : "",
+    due_day_is_month_end: bill?.due_day_is_month_end ?? false,
     due_date: bill?.due_date ?? "",
     grace_period_days: bill ? String(bill.grace_period_days) : "",
     category: bill?.category ?? "",
@@ -56,6 +58,7 @@ export function BillFormModal({ bill, onSave, onClose }: Props) {
       ...f,
       recurrence: r,
       due_day: r === "monthly" ? f.due_day : "",
+      due_day_is_month_end: r === "monthly" ? f.due_day_is_month_end : false,
       due_date: r !== "monthly" ? f.due_date : "",
     }));
   }
@@ -68,8 +71,11 @@ export function BillFormModal({ bill, onSave, onClose }: Props) {
     if (!form.category) e.category = "Category is required.";
     if (form.recurrence === "monthly") {
       const d = parseInt(form.due_day);
-      if (!form.due_day || isNaN(d) || d < 1 || d > 28)
-        e.due_day = "Enter a day between 1 and 28.";
+      if (
+        !form.due_day_is_month_end &&
+        (!form.due_day || isNaN(d) || d < 1 || d > 31)
+      )
+        e.due_day = "Enter a day between 1 and 31.";
     } else {
       if (!form.due_date) e.due_date = "Due date is required.";
     }
@@ -90,7 +96,10 @@ export function BillFormModal({ bill, onSave, onClose }: Props) {
         amount: form.amount,
         recurrence: form.recurrence,
         ...(form.recurrence === "monthly"
-          ? { due_day: parseInt(form.due_day) }
+          ? {
+              due_day: form.due_day_is_month_end ? null : parseInt(form.due_day),
+              due_day_is_month_end: form.due_day_is_month_end,
+            }
           : { due_date: form.due_date }),
         grace_period_days: form.grace_period_days ? parseInt(form.grace_period_days) : 0,
         category: form.category as BillCategory,
@@ -180,15 +189,29 @@ export function BillFormModal({ bill, onSave, onClose }: Props) {
 
             {isMonthly ? (
               <div className="form-field">
-                <label htmlFor="bf-due-day">Due day (1–28)</label>
+                <label htmlFor="bf-due-day">Due day (1–31)</label>
                 <input
                   id="bf-due-day"
                   type="number"
                   min="1"
-                  max="28"
+                  max="31"
                   value={form.due_day}
+                  disabled={form.due_day_is_month_end}
                   onChange={(e) => setForm((f) => ({ ...f, due_day: e.target.value }))}
                 />
+                <label className="form-toggle">
+                  <input
+                    type="checkbox"
+                    checked={form.due_day_is_month_end}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        due_day_is_month_end: e.target.checked,
+                      }))
+                    }
+                  />
+                  Last day of month
+                </label>
                 {errors.due_day && <span className="form-error">{errors.due_day}</span>}
               </div>
             ) : (

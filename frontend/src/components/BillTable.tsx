@@ -17,7 +17,9 @@ interface Props {
 type SortKey = "name" | "annual_cost";
 
 function fmtDue(bill: Bill): string {
-  if (bill.recurrence === "monthly") return `Day ${bill.due_day}`;
+  if (bill.recurrence === "monthly") {
+    return bill.due_day_is_month_end ? "Last day" : `Day ${bill.due_day}`;
+  }
   if (!bill.due_date) return "—";
   return new Date(bill.due_date + "T00:00:00").toLocaleDateString(undefined, {
     month: "short",

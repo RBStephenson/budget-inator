@@ -18,9 +18,9 @@ from app.utils import utcnow
 
 router = APIRouter(prefix="/data", tags=["data"])
 
-EXPORT_VERSION = 3
-# Older backups we can still restore. v2 simply has no pay_period_actuals.
-SUPPORTED_IMPORT_VERSIONS = {2, 3}
+EXPORT_VERSION = 4
+# v2 has no pay_period_actuals; v2/v3 have no month-end due-date flag.
+SUPPORTED_IMPORT_VERSIONS = {2, 3, 4}
 
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
@@ -38,6 +38,7 @@ class ExportBill(BaseModel):
     amount: Decimal
     recurrence: BillRecurrence
     due_day: int | None
+    due_day_is_month_end: bool
     due_date: date | None
     grace_period_days: int
     category: BillCategory
@@ -82,6 +83,7 @@ class ImportBill(BaseModel):
     amount: Decimal
     recurrence: BillRecurrence
     due_day: int | None = None
+    due_day_is_month_end: bool = False
     due_date: date | None = None
     grace_period_days: int = Field(default=0, ge=0)
     category: BillCategory
@@ -99,15 +101,21 @@ class ImportBill(BaseModel):
     @field_validator("due_day")
     @classmethod
     def due_day_range(cls, v: int | None) -> int | None:
-        if v is not None and not (1 <= v <= 28):
-            raise ValueError("due_day must be between 1 and 28")
+        if v is not None and not (1 <= v <= 31):
+            raise ValueError("due_day must be between 1 and 31")
         return v
 
     @model_validator(mode="after")
     def due_date_rules(self) -> ImportBill:
         if self.recurrence == BillRecurrence.monthly:
-            if self.due_day is None:
-                raise ValueError("due_day is required for monthly recurrence")
+            if self.due_day_is_month_end and self.due_day is not None:
+                raise ValueError(
+                    "due_day must be omitted when due_day_is_month_end is true"
+                )
+            if not self.due_day_is_month_end and self.due_day is None:
+                raise ValueError(
+                    "due_day is required unless due_day_is_month_end is true"
+                )
             if self.due_date is not None:
                 raise ValueError("due_date must be omitted for monthly recurrence")
         else:
@@ -115,6 +123,10 @@ class ImportBill(BaseModel):
                 raise ValueError("due_date is required for non-monthly recurrence")
             if self.due_day is not None:
                 raise ValueError("due_day must be omitted for non-monthly recurrence")
+            if self.due_day_is_month_end:
+                raise ValueError(
+                    "due_day_is_month_end must be false for non-monthly recurrence"
+                )
         return self
 
 
@@ -242,6 +254,7 @@ def export_data(db: Session = Depends(get_db)) -> ExportPayload:
             amount=b.estimated_amount,
             recurrence=BillRecurrence(b.recurrence),
             due_day=b.due_day,
+            due_day_is_month_end=b.due_day_is_month_end,
             due_date=b.first_due_date,
             grace_period_days=b.grace_period_days,
             category=BillCategory(b.category),
@@ -323,6 +336,7 @@ def import_data(body: ImportPayload, db: Session = Depends(get_db)) -> None:
             estimated_amount=b.amount,
             recurrence=b.recurrence,
             due_day=b.due_day,
+            due_day_is_month_end=b.due_day_is_month_end,
             first_due_date=b.due_date,
             grace_period_days=b.grace_period_days,
             category=b.category,

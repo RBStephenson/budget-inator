@@ -86,7 +86,7 @@ Click **+ Add Bill** to open the bill form.
 | **Amount** | The regular payment amount. For variable bills this is your estimate |
 | **Category** | Housing · Utilities · Subscriptions · Insurance · Debt · Savings · Other |
 | **Recurrence** | How often the bill repeats — see table below |
-| **Due day / Due date** | For monthly bills enter the calendar day (1–28). For all other recurrences, enter the specific due date |
+| **Due day / Due date** | For monthly bills enter the calendar day (1–31), or choose **Last day of month**. Fixed days 29–31 clamp to the final day in shorter months; the month-end option always uses that month’s final calendar day. For all other recurrences, enter the specific due date |
 | **Grace period** | Number of days after the due date you can still pay without being considered late. Useful for bills where the due date is advisory |
 | **Variable amount** | Check this if the actual charge varies each cycle (e.g. utilities, credit cards). The amount field becomes the estimate. You can enter the real amount directly on the dashboard each period |
 | **Notes** | Optional free-text reminder shown when editing the bill |
