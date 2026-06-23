@@ -41,8 +41,12 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("category", sa.String(), nullable=False),
-        sa.Column("is_variable", sa.Boolean(), server_default=sa.text("0"), nullable=False),
-        sa.Column("is_active", sa.Boolean(), server_default=sa.text("1"), nullable=False),
+        sa.Column(
+            "is_variable", sa.Boolean(), server_default=sa.text("0"), nullable=False
+        ),
+        sa.Column(
+            "is_active", sa.Boolean(), server_default=sa.text("1"), nullable=False
+        ),
         sa.Column("notes", sa.Text(), nullable=True),
         sa.Column(
             "created_at",
