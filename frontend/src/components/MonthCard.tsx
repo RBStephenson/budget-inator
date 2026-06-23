@@ -69,6 +69,14 @@ export function MonthCard({ summary }: Props) {
               −{fmtCurrency(summary.total_bills)}
             </span>
           </div>
+          {parseFloat(summary.total_sinking_funds) > 0 && (
+            <div className="month-card__row">
+              <span className="month-card__label">Sinking funds</span>
+              <span className="month-card__value">
+                -{fmtCurrency(summary.total_sinking_funds)}
+              </span>
+            </div>
+          )}
           <div className="month-card__row">
             <span className="month-card__label">
               {isOverspent ? "Overspent" : "Available"}

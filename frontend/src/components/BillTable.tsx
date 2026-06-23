@@ -124,13 +124,14 @@ export function BillTable({ bills, onEdit, onDeactivate }: Props) {
             <th>Due</th>
             <th>Grace</th>
             <th>Variable</th>
+            <th>Sinking fund</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
           {filteredActive.length === 0 ? (
             <tr>
-              <td colSpan={9} className="bill-table__empty">
+              <td colSpan={10} className="bill-table__empty">
                 {hasFilter ? "No bills match the current filters." : "No active bills."}
               </td>
             </tr>
@@ -153,6 +154,9 @@ export function BillTable({ bills, onEdit, onDeactivate }: Props) {
                 </td>
                 <td className="bill-table__center">
                   {bill.is_variable ? "Yes" : "—"}
+                </td>
+                <td className="bill-table__center">
+                  {bill.sinking_fund_enabled ? "Yes" : "—"}
                 </td>
                 <td className="bill-table__actions">
                   <button
@@ -182,7 +186,7 @@ export function BillTable({ bills, onEdit, onDeactivate }: Props) {
             <td className="bill-table__num bill-table__footer-total">
               {fmtCurrency(totalAnnual)}
             </td>
-            <td colSpan={5}></td>
+            <td colSpan={6}></td>
           </tr>
         </tfoot>
       </table>

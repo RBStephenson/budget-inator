@@ -27,6 +27,7 @@ export interface Bill {
   grace_period_days: number;
   category: BillCategory;
   is_variable: boolean;
+  sinking_fund_enabled: boolean;
   is_active: boolean;
   notes: string | null;
   created_at: string;
@@ -43,6 +44,7 @@ export interface BillCreate {
   grace_period_days?: number;
   category: BillCategory;
   is_variable?: boolean;
+  sinking_fund_enabled?: boolean;
   notes?: string | null;
 }
 
@@ -57,6 +59,7 @@ export interface BillUpdate {
   grace_period_days?: number;
   category?: BillCategory;
   is_variable?: boolean;
+  sinking_fund_enabled?: boolean;
   is_active?: boolean;
   notes?: string | null;
 }

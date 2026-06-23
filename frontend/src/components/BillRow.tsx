@@ -72,7 +72,16 @@ export function BillRow({ bill, payOnDate, onRefetch, onEdit }: Props) {
   }
 
   const isEstimated = bill.is_variable && bill.actual_amount == null;
-  const displayAmount = bill.actual_amount ?? bill.amount;
+  const reserveApplied = parseFloat(bill.sinking_fund_applied) > 0;
+  const displayAmount =
+    bill.actual_amount && reserveApplied
+      ? String(
+          Math.max(
+            0,
+            parseFloat(bill.actual_amount) - parseFloat(bill.sinking_fund_applied),
+          ).toFixed(2),
+        )
+      : (bill.actual_amount ?? (reserveApplied ? bill.sinking_fund_shortfall : bill.amount));
 
   return (
     <li
@@ -94,6 +103,11 @@ export function BillRow({ bill, payOnDate, onRefetch, onEdit }: Props) {
         {isPaid && <span className="bill-row__status-badge bill-row__status-badge--paid">✓</span>}
         {isSkipped && <span className="bill-row__status-badge bill-row__status-badge--skipped">—</span>}
         {bill.name}
+        {reserveApplied && (
+          <span className="bill-row__meta">
+            Fund applied {fmtCurrency(bill.sinking_fund_applied)}
+          </span>
+        )}
       </span>
       <span className="bill-row__dates">
         <span className="bill-row__date-label">Due</span>

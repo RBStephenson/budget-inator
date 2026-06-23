@@ -30,6 +30,7 @@ from app.schemas.schedule import (
     PayPeriodOut,
     ScheduleResponse,
     ScheduleSummary,
+    SinkingFundContributionOut,
 )
 from app.services.bill_versions import bill_inputs_for_window
 from app.services.pay_period_engine import (
@@ -142,19 +143,30 @@ def _to_period_out(
                 actual_amount=inst.actual_amount if inst else None,
                 is_variable=b.is_variable,
                 category=b.category,
+                sinking_fund_applied=b.sinking_fund_applied,
+                sinking_fund_shortfall=b.sinking_fund_shortfall,
             )
         )
 
     def _effective_amount(bo: AssignedBillOut) -> Decimal:
         if bo.actual_amount is not None:
-            return Decimal(str(bo.actual_amount))
+            actual = Decimal(str(bo.actual_amount))
+            if bo.sinking_fund_applied > 0:
+                return max(Decimal("0"), actual - bo.sinking_fund_applied)
+            return actual
+        if bo.sinking_fund_applied > 0 or bo.sinking_fund_shortfall > 0:
+            return Decimal(str(bo.sinking_fund_shortfall))
         return bo.amount
 
     total = sum(
         (_effective_amount(bo) for bo in bills_out if bo.status != BillStatus.skipped),
         Decimal("0"),
     )
-    remaining = p.opening_balance - total
+    total_sinking_funds = sum(
+        (c.contribution_amount for c in p.sinking_fund_contributions),
+        Decimal("0"),
+    )
+    remaining = p.opening_balance - total - total_sinking_funds
     flagged = sum(1 for bo in bills_out if bo.status == "late_flagged")
     effective_pay_date = override_map.get(p.pay_date, p.pay_date)
     return PayPeriodOut(
@@ -166,9 +178,23 @@ def _to_period_out(
         period_end=p.period_end,
         opening_balance=p.opening_balance,
         total_bills=total,
+        total_sinking_funds=total_sinking_funds,
         remaining_balance=remaining,
         flagged_bill_count=flagged,
         assigned_bills=bills_out,
+        sinking_fund_contributions=[
+            SinkingFundContributionOut(
+                bill_id=c.bill_id,
+                name=c.name,
+                next_due_date=c.next_due_date,
+                target_amount=c.target_amount,
+                saved_amount=c.saved_amount,
+                contribution_amount=c.contribution_amount,
+                shortfall_amount=c.shortfall_amount,
+                surplus_amount=c.surplus_amount,
+            )
+            for c in p.sinking_fund_contributions
+        ],
     )
 
 
@@ -397,6 +423,7 @@ def build_monthly_summary(
     frequency = PayFrequency(sched.frequency)
     first_paycheck = sched.first_paycheck_date
     net_salary = Decimal(str(sched.net_salary))
+    beginning_balance = Decimal(str(sched.beginning_balance))
 
     # Income per month: count pay periods whose period_start falls in the
     # window. Confirmed actual net pay (#55) overrides the assumed salary for
@@ -416,9 +443,29 @@ def build_monthly_summary(
             )
             income_by_month[key] += income
 
-    # Bills per month: find all due dates in the window
     bill_rows = db.query(Bill).all()
     bill_inputs = bill_inputs_for_window(db, bill_rows, window_start, window_end)
+
+    projected_periods = project(
+        first_paycheck,
+        frequency,
+        num_needed,
+        net_salary,
+        beginning_balance,
+        bill_inputs,
+        actuals,
+        _load_paid_dates(db),
+    )
+    sinking_by_month: dict[tuple[int, int], Decimal] = defaultdict(Decimal)
+    for p in projected_periods:
+        if window_start <= p.period_start <= window_end:
+            key = (p.period_start.year, p.period_start.month)
+            sinking_by_month[key] += sum(
+                (c.contribution_amount for c in p.sinking_fund_contributions),
+                Decimal("0"),
+            )
+
+    # Bills per month: find all due dates in the window
     bills_by_month: dict[tuple[int, int], list[tuple[BillInput, date]]] = defaultdict(
         list
     )
@@ -480,7 +527,8 @@ def build_monthly_summary(
             (_effective_amount(item) for items in cat_map.values() for item in items),
             Decimal("0"),
         )
-        available = total_income - total_bills
+        total_sinking_funds = sinking_by_month.get(key, Decimal("0"))
+        available = total_income - total_bills - total_sinking_funds
 
         categories = [
             MonthlyCategoryGroup(
@@ -500,6 +548,7 @@ def build_monthly_summary(
                 month=f"{y:04d}-{m:02d}",
                 total_income=total_income,
                 total_bills=total_bills,
+                total_sinking_funds=total_sinking_funds,
                 available=available,
                 categories=categories,
             )

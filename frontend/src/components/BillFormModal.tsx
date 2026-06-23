@@ -21,6 +21,7 @@ interface FormState {
   grace_period_days: string;
   category: BillCategory | "";
   is_variable: boolean;
+  sinking_fund_enabled: boolean;
   notes: string;
 }
 
@@ -40,6 +41,7 @@ function initialState(bill?: Bill): FormState {
     grace_period_days: bill ? String(bill.grace_period_days) : "",
     category: bill?.category ?? "",
     is_variable: bill?.is_variable ?? false,
+    sinking_fund_enabled: bill?.sinking_fund_enabled ?? false,
     notes: bill?.notes ?? "",
   };
 }
@@ -111,6 +113,7 @@ export function BillFormModal({ bill, onSave, onClose }: Props) {
         grace_period_days: form.grace_period_days ? parseInt(form.grace_period_days) : 0,
         category: form.category as BillCategory,
         is_variable: form.is_variable,
+        sinking_fund_enabled: form.sinking_fund_enabled,
         notes: form.notes.trim() || null,
         // Restore active when saving an inactive bill via edit
         ...(bill && !bill.is_active ? { is_active: true } : {}),
@@ -276,6 +279,26 @@ export function BillFormModal({ bill, onSave, onClose }: Props) {
                 />
                 Variable amount (actual may differ from estimate)
               </label>
+            </div>
+
+            <div className="form-field form-field--wide">
+              <label className="form-toggle">
+                <input
+                  type="checkbox"
+                  checked={form.sinking_fund_enabled}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      sinking_fund_enabled: e.target.checked,
+                    }))
+                  }
+                />
+                Build a sinking fund for this bill
+              </label>
+              <span className="form-hint">
+                Reserves part of each paycheck before the next due date, useful
+                for quarterly, semi-annual, and annual bills.
+              </span>
             </div>
 
             <div className="form-field form-field--wide">

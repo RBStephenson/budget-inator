@@ -107,6 +107,14 @@ export function HelpPage() {
                   becomes an estimate and you can enter the real charge on the dashboard
                 </td>
               </tr>
+              <tr>
+                <td>Sinking fund</td>
+                <td>
+                  Reserves part of each paycheck for a large future bill so the
+                  money is not shown as available to spend. Actual amounts for
+                  variable bills are applied against the reserve when entered.
+                </td>
+              </tr>
             </tbody>
           </table>
         </section>

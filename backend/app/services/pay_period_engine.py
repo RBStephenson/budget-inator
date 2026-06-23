@@ -23,6 +23,7 @@ class BillInput:
     due_day_is_month_end: bool = False
     category: str = "other"
     is_variable: bool = False
+    sinking_fund_enabled: bool = False
     is_active: bool = True
     active_start: date | None = None
     active_end: date | None = None
@@ -37,6 +38,20 @@ class AssignedBill:
     status: str  # "on_time" | "late_flagged"
     category: str = "other"
     is_variable: bool = False
+    sinking_fund_applied: Decimal = Decimal("0")
+    sinking_fund_shortfall: Decimal = Decimal("0")
+
+
+@dataclass
+class SinkingFundContribution:
+    bill_id: int
+    name: str
+    next_due_date: date
+    target_amount: Decimal
+    saved_amount: Decimal
+    contribution_amount: Decimal
+    shortfall_amount: Decimal
+    surplus_amount: Decimal
 
 
 @dataclass
@@ -47,10 +62,24 @@ class PayPeriodResult:
     period_end: date
     opening_balance: Decimal
     assigned_bills: list[AssignedBill] = field(default_factory=list)
+    sinking_fund_contributions: list[SinkingFundContribution] = field(
+        default_factory=list
+    )
 
     @property
     def remaining_balance(self) -> Decimal:
-        return self.opening_balance - sum(b.amount for b in self.assigned_bills)
+        bill_total = sum(
+            (
+                b.sinking_fund_shortfall
+                if b.sinking_fund_applied > 0 or b.sinking_fund_shortfall > 0
+                else b.amount
+            )
+            for b in self.assigned_bills
+        )
+        contribution_total = sum(
+            c.contribution_amount for c in self.sinking_fund_contributions
+        )
+        return self.opening_balance - bill_total - contribution_total
 
 
 @dataclass
@@ -425,6 +454,81 @@ def assign_bills(
     return periods
 
 
+def _effective_assigned_amount(bill: AssignedBill) -> Decimal:
+    if bill.sinking_fund_applied > 0 or bill.sinking_fund_shortfall > 0:
+        return bill.sinking_fund_shortfall
+    return bill.amount
+
+
+def apply_sinking_funds(periods: list[PayPeriodResult], bills: list[BillInput]) -> None:
+    """Project sinking-fund contributions and due-date reserve use.
+
+    This is intentionally projection-only: the app does not persist bank transfer
+    transactions yet. Contributions reserve money by reducing available cash in
+    each period, and the reserve is applied to the next due occurrence when it
+    appears in the generated schedule.
+    """
+    if not periods:
+        return
+
+    sinking_bills = [b for b in bills if b.sinking_fund_enabled and b.is_active]
+    if not sinking_bills:
+        return
+
+    reserves: dict[int, Decimal] = {b.id: Decimal("0") for b in sinking_bills}
+    window_start = periods[0].period_start
+    window_end = periods[-1].period_end
+    sinking_lookahead_end = window_end + timedelta(days=370)
+    due_dates_by_bill = {
+        b.id: due_dates_for_bill(b, window_start, sinking_lookahead_end)
+        for b in sinking_bills
+    }
+
+    for index, period in enumerate(periods):
+        # First consume reserve for due occurrences in this period.
+        for assigned in period.assigned_bills:
+            if assigned.bill_id not in reserves:
+                continue
+            reserve = reserves[assigned.bill_id]
+            applied = min(reserve, assigned.amount)
+            assigned.sinking_fund_applied = applied
+            assigned.sinking_fund_shortfall = max(
+                Decimal("0"), assigned.amount - applied
+            )
+            reserves[assigned.bill_id] = max(Decimal("0"), reserve - assigned.amount)
+
+        for bill in sinking_bills:
+            future_due_dates = [
+                d for d in due_dates_by_bill[bill.id] if d > period.period_end
+            ]
+            if not future_due_dates:
+                continue
+            next_due = future_due_dates[0]
+            funding_period_count = sum(
+                1 for p in periods[index:] if p.period_end < next_due
+            )
+            if funding_period_count <= 0:
+                continue
+
+            reserve = reserves[bill.id]
+            needed = max(Decimal("0"), bill.amount - reserve)
+            contribution = needed / funding_period_count
+            reserves[bill.id] = reserve + contribution
+            saved = reserves[bill.id]
+            period.sinking_fund_contributions.append(
+                SinkingFundContribution(
+                    bill_id=bill.id,
+                    name=bill.name,
+                    next_due_date=next_due,
+                    target_amount=bill.amount,
+                    saved_amount=saved,
+                    contribution_amount=contribution,
+                    shortfall_amount=max(Decimal("0"), bill.amount - saved),
+                    surplus_amount=max(Decimal("0"), saved - bill.amount),
+                )
+            )
+
+
 # ---------------------------------------------------------------------------
 # Top-level projection
 # ---------------------------------------------------------------------------
@@ -443,5 +547,6 @@ def project(
     """Generate periods, assign all bills, then apply rolling balances."""
     periods = build_periods(first_paycheck_date, frequency, num_periods)
     assign_bills(periods, bills, paid_dates)
+    apply_sinking_funds(periods, bills)
     apply_rolling_balances(periods, net_salary, beginning_balance, actuals)
     return periods

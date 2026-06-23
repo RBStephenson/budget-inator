@@ -114,6 +114,24 @@ describe("BillFormModal — add mode", () => {
     await userEvent.click(screen.getByLabelText(/variable amount/i));
     expect(screen.getByText("(estimated)")).toBeInTheDocument();
   });
+
+  it("submits the sinking fund opt-in", async () => {
+    mockFetch(true);
+    const onSave = vi.fn();
+    renderWithToast(<BillFormModal onSave={onSave} onClose={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText(/^name/i), "Insurance");
+    await userEvent.type(screen.getByLabelText(/^amount/i), "1200");
+    await userEvent.selectOptions(screen.getByLabelText(/category/i), "insurance");
+    await userEvent.selectOptions(screen.getByLabelText(/recurrence/i), "annual");
+    await userEvent.type(screen.getByLabelText(/due date/i), "2025-03-01");
+    await userEvent.click(screen.getByLabelText(/build a sinking fund/i));
+    await userEvent.click(screen.getByRole("button", { name: /add bill/i }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+    const request = vi.mocked(globalThis.fetch).mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(request.body as string)).toMatchObject({
+      sinking_fund_enabled: true,
+    });
+  });
 });
 
 describe("BillFormModal — edit mode", () => {
