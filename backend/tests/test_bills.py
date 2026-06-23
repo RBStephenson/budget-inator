@@ -131,9 +131,9 @@ class TestCreateBill:
     def test_creates_month_end_bill_without_fixed_due_day(
         self, client: TestClient
     ) -> None:
-        payload = {
-            k: v for k, v in MONTHLY_BILL.items() if k != "due_day"
-        } | {"due_day_is_month_end": True}
+        payload = {k: v for k, v in MONTHLY_BILL.items() if k != "due_day"} | {
+            "due_day_is_month_end": True
+        }
         r = client.post("/bills", json=payload)
         assert r.status_code == 201
         assert r.json()["due_day"] is None
@@ -284,9 +284,7 @@ class TestPatchBill:
         assert r.status_code == 200
         assert r.json()["due_day"] == 31
 
-    def test_switches_between_fixed_day_and_month_end(
-        self, client: TestClient
-    ) -> None:
+    def test_switches_between_fixed_day_and_month_end(self, client: TestClient) -> None:
         created = client.post("/bills", json=MONTHLY_BILL).json()
 
         month_end = client.patch(
