@@ -27,6 +27,7 @@ class MonthlySummary(BaseModel):
     month: str  # "YYYY-MM"
     total_income: Decimal
     total_bills: Decimal
+    total_sinking_funds: Decimal = Decimal("0")
     available: Decimal
     categories: list[MonthlyCategoryGroup]
 

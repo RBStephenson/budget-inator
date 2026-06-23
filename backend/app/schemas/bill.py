@@ -18,6 +18,7 @@ class BillCreate(BaseModel):
     grace_period_days: int = Field(default=0, ge=0)
     category: BillCategory
     is_variable: bool = False
+    sinking_fund_enabled: bool = False
     notes: str | None = None
 
     @field_validator("amount")
@@ -70,6 +71,7 @@ class BillUpdate(BaseModel):
     grace_period_days: int | None = Field(default=None, ge=0)
     category: BillCategory | None = None
     is_variable: bool | None = None
+    sinking_fund_enabled: bool | None = None
     is_active: bool | None = None
     notes: str | None = None
 
@@ -103,6 +105,7 @@ class BillRead(BaseModel):
     grace_period_days: int
     category: BillCategory
     is_variable: bool
+    sinking_fund_enabled: bool
     is_active: bool
     notes: str | None
     created_at: datetime

@@ -18,10 +18,11 @@ from app.utils import utcnow
 
 router = APIRouter(prefix="/data", tags=["data"])
 
-EXPORT_VERSION = 5
+EXPORT_VERSION = 6
 # v2 has no pay_period_actuals; v2/v3 have no month-end due-date flag.
 # v2-v4 have no bill_versions; imports backfill one baseline version per bill.
-SUPPORTED_IMPORT_VERSIONS = {2, 3, 4, 5}
+# v2-v5 have no sinking fund flags; imports default them to false.
+SUPPORTED_IMPORT_VERSIONS = {2, 3, 4, 5, 6}
 
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
@@ -44,6 +45,7 @@ class ExportBill(BaseModel):
     grace_period_days: int
     category: BillCategory
     is_variable: bool
+    sinking_fund_enabled: bool
     is_active: bool
     notes: str | None
 
@@ -71,6 +73,7 @@ class ExportBillVersion(BaseModel):
     grace_period_days: int
     category: BillCategory
     is_variable: bool
+    sinking_fund_enabled: bool
     is_active: bool
     notes: str | None
 
@@ -106,6 +109,7 @@ class ImportBill(BaseModel):
     grace_period_days: int = Field(default=0, ge=0)
     category: BillCategory
     is_variable: bool = False
+    sinking_fund_enabled: bool = False
     is_active: bool = True
     notes: str | None = None
 
@@ -169,6 +173,7 @@ class ImportBillVersion(BaseModel):
     grace_period_days: int = Field(default=0, ge=0)
     category: BillCategory
     is_variable: bool = False
+    sinking_fund_enabled: bool = False
     is_active: bool = True
     notes: str | None = None
 
@@ -352,6 +357,7 @@ def export_data(db: Session = Depends(get_db)) -> ExportPayload:
             grace_period_days=b.grace_period_days,
             category=BillCategory(b.category),
             is_variable=b.is_variable,
+            sinking_fund_enabled=b.sinking_fund_enabled,
             is_active=b.is_active,
             notes=b.notes,
         )
@@ -381,6 +387,7 @@ def export_data(db: Session = Depends(get_db)) -> ExportPayload:
                     grace_period_days=bill.grace_period_days,
                     category=bill.category,
                     is_variable=bill.is_variable,
+                    sinking_fund_enabled=bill.sinking_fund_enabled,
                     is_active=bill.is_active,
                     notes=bill.notes,
                 )
@@ -399,6 +406,7 @@ def export_data(db: Session = Depends(get_db)) -> ExportPayload:
                     grace_period_days=version.grace_period_days,
                     category=BillCategory(version.category),
                     is_variable=version.is_variable,
+                    sinking_fund_enabled=version.sinking_fund_enabled,
                     is_active=version.is_active,
                     notes=version.notes,
                 )
@@ -480,6 +488,7 @@ def import_data(body: ImportPayload, db: Session = Depends(get_db)) -> None:
             grace_period_days=b.grace_period_days,
             category=b.category,
             is_variable=b.is_variable,
+            sinking_fund_enabled=b.sinking_fund_enabled,
             is_active=b.is_active,
             notes=b.notes,
             created_at=now,
@@ -506,6 +515,7 @@ def import_data(body: ImportPayload, db: Session = Depends(get_db)) -> None:
                     grace_period_days=version.grace_period_days,
                     category=version.category,
                     is_variable=version.is_variable,
+                    sinking_fund_enabled=version.sinking_fund_enabled,
                     is_active=version.is_active,
                     notes=version.notes,
                     created_at=now,
@@ -527,6 +537,7 @@ def import_data(body: ImportPayload, db: Session = Depends(get_db)) -> None:
                     grace_period_days=bill.grace_period_days,
                     category=bill.category,
                     is_variable=bill.is_variable,
+                    sinking_fund_enabled=bill.sinking_fund_enabled,
                     is_active=bill.is_active,
                     notes=bill.notes,
                     created_at=now,

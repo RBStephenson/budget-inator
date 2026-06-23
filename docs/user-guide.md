@@ -90,6 +90,7 @@ Click **+ Add Bill** to open the bill form.
 | **Recurrence** | How often the bill repeats — see table below |
 | **Due day / Due date** | For monthly bills enter the calendar day (1–31), or choose **Last day of month**. Fixed days 29–31 clamp to the final day in shorter months; the month-end option always uses that month’s final calendar day. For all other recurrences, enter the specific due date |
 | **Effective date** | Shown when editing. The date the new bill terms begin; earlier occurrences keep their previous terms |
+| **Sinking fund** | Check this for large quarterly, semi-annual, annual, or one-time bills. The schedule reserves part of each paycheck before the next due date so that money is not shown as available to spend |
 | **Grace period** | Number of days after the due date you can still pay without being considered late. Useful for bills where the due date is advisory |
 | **Variable amount** | Check this if the actual charge varies each cycle (e.g. utilities, credit cards). The amount field becomes the estimate. You can enter the real amount directly on the dashboard each period |
 | **Notes** | Optional free-text reminder shown when editing the bill |
@@ -117,6 +118,12 @@ Each bill row on the period card has three action buttons:
 - **↺ Pending** — resets the status back to pending (the default)
 
 Status changes apply only to that bill's occurrence in that specific period. They don't affect other periods or the bill's configuration.
+
+### Sinking funds
+
+When a bill has **Build a sinking fund** enabled, Budget-inator projects the next due occurrence, calculates a per-paycheck reserve amount, and subtracts that contribution from the period's available balance. The due bill still appears on its due date, but any projected reserve is applied first and only the shortfall reduces that period's safe-to-spend amount.
+
+For variable bills, the estimate is used until you enter an actual amount. Once an actual amount is known, the reserve is recalculated against the actual amount for that occurrence; any remaining shortfall stays visible.
 
 ### Variable bill actuals
 

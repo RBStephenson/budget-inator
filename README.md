@@ -29,6 +29,7 @@ A personal budget management application that helps you track bills against your
 **Bill management**
 - Add, edit, and deactivate bills
 - Effective-dated edits preserve historical bill names, amounts, categories, and due rules
+- Sinking funds reserve part of each paycheck for large future bills
 - Recurrences: Monthly, Bi-weekly, Weekly, Quarterly, Semi-annual, Annual, One-time
 - Categories: Housing, Utilities, Subscriptions, Insurance, Debt, Savings, Other
 - Optional **grace period** — how many days after the due date you can still pay without being late

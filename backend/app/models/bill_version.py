@@ -51,6 +51,9 @@ class BillVersion(Base):
     is_variable: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=text("0")
     )
+    sinking_fund_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("0")
+    )
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=text("1")
     )

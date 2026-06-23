@@ -170,7 +170,7 @@ def test_export_import_round_trip_preserves_bill_versions(
     )
 
     backup = client.get("/data/export").json()
-    assert backup["version"] == 5
+    assert backup["version"] == 6
     assert len(backup["bill_versions"]) == 2
 
     assert client.delete("/data").status_code == 204

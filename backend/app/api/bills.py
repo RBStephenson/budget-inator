@@ -76,6 +76,7 @@ def create_bill(body: BillCreate, db: Session = Depends(get_db)) -> Bill:
         grace_period_days=body.grace_period_days,
         category=body.category,
         is_variable=body.is_variable,
+        sinking_fund_enabled=body.sinking_fund_enabled,
         notes=body.notes,
     )
     db.add(bill)
@@ -126,6 +127,8 @@ def patch_bill(bill_id: int, body: BillUpdate, db: Session = Depends(get_db)) ->
         bill.category = body.category
     if body.is_variable is not None:
         bill.is_variable = body.is_variable
+    if body.sinking_fund_enabled is not None:
+        bill.sinking_fund_enabled = body.sinking_fund_enabled
     if body.is_active is not None:
         bill.is_active = body.is_active
     # Only update notes when the field was sent: omitting it preserves the

@@ -25,6 +25,7 @@ def _bill_to_input(bill: Bill) -> BillInput:
         due_day_is_month_end=bill.due_day_is_month_end,
         category=bill.category,
         is_variable=bill.is_variable,
+        sinking_fund_enabled=bill.sinking_fund_enabled,
         is_active=bill.is_active,
     )
 
@@ -41,6 +42,7 @@ def _version_to_input(version: BillVersion) -> BillInput:
         due_day_is_month_end=version.due_day_is_month_end,
         category=version.category,
         is_variable=version.is_variable,
+        sinking_fund_enabled=version.sinking_fund_enabled,
         is_active=version.is_active,
     )
 
@@ -58,6 +60,7 @@ def _copy_bill_terms(
     target.grace_period_days = bill.grace_period_days
     target.category = bill.category
     target.is_variable = bill.is_variable
+    target.sinking_fund_enabled = bill.sinking_fund_enabled
     target.is_active = bill.is_active
     target.notes = bill.notes
     return target

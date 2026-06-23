@@ -63,7 +63,7 @@ class TestExport:
         resp = client.get("/data/export")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["version"] == 5
+        assert data["version"] == 6
         assert data["pay_schedule"] is None
         assert data["bills"] == []
         assert data["bill_versions"] == []
@@ -76,7 +76,7 @@ class TestExport:
         resp = client.get("/data/export")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["version"] == 5
+        assert data["version"] == 6
         assert data["pay_schedule"]["net_salary"] == "2000.00"
         assert data["pay_schedule"]["frequency"] == "biweekly"
         assert len(data["bills"]) == 1
