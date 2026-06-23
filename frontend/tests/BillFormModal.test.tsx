@@ -36,6 +36,7 @@ describe("BillFormModal — add mode", () => {
     renderWithToast(<BillFormModal onSave={vi.fn()} onClose={vi.fn()} />);
     expect(screen.getByLabelText(/due day/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/due date/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/last day of month/i)).not.toBeChecked();
   });
 
   it("switches to due-date field when recurrence changes to biweekly", async () => {
@@ -63,6 +64,42 @@ describe("BillFormModal — add mode", () => {
     await userEvent.type(screen.getByLabelText(/due day/i), "1");
     await userEvent.click(screen.getByRole("button", { name: /add bill/i }));
     await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+  });
+
+  it("accepts the 31st as a fixed monthly due day", async () => {
+    mockFetch(true);
+    const onSave = vi.fn();
+    renderWithToast(<BillFormModal onSave={onSave} onClose={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText(/^name/i), "Mortgage");
+    await userEvent.type(screen.getByLabelText(/^amount/i), "1200");
+    await userEvent.selectOptions(screen.getByLabelText(/category/i), "housing");
+    await userEvent.type(screen.getByLabelText(/due day/i), "31");
+    await userEvent.click(screen.getByRole("button", { name: /add bill/i }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: expect.stringContaining('"due_day":31'),
+      }),
+    );
+  });
+
+  it("submits an explicit last-day-of-month rule", async () => {
+    mockFetch(true);
+    const onSave = vi.fn();
+    renderWithToast(<BillFormModal onSave={onSave} onClose={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText(/^name/i), "Mortgage");
+    await userEvent.type(screen.getByLabelText(/^amount/i), "1200");
+    await userEvent.selectOptions(screen.getByLabelText(/category/i), "housing");
+    await userEvent.click(screen.getByLabelText(/last day of month/i));
+    expect(screen.getByLabelText(/due day/i)).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: /add bill/i }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+    const request = vi.mocked(globalThis.fetch).mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(request.body as string)).toMatchObject({
+      due_day: null,
+      due_day_is_month_end: true,
+    });
   });
 
   it("calls onClose when cancel is clicked", async () => {
@@ -121,6 +158,21 @@ describe("BillFormModal — edit mode", () => {
     );
     expect(screen.getByLabelText(/due date/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/due day/i)).not.toBeInTheDocument();
+  });
+
+  it("pre-fills an explicit month-end rule", () => {
+    renderWithToast(
+      <BillFormModal
+        bill={makeApiBill({
+          due_day: null,
+          due_day_is_month_end: true,
+        })}
+        onSave={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText(/last day of month/i)).toBeChecked();
+    expect(screen.getByLabelText(/due day/i)).toBeDisabled();
   });
 
   it("shows a server error when the API call fails", async () => {

@@ -23,6 +23,9 @@ class Bill(Base):
     estimated_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     recurrence: Mapped[str] = mapped_column(String)
     due_day: Mapped[int | None] = mapped_column(Integer)
+    due_day_is_month_end: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("0")
+    )
     first_due_date: Mapped[date | None] = mapped_column(Date)
     grace_period_days: Mapped[int] = mapped_column(
         Integer, default=0, server_default=text("0")

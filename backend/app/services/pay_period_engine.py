@@ -17,9 +17,10 @@ class BillInput:
     name: str
     amount: Decimal
     recurrence: BillRecurrence
-    due_day: int | None  # month-day for monthly bills (1–28)
+    due_day: int | None  # fixed month-day for monthly bills (1–31)
     first_due_date: date | None  # anchor date for non-monthly bills
     grace_period_days: int = 0
+    due_day_is_month_end: bool = False
 
 
 @dataclass
@@ -226,19 +227,30 @@ def due_dates_for_bill(
     r = bill.recurrence
 
     if r == BillRecurrence.monthly:
-        assert bill.due_day is not None
+        assert bill.due_day is not None or bill.due_day_is_month_end
         due_day = bill.due_day
+
+        def month_day(year: int, month: int) -> int:
+            last_day = _days_in_month(year, month)
+            if bill.due_day_is_month_end:
+                return last_day
+            assert due_day is not None
+            return min(due_day, last_day)
+
         dates: list[date] = []
         # First candidate: due_day in window_start's month, clamped to actual days
-        clamp = _days_in_month(window_start.year, window_start.month)
-        d = date(window_start.year, window_start.month, min(due_day, clamp))
+        d = date(
+            window_start.year,
+            window_start.month,
+            month_day(window_start.year, window_start.month),
+        )
         if d < window_start:
             d = _add_months(d, 1)
-            d = d.replace(day=min(due_day, _days_in_month(d.year, d.month)))
+            d = d.replace(day=month_day(d.year, d.month))
         while d <= window_end:
             dates.append(d)
             d = _add_months(d, 1)
-            d = d.replace(day=min(due_day, _days_in_month(d.year, d.month)))
+            d = d.replace(day=month_day(d.year, d.month))
         return dates
 
     if r == BillRecurrence.biweekly:

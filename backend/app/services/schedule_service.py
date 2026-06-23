@@ -131,6 +131,7 @@ def _to_bill_input(bill: Bill) -> BillInput:
         due_day=bill.due_day,
         first_due_date=bill.first_due_date,
         grace_period_days=bill.grace_period_days,
+        due_day_is_month_end=bill.due_day_is_month_end,
     )
 
 
