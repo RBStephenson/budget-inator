@@ -86,40 +86,52 @@ export function Dashboard() {
 
   return (
     <div className="dashboard">
-      <div className="dashboard__view-toggle" role="group" aria-label="Dashboard view">
-        <button
-          className={`btn-view-toggle${view === "periods" ? " btn-view-toggle--active" : ""}`}
-          onClick={() => setView("periods")}
-          aria-pressed={view === "periods"}
-        >
-          By Pay Period
-        </button>
-        <button
-          className={`btn-view-toggle${view === "monthly" ? " btn-view-toggle--active" : ""}`}
-          onClick={() => setView("monthly")}
-          aria-pressed={view === "monthly"}
-        >
-          By Month
-        </button>
-      </div>
+      <div className="dashboard__hero">
+        <div className="dashboard__hero-copy">
+          <p className="dashboard__eyebrow">Dashboard</p>
+          <h2 className="dashboard__title">Bill pay command center</h2>
+          <p className="dashboard__subtitle">
+            Keep the current pay period, upcoming bills, and spending guardrails in view.
+          </p>
+        </div>
 
-      <div className="dashboard__actions">
-        <Link href="/bills" className="btn btn--primary">
-          + Add Bill
-        </Link>
-        <button
-          className="btn btn--secondary"
-          onClick={() => setShowAnnualCost(true)}
-        >
-          Annual Cost
-        </button>
-        <button
-          className="btn btn--secondary"
-          onClick={handleDownloadPdf}
-          disabled={downloading}
-        >
-          {downloading ? "Generating PDF…" : "Download PDF"}
-        </button>
+        <div className="dashboard__toolbar">
+          <div className="dashboard__view-toggle" role="group" aria-label="Dashboard view">
+            <button
+              className={`btn-view-toggle${view === "periods" ? " btn-view-toggle--active" : ""}`}
+              onClick={() => setView("periods")}
+              aria-pressed={view === "periods"}
+            >
+              By Pay Period
+            </button>
+            <button
+              className={`btn-view-toggle${view === "monthly" ? " btn-view-toggle--active" : ""}`}
+              onClick={() => setView("monthly")}
+              aria-pressed={view === "monthly"}
+            >
+              By Month
+            </button>
+          </div>
+
+          <div className="dashboard__actions">
+            <Link href="/bills" className="btn btn--primary">
+              + Add Bill
+            </Link>
+            <button
+              className="btn btn--secondary"
+              onClick={() => setShowAnnualCost(true)}
+            >
+              Annual Cost
+            </button>
+            <button
+              className="btn btn--secondary"
+              onClick={handleDownloadPdf}
+              disabled={downloading}
+            >
+              {downloading ? "Generating PDF…" : "Download PDF"}
+            </button>
+          </div>
+        </div>
       </div>
 
       {view === "periods" && data && data.periods.length > 0 && (
