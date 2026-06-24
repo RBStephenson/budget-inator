@@ -3,9 +3,18 @@ import { Link } from "./Link";
 export function HelpPage() {
   return (
     <div className="help-page">
-      <div className="help-page__header">
-        <Link href="/" className="back-link">← Dashboard</Link>
-        <h2 className="help-page__title">Help</h2>
+      <div className="page-hero page-hero--help">
+        <div className="page-hero__copy">
+          <Link href="/" className="back-link">← Dashboard</Link>
+          <p className="page-hero__eyebrow">Help</p>
+          <h2 className="page-hero__title">Budget-inator field guide</h2>
+          <p className="page-hero__subtitle">
+            A quick reference for setup, bill management, payment tracking, and backups.
+          </p>
+        </div>
+        <div className="page-hero__meta">
+          <span className="page-hero__pill">Readable reference</span>
+        </div>
       </div>
 
       <div className="help-page__body">
