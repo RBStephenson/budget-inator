@@ -812,6 +812,12 @@ body {
   margin-bottom: 1.5rem;
 }
 
+.bills-page {
+  width: min(1280px, calc(100vw - 2rem));
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
+
 .bills-page__title {
   font-size: 1.5rem;
   font-weight: 700;
@@ -832,6 +838,7 @@ body {
 
 .bill-table-wrap {
   overflow-x: auto;
+  padding-bottom: 0.25rem;
 }
 
 .bill-table-controls {
@@ -866,39 +873,39 @@ body {
 
 .bill-table {
   width: 100%;
-  min-width: 960px;
+  min-width: 1180px;
   border-collapse: collapse;
   font-size: 0.875rem;
-  table-layout: fixed;
+  table-layout: auto;
 }
 
 .bill-table__col-name {
-  width: 13%;
+  width: 11rem;
 }
 
 .bill-table__col-category,
 .bill-table__col-recurrence {
-  width: 12%;
+  width: 9rem;
 }
 
 .bill-table__col-money {
-  width: 11%;
+  width: 8rem;
 }
 
 .bill-table__col-due {
-  width: 9%;
+  width: 7rem;
 }
 
 .bill-table__col-small {
-  width: 7%;
+  width: 6rem;
 }
 
 .bill-table__col-sinking {
-  width: 10%;
+  width: 8.5rem;
 }
 
 .bill-table__col-actions {
-  width: 10rem;
+  width: 11.5rem;
 }
 
 .bill-table th {
@@ -917,7 +924,7 @@ body {
   padding: 0.6rem 0.75rem;
   border-bottom: 1px solid #f3f4f6;
   vertical-align: middle;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
 }
 
 .bill-table tbody tr:hover {
@@ -977,6 +984,7 @@ body {
 .bill-table--inactive {
   opacity: 0.6;
   margin-top: 0.5rem;
+  min-width: 720px;
 }
 
 .btn-toggle {
