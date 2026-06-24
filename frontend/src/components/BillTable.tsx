@@ -114,6 +114,18 @@ export function BillTable({ bills, onEdit, onDeactivate }: Props) {
       </div>
 
       <table className="bill-table">
+        <colgroup>
+          <col className="bill-table__col-name" />
+          <col className="bill-table__col-category" />
+          <col className="bill-table__col-money" />
+          <col className="bill-table__col-money" />
+          <col className="bill-table__col-recurrence" />
+          <col className="bill-table__col-due" />
+          <col className="bill-table__col-small" />
+          <col className="bill-table__col-small" />
+          <col className="bill-table__col-sinking" />
+          <col className="bill-table__col-actions" />
+        </colgroup>
         <thead>
           <tr>
             <th>Name</th>
@@ -203,6 +215,13 @@ export function BillTable({ bills, onEdit, onDeactivate }: Props) {
           </button>
           {showInactive && (
             <table className="bill-table bill-table--inactive">
+              <colgroup>
+                <col className="bill-table__col-name" />
+                <col className="bill-table__col-category" />
+                <col className="bill-table__col-money" />
+                <col className="bill-table__col-recurrence" />
+                <col className="bill-table__col-actions" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Name</th>
