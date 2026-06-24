@@ -11,7 +11,7 @@ body {
 }
 
 .app {
-  max-width: 960px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 2rem 1rem;
 }
@@ -58,7 +58,52 @@ body {
 .dashboard {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.25rem;
+}
+
+.dashboard__hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.5rem;
+  align-items: end;
+  padding: 1.25rem;
+  background: linear-gradient(135deg, #ffffff 0%, #eef2ff 100%);
+  border: 1px solid #e0e7ff;
+  border-radius: 1rem;
+  box-shadow: 0 1px 3px rgba(79, 70, 229, 0.08);
+}
+
+.dashboard__hero-copy {
+  max-width: 42rem;
+}
+
+.dashboard__eyebrow {
+  margin-bottom: 0.25rem;
+  color: #4f46e5;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dashboard__title {
+  margin: 0;
+  color: #111827;
+  font-size: clamp(1.75rem, 3vw, 2.5rem);
+  line-height: 1.1;
+}
+
+.dashboard__subtitle {
+  margin-top: 0.5rem;
+  color: #6b7280;
+  font-size: 0.95rem;
+}
+
+.dashboard__toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: flex-end;
 }
 
 .dashboard__state {
@@ -114,6 +159,7 @@ body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.5rem;
 }
 
@@ -125,11 +171,11 @@ body {
 .dashboard__view-toggle {
   display: flex;
   gap: 0.25rem;
-  margin-bottom: 1rem;
+  width: min(100%, 24rem);
 }
 
 .btn-view-toggle {
-  flex: 1;
+  flex: 1 1 0;
   padding: 0.375rem 0.75rem;
   border: 1px solid #d1d5db;
   border-radius: 0.375rem;
@@ -415,6 +461,27 @@ body {
 .period-card--hero {
   border-color: #6366f1;
   box-shadow: 0 0 0 2px #e0e7ff;
+}
+
+.period-card--hero .period-card__header {
+  padding: 1.5rem;
+  grid-template-columns: minmax(18rem, 1fr) auto auto auto;
+  gap: 1.25rem;
+}
+
+.period-card--hero .period-card__range {
+  font-size: clamp(1.2rem, 2vw, 1.55rem);
+}
+
+.period-card--hero .period-card__summary {
+  min-width: 18rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(8rem, 1fr));
+  gap: 0.35rem 1rem;
+}
+
+.period-card--hero .period-card__balance-row {
+  justify-content: space-between;
 }
 
 .period-card--overspent {
@@ -813,9 +880,7 @@ body {
 }
 
 .bills-page {
-  width: min(1280px, calc(100vw - 2rem));
-  margin-left: 50%;
-  transform: translateX(-50%);
+  width: 100%;
 }
 
 .bills-page__title {
@@ -1407,14 +1472,48 @@ body {
 
 /* ── Responsive ─────────────────────────────────────────────────────────────── */
 
+@media (max-width: 900px) {
+  .dashboard__hero {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .dashboard__toolbar,
+  .dashboard__actions {
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+
+  .dashboard__view-toggle {
+    width: 100%;
+  }
+
+  .period-card--hero .period-card__header {
+    grid-template-columns: 1fr auto;
+  }
+
+  .period-card--hero .period-card__summary {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+}
+
 @media (max-width: 600px) {
   .period-card__header {
     grid-template-columns: 1fr auto;
     grid-template-rows: auto auto;
   }
 
+  .dashboard__hero {
+    padding: 1rem;
+  }
+
   .period-card__summary {
     grid-column: 1 / -1;
+  }
+
+  .period-card--hero .period-card__summary {
+    grid-template-columns: 1fr;
   }
 
   .bill-row {
