@@ -42,14 +42,20 @@ export function BillsPage() {
 
   return (
     <div className="bills-page">
-      <div className="bills-page__header">
-        <div>
+      <div className="page-hero page-hero--bills">
+        <div className="page-hero__copy">
           <Link href="/" className="back-link">← Dashboard</Link>
-          <h2 className="bills-page__title">Bills</h2>
+          <p className="page-hero__eyebrow">Bill list</p>
+          <h2 className="page-hero__title">Your recurring money map</h2>
+          <p className="page-hero__subtitle">
+            Manage due dates, recurrence, estimates, and sinking funds in one roomy table.
+          </p>
         </div>
-        <button className="btn btn--primary" onClick={() => setAddOpen(true)}>
-          + Add Bill
-        </button>
+        <div className="page-hero__actions">
+          <button className="btn btn--primary" onClick={() => setAddOpen(true)}>
+            + Add Bill
+          </button>
+        </div>
       </div>
 
       {status === "loading" && (

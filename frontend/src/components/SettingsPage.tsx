@@ -175,10 +175,19 @@ export function SettingsPage() {
 
   return (
     <div className="settings-page">
-      <div className="settings-page__header">
-        <div>
+      <div className="page-hero page-hero--settings">
+        <div className="page-hero__copy">
           <Link href="/" className="back-link">← Dashboard</Link>
-          <h2 className="settings-page__title">Pay schedule</h2>
+          <p className="page-hero__eyebrow">Settings</p>
+          <h2 className="page-hero__title">Tune the budget engine</h2>
+          <p className="page-hero__subtitle">
+            Keep your paycheck rhythm, starting balance, and backup tools aligned with real life.
+          </p>
+        </div>
+        <div className="page-hero__meta">
+          <span className="page-hero__pill">
+            {isNew ? "First-time setup" : "Pay schedule active"}
+          </span>
         </div>
       </div>
 
@@ -191,169 +200,179 @@ export function SettingsPage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} noValidate className="settings-form">
-        <div className="settings-form__grid">
-          <div className="form-field">
-            <label htmlFor="ps-salary">Net salary (per paycheck)</label>
-            <input
-              id="ps-salary"
-              type="number"
-              min="0.01"
-              step="0.01"
-              placeholder="e.g. 2000.00"
-              value={form.net_salary}
-              onChange={(e) => setForm((f) => ({ ...f, net_salary: e.target.value }))}
-            />
-            {errors.net_salary && (
-              <span className="form-error">{errors.net_salary}</span>
-            )}
+      <div className="settings-page__content">
+        <form onSubmit={handleSubmit} noValidate className="settings-form settings-card">
+          <div className="settings-card__header">
+            <p className="settings-card__eyebrow">Pay schedule</p>
+            <h3 className="settings-card__title">Income cadence</h3>
           </div>
-
-          <div className="form-field">
-            <label htmlFor="ps-frequency">Pay frequency</label>
-            <select
-              id="ps-frequency"
-              value={form.frequency}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, frequency: e.target.value as PayFrequency }))
-              }
-            >
-              {FREQUENCIES.map((f) => (
-                <option key={f} value={f}>
-                  {FREQUENCY_LABELS[f]}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-field">
-            <label htmlFor="ps-start-date">
-              First paycheck date
-              <span className="form-hint"> — anchor date for computing periods</span>
-            </label>
-            <input
-              id="ps-start-date"
-              type="date"
-              value={form.first_paycheck_date}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, first_paycheck_date: e.target.value }))
-              }
-            />
-            {form.frequency === "semimonthly" && (
-              <span className="form-hint">
-                Use a 1st/15th anchor for that pattern, or a paycheck after the
-                15th for a 15th/month-end schedule.
-              </span>
-            )}
-            {errors.first_paycheck_date && (
-              <span className="form-error">{errors.first_paycheck_date}</span>
-            )}
-          </div>
-
-          <div className="form-field">
-            <label htmlFor="ps-balance">
-              Current balance
-              <span className="form-hint"> — what's in your account right now</span>
-            </label>
-            <input
-              id="ps-balance"
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="e.g. 500.00"
-              value={form.beginning_balance}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, beginning_balance: e.target.value }))
-              }
-            />
-            {errors.beginning_balance && (
-              <span className="form-error">{errors.beginning_balance}</span>
-            )}
-          </div>
-        </div>
-
-        <div className="settings-form__footer">
-          <button
-            type="submit"
-            className="btn btn--primary"
-            disabled={saveStatus === "saving"}
-          >
-            {saveStatus === "saving"
-              ? "Saving…"
-              : isNew
-                ? "Save and go to dashboard"
-                : "Save changes"}
-          </button>
-
-          {saveStatus === "saved" && (
-            <span className="settings-form__saved">✓ Saved</span>
-          )}
-          {saveStatus === "error" && (
-            <span className="settings-form__save-error">Failed to save. Try again.</span>
-          )}
-        </div>
-      </form>
-      <div className="settings-section">
-        <h3 className="settings-section__title">Data management</h3>
-
-        <div className="settings-data__row">
-          <div className="settings-data__item">
-            <p className="settings-data__desc">
-              Download a JSON backup of your pay schedule, bills, and
-              payment history.
-            </p>
-            <button
-              className="btn btn--secondary"
-              onClick={handleExport}
-              disabled={exportStatus === "busy"}
-              aria-label="Export backup"
-            >
-              {exportStatus === "busy" ? "Exporting…" : "Export backup"}
-            </button>
-            {exportStatus === "done" && (
-              <span className="settings-data__ok">✓ Downloaded</span>
-            )}
-          </div>
-
-          <div className="settings-data__item">
-            <p className="settings-data__desc">
-              Restore from a backup file. This overwrites all current data.
-            </p>
-            <label className="btn btn--secondary settings-data__file-label">
-              {importStatus === "busy" ? "Importing…" : "Import backup"}
+          <div className="settings-form__grid">
+            <div className="form-field">
+              <label htmlFor="ps-salary">Net salary (per paycheck)</label>
               <input
-                ref={fileInputRef}
-                type="file"
-                accept=".json,application/json"
-                aria-label="Import backup file"
-                className="settings-data__file-input"
-                disabled={importStatus === "busy"}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleImport(file);
-                }}
+                id="ps-salary"
+                type="number"
+                min="0.01"
+                step="0.01"
+                placeholder="e.g. 2000.00"
+                value={form.net_salary}
+                onChange={(e) => setForm((f) => ({ ...f, net_salary: e.target.value }))}
               />
-            </label>
-            {importStatus === "done" && (
-              <span className="settings-data__ok">✓ Imported</span>
-            )}
+              {errors.net_salary && (
+                <span className="form-error">{errors.net_salary}</span>
+              )}
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="ps-frequency">Pay frequency</label>
+              <select
+                id="ps-frequency"
+                value={form.frequency}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, frequency: e.target.value as PayFrequency }))
+                }
+              >
+                {FREQUENCIES.map((f) => (
+                  <option key={f} value={f}>
+                    {FREQUENCY_LABELS[f]}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="ps-start-date">
+                First paycheck date
+                <span className="form-hint"> — anchor date for computing periods</span>
+              </label>
+              <input
+                id="ps-start-date"
+                type="date"
+                value={form.first_paycheck_date}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, first_paycheck_date: e.target.value }))
+                }
+              />
+              {form.frequency === "semimonthly" && (
+                <span className="form-hint">
+                  Use a 1st/15th anchor for that pattern, or a paycheck after the
+                  15th for a 15th/month-end schedule.
+                </span>
+              )}
+              {errors.first_paycheck_date && (
+                <span className="form-error">{errors.first_paycheck_date}</span>
+              )}
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="ps-balance">
+                Current balance
+                <span className="form-hint"> — what's in your account right now</span>
+              </label>
+              <input
+                id="ps-balance"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="e.g. 500.00"
+                value={form.beginning_balance}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, beginning_balance: e.target.value }))
+                }
+              />
+              {errors.beginning_balance && (
+                <span className="form-error">{errors.beginning_balance}</span>
+              )}
+            </div>
           </div>
 
-          <div className="settings-data__item">
-            <p className="settings-data__desc">
-              Permanently delete all data and start over. This cannot be undone.
-            </p>
+          <div className="settings-form__footer">
             <button
-              className="btn btn--danger"
-              onClick={() => setShowDeleteConfirm(true)}
-              disabled={deleteStatus === "busy"}
-              aria-label="Delete all data"
+              type="submit"
+              className="btn btn--primary"
+              disabled={saveStatus === "saving"}
             >
-              {deleteStatus === "busy" ? "Deleting…" : "Delete all data"}
+              {saveStatus === "saving"
+                ? "Saving…"
+                : isNew
+                  ? "Save and go to dashboard"
+                  : "Save changes"}
             </button>
-            {deleteStatus === "done" && (
-              <span className="settings-data__ok">✓ All data deleted</span>
+
+            {saveStatus === "saved" && (
+              <span className="settings-form__saved">✓ Saved</span>
             )}
+            {saveStatus === "error" && (
+              <span className="settings-form__save-error">Failed to save. Try again.</span>
+            )}
+          </div>
+        </form>
+
+        <div className="settings-section settings-card">
+          <div className="settings-card__header">
+            <p className="settings-card__eyebrow">Data management</p>
+            <h3 className="settings-card__title">Backups and reset</h3>
+          </div>
+
+          <div className="settings-data__row">
+            <div className="settings-data__item">
+              <p className="settings-data__desc">
+                Download a JSON backup of your pay schedule, bills, and
+                payment history.
+              </p>
+              <button
+                className="btn btn--secondary"
+                onClick={handleExport}
+                disabled={exportStatus === "busy"}
+                aria-label="Export backup"
+              >
+                {exportStatus === "busy" ? "Exporting…" : "Export backup"}
+              </button>
+              {exportStatus === "done" && (
+                <span className="settings-data__ok">✓ Downloaded</span>
+              )}
+            </div>
+
+            <div className="settings-data__item">
+              <p className="settings-data__desc">
+                Restore from a backup file. This overwrites all current data.
+              </p>
+              <label className="btn btn--secondary settings-data__file-label">
+                {importStatus === "busy" ? "Importing…" : "Import backup"}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json,application/json"
+                  aria-label="Import backup file"
+                  className="settings-data__file-input"
+                  disabled={importStatus === "busy"}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleImport(file);
+                  }}
+                />
+              </label>
+              {importStatus === "done" && (
+                <span className="settings-data__ok">✓ Imported</span>
+              )}
+            </div>
+
+            <div className="settings-data__item settings-data__item--danger">
+              <p className="settings-data__desc">
+                Permanently delete all data and start over. This cannot be undone.
+              </p>
+              <button
+                className="btn btn--danger"
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={deleteStatus === "busy"}
+                aria-label="Delete all data"
+              >
+                {deleteStatus === "busy" ? "Deleting…" : "Delete all data"}
+              </button>
+              {deleteStatus === "done" && (
+                <span className="settings-data__ok">✓ All data deleted</span>
+              )}
+            </div>
           </div>
         </div>
       </div>
