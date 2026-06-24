@@ -53,7 +53,9 @@ describe("App", () => {
   it("renders HelpPage when path is /help", () => {
     window.history.pushState({}, "", "/help");
     render(<App />);
-    expect(screen.getByRole("heading", { name: /^help$/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /budget-inator field guide/i }),
+    ).toBeInTheDocument();
   });
 
   it("renders SettingsPage when path is /settings", async () => {
@@ -63,7 +65,9 @@ describe("App", () => {
     await waitFor(() =>
       expect(screen.queryByText(/loading settings/i)).not.toBeInTheDocument(),
     );
-    expect(screen.getByRole("heading", { name: /pay schedule/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /tune the budget engine/i }),
+    ).toBeInTheDocument();
   });
 
   it("renders the not-found page for an unknown path", () => {
@@ -90,7 +94,9 @@ describe("App", () => {
 
     expect(window.location.pathname).toBe("/bills");
     await waitFor(() =>
-      expect(screen.getByRole("heading", { name: /^bills$/i })).toBeInTheDocument(),
+      expect(
+        screen.getByRole("heading", { name: /your recurring money map/i }),
+      ).toBeInTheDocument(),
     );
   });
 
