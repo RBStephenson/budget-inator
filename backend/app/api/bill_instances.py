@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Bill, BillInstance
 from app.models.enums import BillStatus
+from app.services.bill_versions import bill_input_for_due_date
 from app.utils import utcnow
 
 router = APIRouter(prefix="/bill-instances", tags=["bill-instances"])
@@ -69,12 +70,13 @@ def upsert_bill_instance(
 
     now = utcnow()
     paid_at = _resolve_paid_at(body, now)
+    bill_terms = bill_input_for_due_date(db, bill, due_date)
 
     if inst is None:
         inst = BillInstance(
             bill_id=bill_id,
             due_date=due_date,
-            estimated_amount=bill.estimated_amount,
+            estimated_amount=bill_terms.amount,
             actual_amount=body.actual_amount,
             status=body.status,
             paid_at=paid_at,

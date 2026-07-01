@@ -19,6 +19,7 @@ export interface MonthlySummary {
   month: string; // "YYYY-MM"
   total_income: string;
   total_bills: string;
+  total_sinking_funds: string;
   available: string;
   categories: MonthlyCategoryGroup[];
 }

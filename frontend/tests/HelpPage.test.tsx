@@ -7,9 +7,11 @@ beforeEach(() => vi.restoreAllMocks());
 afterEach(() => vi.restoreAllMocks());
 
 describe("HelpPage", () => {
-  it("renders the Help heading", () => {
+  it("renders the help page heading", () => {
     render(<HelpPage />);
-    expect(screen.getByRole("heading", { name: /^help$/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /budget-inator field guide/i }),
+    ).toBeInTheDocument();
   });
 
   it("renders all major section headings", () => {

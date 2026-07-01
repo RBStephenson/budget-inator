@@ -3,9 +3,18 @@ import { Link } from "./Link";
 export function HelpPage() {
   return (
     <div className="help-page">
-      <div className="help-page__header">
-        <Link href="/" className="back-link">← Dashboard</Link>
-        <h2 className="help-page__title">Help</h2>
+      <div className="page-hero page-hero--help">
+        <div className="page-hero__copy">
+          <Link href="/" className="back-link">← Dashboard</Link>
+          <p className="page-hero__eyebrow">Help</p>
+          <h2 className="page-hero__title">Budget-inator field guide</h2>
+          <p className="page-hero__subtitle">
+            A quick reference for setup, bill management, payment tracking, and backups.
+          </p>
+        </div>
+        <div className="page-hero__meta">
+          <span className="page-hero__pill">Readable reference</span>
+        </div>
       </div>
 
       <div className="help-page__body">
@@ -72,6 +81,8 @@ export function HelpPage() {
             Go to <strong>Bills</strong> (via the <em>+ Add Bill</em> button or the
             Bills link). Use the edit button to modify a bill or deactivate it.
             Deactivated bills are hidden from the schedule but not permanently deleted.
+            Edits use an effective date, so past schedule, monthly summary, and PDF
+            history keep the bill terms that applied at the time.
           </p>
           <table className="help-table">
             <thead>
@@ -82,7 +93,15 @@ export function HelpPage() {
               <tr><td>Amount</td><td>Regular payment amount; for variable bills this is your estimate</td></tr>
               <tr><td>Category</td><td>Housing · Utilities · Subscriptions · Insurance · Debt · Savings · Other</td></tr>
               <tr><td>Recurrence</td><td>Monthly · Bi-weekly · Weekly · Quarterly · Semi-annual · Annual · One-time</td></tr>
-              <tr><td>Due day / Due date</td><td>For monthly bills enter the calendar day (1–28); for all others enter the specific date</td></tr>
+              <tr><td>Due day / Due date</td><td>For monthly bills enter the calendar day (1–31) or choose the last day of the month; for all others enter the specific date</td></tr>
+              <tr>
+                <td>Effective date</td>
+                <td>
+                  When editing, the date the new bill terms begin. Use payment
+                  status or actual amount controls to correct one specific occurrence
+                  instead.
+                </td>
+              </tr>
               <tr>
                 <td>Grace period</td>
                 <td>
@@ -95,6 +114,14 @@ export function HelpPage() {
                 <td>
                   Check when the actual charge varies each cycle (e.g. utilities). The amount
                   becomes an estimate and you can enter the real charge on the dashboard
+                </td>
+              </tr>
+              <tr>
+                <td>Sinking fund</td>
+                <td>
+                  Reserves part of each paycheck for a large future bill so the
+                  money is not shown as available to spend. Actual amounts for
+                  variable bills are applied against the reserve when entered.
                 </td>
               </tr>
             </tbody>

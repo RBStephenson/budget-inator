@@ -74,7 +74,9 @@ If any bill cannot be paid before its due date — because the pay date falls af
 
 Go to **Bills** (the **+ Add Bill** button on the dashboard takes you there, or navigate to `/bills`).
 
-The bills table shows all your active bills. Use the pencil icon to edit a bill or the bin icon to deactivate it. Deactivated bills are hidden from the schedule but not deleted; re-activate them by editing.
+The bills table shows all your active bills. Use the pencil icon to edit a bill or the bin icon to deactivate it. Deactivated bills are hidden from future schedule windows but not deleted.
+
+Bill edits are effective-dated. When you change a bill's name, amount, category, recurrence, due rule, grace period, variable flag, or active status, the app keeps the old terms for earlier occurrences and uses the new terms from the effective date forward. To correct one specific occurrence instead, use the paid/skipped/pending and actual amount controls on that bill row.
 
 Click **+ Add Bill** to open the bill form.
 
@@ -86,7 +88,9 @@ Click **+ Add Bill** to open the bill form.
 | **Amount** | The regular payment amount. For variable bills this is your estimate |
 | **Category** | Housing · Utilities · Subscriptions · Insurance · Debt · Savings · Other |
 | **Recurrence** | How often the bill repeats — see table below |
-| **Due day / Due date** | For monthly bills enter the calendar day (1–28). For all other recurrences, enter the specific due date |
+| **Due day / Due date** | For monthly bills enter the calendar day (1–31), or choose **Last day of month**. Fixed days 29–31 clamp to the final day in shorter months; the month-end option always uses that month’s final calendar day. For all other recurrences, enter the specific due date |
+| **Effective date** | Shown when editing. The date the new bill terms begin; earlier occurrences keep their previous terms |
+| **Sinking fund** | Check this for large quarterly, semi-annual, annual, or one-time bills. The schedule reserves part of each paycheck before the next due date so that money is not shown as available to spend |
 | **Grace period** | Number of days after the due date you can still pay without being considered late. Useful for bills where the due date is advisory |
 | **Variable amount** | Check this if the actual charge varies each cycle (e.g. utilities, credit cards). The amount field becomes the estimate. You can enter the real amount directly on the dashboard each period |
 | **Notes** | Optional free-text reminder shown when editing the bill |
@@ -114,6 +118,12 @@ Each bill row on the period card has three action buttons:
 - **↺ Pending** — resets the status back to pending (the default)
 
 Status changes apply only to that bill's occurrence in that specific period. They don't affect other periods or the bill's configuration.
+
+### Sinking funds
+
+When a bill has **Build a sinking fund** enabled, Budget-inator projects the next due occurrence, calculates a per-paycheck reserve amount, and subtracts that contribution from the period's available balance. The due bill still appears on its due date, but any projected reserve is applied first and only the shortfall reduces that period's safe-to-spend amount.
+
+For variable bills, the estimate is used until you enter an actual amount. Once an actual amount is known, the reserve is recalculated against the actual amount for that occurrence; any remaining shortfall stays visible.
 
 ### Variable bill actuals
 
@@ -166,7 +176,7 @@ Changes take effect immediately when saved. Updating the pay frequency or first 
 
 Found at the bottom of the Settings page.
 
-**Export backup** — downloads a `budget-inator-backup-YYYY-MM-DD.json` file containing your full pay schedule, all bills, all bill instance overrides (payment statuses and actual amounts), and adjusted pay dates. Keep this somewhere safe if you ever need to migrate or recover.
+**Export backup** — downloads a `budget-inator-backup-YYYY-MM-DD.json` file containing your full pay schedule, all bills, effective-dated bill history, all bill instance overrides (payment statuses and actual amounts), and adjusted pay dates. Keep this somewhere safe if you ever need to migrate or recover.
 
 **Import backup** — restores from a backup file. This **overwrites all current data** and cannot be undone. Import is intended for migration and recovery, not for merging two data sets.
 

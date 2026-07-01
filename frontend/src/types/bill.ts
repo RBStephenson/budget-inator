@@ -22,10 +22,12 @@ export interface Bill {
   amount: string;
   recurrence: BillRecurrence;
   due_day: number | null;
+  due_day_is_month_end: boolean;
   due_date: string | null;
   grace_period_days: number;
   category: BillCategory;
   is_variable: boolean;
+  sinking_fund_enabled: boolean;
   is_active: boolean;
   notes: string | null;
   created_at: string;
@@ -37,22 +39,27 @@ export interface BillCreate {
   amount: string;
   recurrence: BillRecurrence;
   due_day?: number | null;
+  due_day_is_month_end?: boolean;
   due_date?: string | null;
   grace_period_days?: number;
   category: BillCategory;
   is_variable?: boolean;
+  sinking_fund_enabled?: boolean;
   notes?: string | null;
 }
 
 export interface BillUpdate {
+  effective_date?: string | null;
   name?: string;
   amount?: string;
   recurrence?: BillRecurrence;
   due_day?: number | null;
+  due_day_is_month_end?: boolean;
   due_date?: string | null;
   grace_period_days?: number;
   category?: BillCategory;
   is_variable?: boolean;
+  sinking_fund_enabled?: boolean;
   is_active?: boolean;
   notes?: string | null;
 }

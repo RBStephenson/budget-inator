@@ -70,6 +70,7 @@ class TestCreateBill:
         assert data["amount"] == "1200.00"
         assert data["recurrence"] == "monthly"
         assert data["due_day"] == 1
+        assert data["due_day_is_month_end"] is False
         assert data["due_date"] is None
         assert data["grace_period_days"] == 5
         assert data["category"] == "housing"
@@ -108,8 +109,14 @@ class TestCreateBill:
         r = client.post("/bills", json={**MONTHLY_BILL, "amount": "-10"})
         assert r.status_code == 422
 
-    def test_rejects_due_day_above_28(self, client: TestClient) -> None:
-        r = client.post("/bills", json={**MONTHLY_BILL, "due_day": 29})
+    def test_accepts_due_days_through_31(self, client: TestClient) -> None:
+        for due_day in (29, 30, 31):
+            r = client.post("/bills", json={**MONTHLY_BILL, "due_day": due_day})
+            assert r.status_code == 201
+            assert r.json()["due_day"] == due_day
+
+    def test_rejects_due_day_above_31(self, client: TestClient) -> None:
+        r = client.post("/bills", json={**MONTHLY_BILL, "due_day": 32})
         assert r.status_code == 422
 
     def test_rejects_due_day_zero(self, client: TestClient) -> None:
@@ -119,6 +126,26 @@ class TestCreateBill:
     def test_rejects_monthly_without_due_day(self, client: TestClient) -> None:
         payload = {k: v for k, v in MONTHLY_BILL.items() if k != "due_day"}
         r = client.post("/bills", json=payload)
+        assert r.status_code == 422
+
+    def test_creates_month_end_bill_without_fixed_due_day(
+        self, client: TestClient
+    ) -> None:
+        payload = {k: v for k, v in MONTHLY_BILL.items() if k != "due_day"} | {
+            "due_day_is_month_end": True
+        }
+        r = client.post("/bills", json=payload)
+        assert r.status_code == 201
+        assert r.json()["due_day"] is None
+        assert r.json()["due_day_is_month_end"] is True
+
+    def test_rejects_month_end_bill_with_fixed_due_day(
+        self, client: TestClient
+    ) -> None:
+        r = client.post(
+            "/bills",
+            json={**MONTHLY_BILL, "due_day_is_month_end": True},
+        )
         assert r.status_code == 422
 
     def test_rejects_monthly_with_due_date(self, client: TestClient) -> None:
@@ -251,10 +278,30 @@ class TestPatchBill:
         r = client.patch(f"/bills/{created['id']}", json={"amount": "0"})
         assert r.status_code == 422
 
-    def test_rejects_invalid_due_day(self, client: TestClient) -> None:
+    def test_accepts_due_day_31(self, client: TestClient) -> None:
         created = client.post("/bills", json=MONTHLY_BILL).json()
         r = client.patch(f"/bills/{created['id']}", json={"due_day": 31})
-        assert r.status_code == 422
+        assert r.status_code == 200
+        assert r.json()["due_day"] == 31
+
+    def test_switches_between_fixed_day_and_month_end(self, client: TestClient) -> None:
+        created = client.post("/bills", json=MONTHLY_BILL).json()
+
+        month_end = client.patch(
+            f"/bills/{created['id']}",
+            json={"due_day": None, "due_day_is_month_end": True},
+        )
+        assert month_end.status_code == 200
+        assert month_end.json()["due_day"] is None
+        assert month_end.json()["due_day_is_month_end"] is True
+
+        fixed = client.patch(
+            f"/bills/{created['id']}",
+            json={"due_day": 31, "due_day_is_month_end": False},
+        )
+        assert fixed.status_code == 200
+        assert fixed.json()["due_day"] == 31
+        assert fixed.json()["due_day_is_month_end"] is False
 
     def test_returns_404_for_missing_bill(self, client: TestClient) -> None:
         r = client.patch("/bills/999", json={"name": "Ghost"})

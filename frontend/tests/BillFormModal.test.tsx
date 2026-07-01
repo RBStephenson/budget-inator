@@ -36,6 +36,7 @@ describe("BillFormModal — add mode", () => {
     renderWithToast(<BillFormModal onSave={vi.fn()} onClose={vi.fn()} />);
     expect(screen.getByLabelText(/due day/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/due date/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/last day of month/i)).not.toBeChecked();
   });
 
   it("switches to due-date field when recurrence changes to biweekly", async () => {
@@ -65,6 +66,42 @@ describe("BillFormModal — add mode", () => {
     await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
   });
 
+  it("accepts the 31st as a fixed monthly due day", async () => {
+    mockFetch(true);
+    const onSave = vi.fn();
+    renderWithToast(<BillFormModal onSave={onSave} onClose={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText(/^name/i), "Mortgage");
+    await userEvent.type(screen.getByLabelText(/^amount/i), "1200");
+    await userEvent.selectOptions(screen.getByLabelText(/category/i), "housing");
+    await userEvent.type(screen.getByLabelText(/due day/i), "31");
+    await userEvent.click(screen.getByRole("button", { name: /add bill/i }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: expect.stringContaining('"due_day":31'),
+      }),
+    );
+  });
+
+  it("submits an explicit last-day-of-month rule", async () => {
+    mockFetch(true);
+    const onSave = vi.fn();
+    renderWithToast(<BillFormModal onSave={onSave} onClose={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText(/^name/i), "Mortgage");
+    await userEvent.type(screen.getByLabelText(/^amount/i), "1200");
+    await userEvent.selectOptions(screen.getByLabelText(/category/i), "housing");
+    await userEvent.click(screen.getByLabelText(/last day of month/i));
+    expect(screen.getByLabelText(/due day/i)).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: /add bill/i }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+    const request = vi.mocked(globalThis.fetch).mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(request.body as string)).toMatchObject({
+      due_day: null,
+      due_day_is_month_end: true,
+    });
+  });
+
   it("calls onClose when cancel is clicked", async () => {
     const onClose = vi.fn();
     renderWithToast(<BillFormModal onSave={vi.fn()} onClose={onClose} />);
@@ -76,6 +113,24 @@ describe("BillFormModal — add mode", () => {
     renderWithToast(<BillFormModal onSave={vi.fn()} onClose={vi.fn()} />);
     await userEvent.click(screen.getByLabelText(/variable amount/i));
     expect(screen.getByText("(estimated)")).toBeInTheDocument();
+  });
+
+  it("submits the sinking fund opt-in", async () => {
+    mockFetch(true);
+    const onSave = vi.fn();
+    renderWithToast(<BillFormModal onSave={onSave} onClose={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText(/^name/i), "Insurance");
+    await userEvent.type(screen.getByLabelText(/^amount/i), "1200");
+    await userEvent.selectOptions(screen.getByLabelText(/category/i), "insurance");
+    await userEvent.selectOptions(screen.getByLabelText(/recurrence/i), "annual");
+    await userEvent.type(screen.getByLabelText(/due date/i), "2025-03-01");
+    await userEvent.click(screen.getByLabelText(/build a sinking fund/i));
+    await userEvent.click(screen.getByRole("button", { name: /add bill/i }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+    const request = vi.mocked(globalThis.fetch).mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(request.body as string)).toMatchObject({
+      sinking_fund_enabled: true,
+    });
   });
 });
 
@@ -96,6 +151,32 @@ describe("BillFormModal — edit mode", () => {
       />,
     );
     expect(screen.getByDisplayValue("Mortgage")).toBeInTheDocument();
+  });
+
+  it("shows an effective date for forward-looking edits", () => {
+    renderWithToast(
+      <BillFormModal bill={makeApiBill()} onSave={vi.fn()} onClose={vi.fn()} />,
+    );
+    expect(screen.getByLabelText(/effective date/i)).toBeInTheDocument();
+    expect(screen.getByText(/from this date forward/i)).toBeInTheDocument();
+    expect(screen.getByText(/correct one occurrence/i)).toBeInTheDocument();
+  });
+
+  it("sends the selected effective date when editing", async () => {
+    mockFetch(true);
+    const onSave = vi.fn();
+    renderWithToast(
+      <BillFormModal bill={makeApiBill()} onSave={onSave} onClose={vi.fn()} />,
+    );
+    const effectiveDate = screen.getByLabelText(/effective date/i);
+    await userEvent.clear(effectiveDate);
+    await userEvent.type(effectiveDate, "2025-02-01");
+    await userEvent.click(screen.getByRole("button", { name: /save changes/i }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+    const request = vi.mocked(globalThis.fetch).mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(request.body as string)).toMatchObject({
+      effective_date: "2025-02-01",
+    });
   });
 
   it("pre-fills the category dropdown", () => {
@@ -121,6 +202,21 @@ describe("BillFormModal — edit mode", () => {
     );
     expect(screen.getByLabelText(/due date/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/due day/i)).not.toBeInTheDocument();
+  });
+
+  it("pre-fills an explicit month-end rule", () => {
+    renderWithToast(
+      <BillFormModal
+        bill={makeApiBill({
+          due_day: null,
+          due_day_is_month_end: true,
+        })}
+        onSave={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText(/last day of month/i)).toBeChecked();
+    expect(screen.getByLabelText(/due day/i)).toBeDisabled();
   });
 
   it("shows a server error when the API call fails", async () => {

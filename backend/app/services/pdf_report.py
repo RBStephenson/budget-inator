@@ -232,6 +232,7 @@ def _period_flowables(period: PayPeriodOut, styles) -> list:
     bal_data = [
         ["Opening balance", _money(period.opening_balance)],
         ["Bills total", "-" + _money(period.total_bills)],
+        ["Sinking funds", "-" + _money(period.total_sinking_funds)],
         [available_label, _money(period.remaining_balance)],
     ]
     bal = Table(bal_data, colWidths=[2.3 * inch, 1.1 * inch], hAlign="LEFT")
@@ -240,11 +241,11 @@ def _period_flowables(period: PayPeriodOut, styles) -> list:
         ("ALIGN", (1, 0), (1, -1), "RIGHT"),
         ("TOPPADDING", (0, 0), (-1, -1), 2),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-        ("LINEABOVE", (0, 2), (-1, 2), 0.5, _GRID),
-        ("FONTNAME", (0, 2), (-1, 2), "Helvetica-Bold"),
+        ("LINEABOVE", (0, 3), (-1, 3), 0.5, _GRID),
+        ("FONTNAME", (0, 3), (-1, 3), "Helvetica-Bold"),
     ]
     if period.remaining_balance < 0:
-        bal_style.append(("TEXTCOLOR", (0, 2), (-1, 2), colors.HexColor("#991b1b")))
+        bal_style.append(("TEXTCOLOR", (0, 3), (-1, 3), colors.HexColor("#991b1b")))
     bal.setStyle(TableStyle(bal_style))
     flow.append(Spacer(1, 4))
     flow.append(bal)
@@ -257,7 +258,7 @@ def _monthly_flowables(monthly: MonthlySummaryResponse, styles) -> list:
         flow.append(Paragraph("No months in range.", styles["empty"]))
         return flow
 
-    header = ["Month", "Income", "Bills", "Net remaining"]
+    header = ["Month", "Income", "Bills", "Sinking funds", "Net remaining"]
     data: list[list] = [header]
     for m in monthly.months:
         data.append(
@@ -265,6 +266,7 @@ def _monthly_flowables(monthly: MonthlySummaryResponse, styles) -> list:
                 _fmt_month(m.month),
                 _money(m.total_income),
                 _money(m.total_bills),
+                _money(m.total_sinking_funds),
                 _money(m.available),
             ]
         )
@@ -282,9 +284,9 @@ def _monthly_flowables(monthly: MonthlySummaryResponse, styles) -> list:
     # Red text for any overspent (negative net) month.
     for i, m in enumerate(monthly.months, start=1):
         if m.available < 0:
-            style_cmds.append(("TEXTCOLOR", (3, i), (3, i), colors.HexColor("#991b1b")))
+            style_cmds.append(("TEXTCOLOR", (4, i), (4, i), colors.HexColor("#991b1b")))
 
-    col_widths = [1.8 * inch, 1.3 * inch, 1.3 * inch, 1.5 * inch]
+    col_widths = [1.5 * inch, 1.1 * inch, 1.1 * inch, 1.2 * inch, 1.3 * inch]
     table = Table(data, colWidths=col_widths, hAlign="LEFT")
     table.setStyle(TableStyle(style_cmds))
     flow.append(table)

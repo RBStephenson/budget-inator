@@ -17,7 +17,9 @@ interface Props {
 type SortKey = "name" | "annual_cost";
 
 function fmtDue(bill: Bill): string {
-  if (bill.recurrence === "monthly") return `Day ${bill.due_day}`;
+  if (bill.recurrence === "monthly") {
+    return bill.due_day_is_month_end ? "Last day" : `Day ${bill.due_day}`;
+  }
   if (!bill.due_date) return "—";
   return new Date(bill.due_date + "T00:00:00").toLocaleDateString(undefined, {
     month: "short",
@@ -112,6 +114,18 @@ export function BillTable({ bills, onEdit, onDeactivate }: Props) {
       </div>
 
       <table className="bill-table">
+        <colgroup>
+          <col className="bill-table__col-name" />
+          <col className="bill-table__col-category" />
+          <col className="bill-table__col-money" />
+          <col className="bill-table__col-money" />
+          <col className="bill-table__col-recurrence" />
+          <col className="bill-table__col-due" />
+          <col className="bill-table__col-small" />
+          <col className="bill-table__col-small" />
+          <col className="bill-table__col-sinking" />
+          <col className="bill-table__col-actions" />
+        </colgroup>
         <thead>
           <tr>
             <th>Name</th>
@@ -122,13 +136,14 @@ export function BillTable({ bills, onEdit, onDeactivate }: Props) {
             <th>Due</th>
             <th>Grace</th>
             <th>Variable</th>
+            <th>Sinking fund</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
           {filteredActive.length === 0 ? (
             <tr>
-              <td colSpan={9} className="bill-table__empty">
+              <td colSpan={10} className="bill-table__empty">
                 {hasFilter ? "No bills match the current filters." : "No active bills."}
               </td>
             </tr>
@@ -151,6 +166,9 @@ export function BillTable({ bills, onEdit, onDeactivate }: Props) {
                 </td>
                 <td className="bill-table__center">
                   {bill.is_variable ? "Yes" : "—"}
+                </td>
+                <td className="bill-table__center">
+                  {bill.sinking_fund_enabled ? "Yes" : "—"}
                 </td>
                 <td className="bill-table__actions">
                   <button
@@ -180,7 +198,7 @@ export function BillTable({ bills, onEdit, onDeactivate }: Props) {
             <td className="bill-table__num bill-table__footer-total">
               {fmtCurrency(totalAnnual)}
             </td>
-            <td colSpan={5}></td>
+            <td colSpan={6}></td>
           </tr>
         </tfoot>
       </table>
@@ -197,6 +215,13 @@ export function BillTable({ bills, onEdit, onDeactivate }: Props) {
           </button>
           {showInactive && (
             <table className="bill-table bill-table--inactive">
+              <colgroup>
+                <col className="bill-table__col-name" />
+                <col className="bill-table__col-category" />
+                <col className="bill-table__col-money" />
+                <col className="bill-table__col-recurrence" />
+                <col className="bill-table__col-actions" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Name</th>

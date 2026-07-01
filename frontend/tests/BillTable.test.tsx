@@ -29,6 +29,26 @@ describe("BillTable", () => {
     expect(screen.getAllByText("$14,400.00").length).toBeGreaterThanOrEqual(1);
   });
 
+  it("distinguishes explicit month-end from a fixed due day", () => {
+    render(
+      <BillTable
+        bills={[
+          makeApiBill({ id: 1, name: "Fixed", due_day: 31 }),
+          makeApiBill({
+            id: 2,
+            name: "Month end",
+            due_day: null,
+            due_day_is_month_end: true,
+          }),
+        ]}
+        onEdit={vi.fn()}
+        onDeactivate={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Day 31")).toBeInTheDocument();
+    expect(screen.getByText("Last day")).toBeInTheDocument();
+  });
+
   it("shows the correct annual cost for a biweekly bill", () => {
     // $100 biweekly × 26 = $2,600/year
     render(

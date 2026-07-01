@@ -11,27 +11,37 @@ interface Props {
 }
 
 interface FormState {
+  effective_date: string;
   name: string;
   amount: string;
   recurrence: BillRecurrence;
   due_day: string;
+  due_day_is_month_end: boolean;
   due_date: string;
   grace_period_days: string;
   category: BillCategory | "";
   is_variable: boolean;
+  sinking_fund_enabled: boolean;
   notes: string;
+}
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function initialState(bill?: Bill): FormState {
   return {
+    effective_date: bill ? todayIso() : "",
     name: bill?.name ?? "",
     amount: bill ? String(parseFloat(bill.amount)) : "",
     recurrence: bill?.recurrence ?? "monthly",
     due_day: bill?.due_day != null ? String(bill.due_day) : "",
+    due_day_is_month_end: bill?.due_day_is_month_end ?? false,
     due_date: bill?.due_date ?? "",
     grace_period_days: bill ? String(bill.grace_period_days) : "",
     category: bill?.category ?? "",
     is_variable: bill?.is_variable ?? false,
+    sinking_fund_enabled: bill?.sinking_fund_enabled ?? false,
     notes: bill?.notes ?? "",
   };
 }
@@ -56,6 +66,7 @@ export function BillFormModal({ bill, onSave, onClose }: Props) {
       ...f,
       recurrence: r,
       due_day: r === "monthly" ? f.due_day : "",
+      due_day_is_month_end: r === "monthly" ? f.due_day_is_month_end : false,
       due_date: r !== "monthly" ? f.due_date : "",
     }));
   }
@@ -68,8 +79,11 @@ export function BillFormModal({ bill, onSave, onClose }: Props) {
     if (!form.category) e.category = "Category is required.";
     if (form.recurrence === "monthly") {
       const d = parseInt(form.due_day);
-      if (!form.due_day || isNaN(d) || d < 1 || d > 28)
-        e.due_day = "Enter a day between 1 and 28.";
+      if (
+        !form.due_day_is_month_end &&
+        (!form.due_day || isNaN(d) || d < 1 || d > 31)
+      )
+        e.due_day = "Enter a day between 1 and 31.";
     } else {
       if (!form.due_date) e.due_date = "Due date is required.";
     }
@@ -86,15 +100,20 @@ export function BillFormModal({ bill, onSave, onClose }: Props) {
     setSubmitting(true);
     try {
       const payload = {
+        ...(bill ? { effective_date: form.effective_date || todayIso() } : {}),
         name: form.name.trim(),
         amount: form.amount,
         recurrence: form.recurrence,
         ...(form.recurrence === "monthly"
-          ? { due_day: parseInt(form.due_day) }
+          ? {
+              due_day: form.due_day_is_month_end ? null : parseInt(form.due_day),
+              due_day_is_month_end: form.due_day_is_month_end,
+            }
           : { due_date: form.due_date }),
         grace_period_days: form.grace_period_days ? parseInt(form.grace_period_days) : 0,
         category: form.category as BillCategory,
         is_variable: form.is_variable,
+        sinking_fund_enabled: form.sinking_fund_enabled,
         notes: form.notes.trim() || null,
         // Restore active when saving an inactive bill via edit
         ...(bill && !bill.is_active ? { is_active: true } : {}),
@@ -134,6 +153,24 @@ export function BillFormModal({ bill, onSave, onClose }: Props) {
               />
               {errors.name && <span className="form-error">{errors.name}</span>}
             </div>
+
+            {bill && (
+              <div className="form-field">
+                <label htmlFor="bf-effective-date">Effective date</label>
+                <input
+                  id="bf-effective-date"
+                  type="date"
+                  value={form.effective_date}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, effective_date: e.target.value }))
+                  }
+                />
+                <span className="form-hint">
+                  Applies this edit from this date forward. Use payment status to
+                  correct one occurrence.
+                </span>
+              </div>
+            )}
 
             <div className="form-field">
               <label htmlFor="bf-amount">
@@ -180,15 +217,29 @@ export function BillFormModal({ bill, onSave, onClose }: Props) {
 
             {isMonthly ? (
               <div className="form-field">
-                <label htmlFor="bf-due-day">Due day (1–28)</label>
+                <label htmlFor="bf-due-day">Due day (1–31)</label>
                 <input
                   id="bf-due-day"
                   type="number"
                   min="1"
-                  max="28"
+                  max="31"
                   value={form.due_day}
+                  disabled={form.due_day_is_month_end}
                   onChange={(e) => setForm((f) => ({ ...f, due_day: e.target.value }))}
                 />
+                <label className="form-toggle">
+                  <input
+                    type="checkbox"
+                    checked={form.due_day_is_month_end}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        due_day_is_month_end: e.target.checked,
+                      }))
+                    }
+                  />
+                  Last day of month
+                </label>
                 {errors.due_day && <span className="form-error">{errors.due_day}</span>}
               </div>
             ) : (
@@ -228,6 +279,26 @@ export function BillFormModal({ bill, onSave, onClose }: Props) {
                 />
                 Variable amount (actual may differ from estimate)
               </label>
+            </div>
+
+            <div className="form-field form-field--wide">
+              <label className="form-toggle">
+                <input
+                  type="checkbox"
+                  checked={form.sinking_fund_enabled}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      sinking_fund_enabled: e.target.checked,
+                    }))
+                  }
+                />
+                Build a sinking fund for this bill
+              </label>
+              <span className="form-hint">
+                Reserves part of each paycheck before the next due date, useful
+                for quarterly, semi-annual, and annual bills.
+              </span>
             </div>
 
             <div className="form-field form-field--wide">

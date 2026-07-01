@@ -14,6 +14,8 @@ export function makeBill(overrides: Partial<AssignedBill> = {}): AssignedBill {
     actual_amount: null,
     is_variable: false,
     category: "housing",
+    sinking_fund_applied: "0.00",
+    sinking_fund_shortfall: "0.00",
     ...overrides,
   };
 }
@@ -28,9 +30,11 @@ export function makePeriod(overrides: Partial<PayPeriod> = {}): PayPeriod {
     period_end: "2025-01-16",
     opening_balance: "1500.00",
     total_bills: "1200.00",
+    total_sinking_funds: "0.00",
     remaining_balance: "300.00",
     flagged_bill_count: 0,
     assigned_bills: [],
+    sinking_fund_contributions: [],
     ...overrides,
   };
 }
@@ -42,10 +46,12 @@ export function makeApiBill(overrides: Partial<Bill> = {}): Bill {
     amount: "1200.00",
     recurrence: "monthly",
     due_day: 1,
+    due_day_is_month_end: false,
     due_date: null,
     grace_period_days: 0,
     category: "housing",
     is_variable: false,
+    sinking_fund_enabled: false,
     is_active: true,
     notes: null,
     created_at: "2025-01-01T00:00:00",
@@ -115,6 +121,7 @@ export function makeMonthlySummary(
     month: "2025-01",
     total_income: "2000.00",
     total_bills: "900.00",
+    total_sinking_funds: "0.00",
     available: "1100.00",
     categories: [makeMonthlyCategoryGroup()],
     ...overrides,

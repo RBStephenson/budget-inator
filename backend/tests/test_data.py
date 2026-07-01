@@ -63,9 +63,10 @@ class TestExport:
         resp = client.get("/data/export")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["version"] == 3
+        assert data["version"] == 6
         assert data["pay_schedule"] is None
         assert data["bills"] == []
+        assert data["bill_versions"] == []
         assert data["bill_instances"] == []
         assert data["pay_period_overrides"] == []
         assert data["pay_period_actuals"] == []
@@ -75,13 +76,17 @@ class TestExport:
         resp = client.get("/data/export")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["version"] == 3
+        assert data["version"] == 6
         assert data["pay_schedule"]["net_salary"] == "2000.00"
         assert data["pay_schedule"]["frequency"] == "biweekly"
         assert len(data["bills"]) == 1
         assert data["bills"][0]["name"] == "Rent"
         assert data["bills"][0]["amount"] == "1200.00"
         assert data["bills"][0]["recurrence"] == "monthly"
+        assert data["bills"][0]["due_day_is_month_end"] is False
+        assert data["bill_versions"][0]["bill_index"] == 0
+        assert data["bill_versions"][0]["effective_date"] == "0001-01-01"
+        assert data["bill_versions"][0]["amount"] == "1200.00"
 
     def test_export_includes_inactive_bills(self, client: TestClient, db):
         db.add(
@@ -222,7 +227,7 @@ class TestImport:
         resp = client.post("/data/import", json=payload)
         assert resp.status_code == 422
 
-    def test_import_rejects_out_of_range_due_day(self, client: TestClient, db):
+    def test_import_accepts_due_day_31(self, client: TestClient, db):
         payload = {
             "version": 2,
             "bills": [
@@ -236,7 +241,45 @@ class TestImport:
             ],
         }
         resp = client.post("/data/import", json=payload)
-        assert resp.status_code == 422
+        assert resp.status_code == 204
+        assert client.get("/data/export").json()["bills"][0]["due_day"] == 31
+
+    def test_round_trip_preserves_month_end_due_rule(self, client: TestClient, db):
+        payload = {
+            "version": 4,
+            "bills": [
+                {
+                    "name": "Month-end bill",
+                    "amount": "10.00",
+                    "recurrence": "monthly",
+                    "due_day": None,
+                    "due_day_is_month_end": True,
+                    "category": "other",
+                }
+            ],
+        }
+        assert client.post("/data/import", json=payload).status_code == 204
+        exported = client.get("/data/export").json()
+        assert exported["bills"][0]["due_day"] is None
+        assert exported["bills"][0]["due_day_is_month_end"] is True
+
+    def test_v3_import_defaults_to_fixed_due_day(self, client: TestClient, db):
+        payload = {
+            "version": 3,
+            "bills": [
+                {
+                    "name": "Legacy bill",
+                    "amount": "10.00",
+                    "recurrence": "monthly",
+                    "due_day": 31,
+                    "category": "other",
+                }
+            ],
+        }
+        assert client.post("/data/import", json=payload).status_code == 204
+        bill = client.get("/data/export").json()["bills"][0]
+        assert bill["due_day"] == 31
+        assert bill["due_day_is_month_end"] is False
 
     def test_import_rejects_bill_with_both_due_fields(self, client: TestClient, db):
         payload = {
@@ -335,6 +378,7 @@ class TestImport:
         restored = client.get("/data/export").json()
         assert restored["pay_schedule"] == backup["pay_schedule"]
         assert restored["bills"] == backup["bills"]
+        assert restored["bill_versions"] == backup["bill_versions"]
         assert restored["bill_instances"] == backup["bill_instances"]
         assert restored["pay_period_overrides"] == backup["pay_period_overrides"]
 

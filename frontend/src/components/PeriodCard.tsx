@@ -130,6 +130,14 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
               −{fmtCurrency(period.total_bills)}
             </span>
           </div>
+          {parseFloat(period.total_sinking_funds) > 0 && (
+            <div className="period-card__balance-row">
+              <span className="period-card__balance-label">Sinking funds</span>
+              <span className="period-card__balance-value">
+                -{fmtCurrency(period.total_sinking_funds)}
+              </span>
+            </div>
+          )}
           <div className="period-card__balance-row">
             <span className="period-card__balance-label">
               {isOverspent ? "Overspent" : "Available"}
@@ -254,6 +262,31 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
                   </ul>
                 </div>
               ))}
+            </div>
+          )}
+          {period.sinking_fund_contributions.length > 0 && (
+            <div className="period-card__bill-group">
+              <h4 className="period-card__category-heading">Sinking funds</h4>
+              <ul className="period-card__bill-list">
+                {period.sinking_fund_contributions.map((fund) => (
+                  <li
+                    key={`${fund.bill_id}-${fund.next_due_date}`}
+                    className="bill-row"
+                  >
+                    <span className="bill-row__main">
+                      <span className="bill-row__name">{fund.name}</span>
+                      <span className="bill-row__meta">
+                        Next due {fmtDateShort(fund.next_due_date)} · saved{" "}
+                        {fmtCurrency(fund.saved_amount)} of{" "}
+                        {fmtCurrency(fund.target_amount)}
+                      </span>
+                    </span>
+                    <span className="bill-row__amount">
+                      {fmtCurrency(fund.contribution_amount)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>

@@ -9,14 +9,14 @@ from __future__ import annotations
 
 from calendar import monthrange
 from collections import defaultdict
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models import Bill, BillInstance, PaySchedule
-from app.models.enums import BillRecurrence, BillStatus, PayFrequency
+from app.models.enums import BillStatus, PayFrequency
 from app.models.pay_period_actual import PayPeriodActual
 from app.models.pay_period_override import PayPeriodOverride
 from app.schemas.monthly import (
@@ -30,7 +30,9 @@ from app.schemas.schedule import (
     PayPeriodOut,
     ScheduleResponse,
     ScheduleSummary,
+    SinkingFundContributionOut,
 )
+from app.services.bill_versions import bill_inputs_for_window
 from app.services.pay_period_engine import (
     ActualAnchor,
     BillInput,
@@ -46,10 +48,6 @@ _InstanceMap = dict[tuple[int, date], BillInstance]
 _OverrideMap = dict[date, date]
 # Keyed by pay_date → confirmed payday actuals (#55)
 _ActualsMap = dict[date, ActualAnchor]
-_BillIsVariable = dict[int, bool]
-_BillCategory = dict[int, str]
-
-
 _PaidDatesMap = dict[tuple[int, date], date]
 
 
@@ -122,23 +120,9 @@ def _find_current_index(periods: list[PayPeriodResult], today: date) -> int:
     return max(0, len(periods) - 1)
 
 
-def _to_bill_input(bill: Bill) -> BillInput:
-    return BillInput(
-        id=bill.id,
-        name=bill.name,
-        amount=Decimal(str(bill.estimated_amount)),
-        recurrence=BillRecurrence(bill.recurrence),
-        due_day=bill.due_day,
-        first_due_date=bill.first_due_date,
-        grace_period_days=bill.grace_period_days,
-    )
-
-
 def _to_period_out(
     p: PayPeriodResult,
     instances: _InstanceMap,
-    bill_is_variable: _BillIsVariable,
-    bill_category: _BillCategory,
     override_map: _OverrideMap,
 ) -> PayPeriodOut:
     bills_out: list[AssignedBillOut] = []
@@ -157,21 +141,32 @@ def _to_period_out(
                 status=effective_status,
                 instance_id=inst.id if inst else None,
                 actual_amount=inst.actual_amount if inst else None,
-                is_variable=bill_is_variable.get(b.bill_id, False),
-                category=bill_category.get(b.bill_id, "other"),
+                is_variable=b.is_variable,
+                category=b.category,
+                sinking_fund_applied=b.sinking_fund_applied,
+                sinking_fund_shortfall=b.sinking_fund_shortfall,
             )
         )
 
     def _effective_amount(bo: AssignedBillOut) -> Decimal:
         if bo.actual_amount is not None:
-            return Decimal(str(bo.actual_amount))
+            actual = Decimal(str(bo.actual_amount))
+            if bo.sinking_fund_applied > 0:
+                return max(Decimal("0"), actual - bo.sinking_fund_applied)
+            return actual
+        if bo.sinking_fund_applied > 0 or bo.sinking_fund_shortfall > 0:
+            return Decimal(str(bo.sinking_fund_shortfall))
         return bo.amount
 
     total = sum(
         (_effective_amount(bo) for bo in bills_out if bo.status != BillStatus.skipped),
         Decimal("0"),
     )
-    remaining = p.opening_balance - total
+    total_sinking_funds = sum(
+        (c.contribution_amount for c in p.sinking_fund_contributions),
+        Decimal("0"),
+    )
+    remaining = p.opening_balance - total - total_sinking_funds
     flagged = sum(1 for bo in bills_out if bo.status == "late_flagged")
     effective_pay_date = override_map.get(p.pay_date, p.pay_date)
     return PayPeriodOut(
@@ -183,9 +178,23 @@ def _to_period_out(
         period_end=p.period_end,
         opening_balance=p.opening_balance,
         total_bills=total,
+        total_sinking_funds=total_sinking_funds,
         remaining_balance=remaining,
         flagged_bill_count=flagged,
         assigned_bills=bills_out,
+        sinking_fund_contributions=[
+            SinkingFundContributionOut(
+                bill_id=c.bill_id,
+                name=c.name,
+                next_due_date=c.next_due_date,
+                target_amount=c.target_amount,
+                saved_amount=c.saved_amount,
+                contribution_amount=c.contribution_amount,
+                shortfall_amount=c.shortfall_amount,
+                surplus_amount=c.surplus_amount,
+            )
+            for c in p.sinking_fund_contributions
+        ],
     )
 
 
@@ -213,10 +222,7 @@ def build_schedule(
     net_salary = Decimal(str(sched.net_salary))
     beginning_balance = Decimal(str(sched.beginning_balance))
 
-    bill_rows = db.query(Bill).filter(Bill.is_active.is_(True)).all()
-    bill_is_variable: _BillIsVariable = {b.id: b.is_variable for b in bill_rows}
-    bill_category: _BillCategory = {b.id: b.category for b in bill_rows}
-    bills = [_to_bill_input(b) for b in bill_rows]
+    bill_rows = db.query(Bill).all()
     actuals = _load_actuals(db)
     paid_dates = _load_paid_dates(db)
 
@@ -225,6 +231,12 @@ def build_schedule(
     if from_date is None and to_date is None:
         # Generate enough periods to find today + (default_count - 1) more
         num_needed = _periods_needed(first_paycheck, today, frequency) + default_count
+        projection_end = build_periods(first_paycheck, frequency, num_needed)[
+            -1
+        ].period_end
+        bills = bill_inputs_for_window(
+            db, bill_rows, first_paycheck - timedelta(days=365), projection_end
+        )
         all_periods = project(
             first_paycheck,
             frequency,
@@ -250,6 +262,12 @@ def build_schedule(
             )
 
         num_needed = _periods_needed(first_paycheck, to_date, frequency)
+        projection_end = build_periods(first_paycheck, frequency, num_needed)[
+            -1
+        ].period_end
+        bills = bill_inputs_for_window(
+            db, bill_rows, first_paycheck - timedelta(days=365), projection_end
+        )
         all_periods = project(
             first_paycheck,
             frequency,
@@ -302,10 +320,7 @@ def build_schedule(
             r.original_pay_date: r.overridden_pay_date for r in override_rows
         }
 
-    period_outs = [
-        _to_period_out(p, instances, bill_is_variable, bill_category, override_map)
-        for p in window
-    ]
+    period_outs = [_to_period_out(p, instances, override_map) for p in window]
 
     total_flagged = sum(
         1 for p in period_outs for b in p.assigned_bills if b.status == "late_flagged"
@@ -408,6 +423,7 @@ def build_monthly_summary(
     frequency = PayFrequency(sched.frequency)
     first_paycheck = sched.first_paycheck_date
     net_salary = Decimal(str(sched.net_salary))
+    beginning_balance = Decimal(str(sched.beginning_balance))
 
     # Income per month: count pay periods whose period_start falls in the
     # window. Confirmed actual net pay (#55) overrides the assumed salary for
@@ -427,14 +443,36 @@ def build_monthly_summary(
             )
             income_by_month[key] += income
 
+    bill_rows = db.query(Bill).all()
+    bill_inputs = bill_inputs_for_window(db, bill_rows, window_start, window_end)
+
+    projected_periods = project(
+        first_paycheck,
+        frequency,
+        num_needed,
+        net_salary,
+        beginning_balance,
+        bill_inputs,
+        actuals,
+        _load_paid_dates(db),
+    )
+    sinking_by_month: dict[tuple[int, int], Decimal] = defaultdict(Decimal)
+    for p in projected_periods:
+        if window_start <= p.period_start <= window_end:
+            key = (p.period_start.year, p.period_start.month)
+            sinking_by_month[key] += sum(
+                (c.contribution_amount for c in p.sinking_fund_contributions),
+                Decimal("0"),
+            )
+
     # Bills per month: find all due dates in the window
-    bill_rows = db.query(Bill).filter(Bill.is_active.is_(True)).all()
-    bills_by_month: dict[tuple[int, int], list[tuple[Bill, date]]] = defaultdict(list)
-    for bill in bill_rows:
-        bill_input = _to_bill_input(bill)
+    bills_by_month: dict[tuple[int, int], list[tuple[BillInput, date]]] = defaultdict(
+        list
+    )
+    for bill_input in bill_inputs:
         for due_date in due_dates_for_bill(bill_input, window_start, window_end):
             key = (due_date.year, due_date.month)
-            bills_by_month[key].append((bill, due_date))
+            bills_by_month[key].append((bill_input, due_date))
 
     # Payment-status overlay: actual amounts and paid/skipped status, matching
     # the pay-period view so the same bill totals the same in both views.
@@ -448,7 +486,7 @@ def build_monthly_summary(
     )
     instances: _InstanceMap = {(r.bill_id, r.due_date): r for r in instance_rows}
 
-    def _build_item(bill: Bill, due_date: date) -> MonthlyBillItem:
+    def _build_item(bill: BillInput, due_date: date) -> MonthlyBillItem:
         inst = instances.get((bill.id, due_date))
         status_ = (
             inst.status
@@ -459,7 +497,7 @@ def build_monthly_summary(
             bill_id=bill.id,
             name=bill.name,
             due_date=due_date,
-            amount=Decimal(str(bill.estimated_amount)),
+            amount=bill.amount,
             category=bill.category,
             is_variable=bill.is_variable,
             status=status_,
@@ -489,7 +527,8 @@ def build_monthly_summary(
             (_effective_amount(item) for items in cat_map.values() for item in items),
             Decimal("0"),
         )
-        available = total_income - total_bills
+        total_sinking_funds = sinking_by_month.get(key, Decimal("0"))
+        available = total_income - total_bills - total_sinking_funds
 
         categories = [
             MonthlyCategoryGroup(
@@ -509,6 +548,7 @@ def build_monthly_summary(
                 month=f"{y:04d}-{m:02d}",
                 total_income=total_income,
                 total_bills=total_bills,
+                total_sinking_funds=total_sinking_funds,
                 available=available,
                 categories=categories,
             )

@@ -28,6 +28,8 @@ A personal budget management application that helps you track bills against your
 
 **Bill management**
 - Add, edit, and deactivate bills
+- Effective-dated edits preserve historical bill names, amounts, categories, and due rules
+- Sinking funds reserve part of each paycheck for large future bills
 - Recurrences: Monthly, Bi-weekly, Weekly, Quarterly, Semi-annual, Annual, One-time
 - Categories: Housing, Utilities, Subscriptions, Insurance, Debt, Savings, Other
 - Optional **grace period** — how many days after the due date you can still pay without being late
@@ -36,7 +38,7 @@ A personal budget management application that helps you track bills against your
 **Reports & exports**
 - **Annual cost breakdown** — modal showing per-payment and annual cost for every active bill, grouped by category with subtotals
 - **PDF report** — downloadable budget report covering the pay period schedule and a monthly income/bills/net summary
-- **JSON backup** — export and import your full data set; delete all data and start fresh
+- **JSON backup** — export and import your full data set, including bill history; delete all data and start fresh
 
 ## Tech Stack
 
