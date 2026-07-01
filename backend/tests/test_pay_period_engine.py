@@ -516,6 +516,83 @@ class TestGracePeriod:
         assign_bills(periods, [bill])
         assert periods[0].assigned_bills[0].status == "on_time"
 
+    def test_project_moves_grace_bill_backward_to_avoid_overbooked_period(
+        self,
+    ) -> None:
+        bills = [
+            BillInput(
+                id=1,
+                name="PENNYMAC",
+                amount=Decimal("900.00"),
+                recurrence=BillRecurrence.one_time,
+                due_day=None,
+                first_due_date=date(2024, 1, 17),
+                grace_period_days=5,
+            ),
+            BillInput(
+                id=2,
+                name="Car",
+                amount=Decimal("900.00"),
+                recurrence=BillRecurrence.one_time,
+                due_day=None,
+                first_due_date=date(2024, 1, 25),
+            ),
+        ]
+
+        periods = project(
+            date(2024, 1, 5),
+            PayFrequency.biweekly,
+            2,
+            Decimal("2000.00"),
+            ZERO,
+            bills,
+            actuals={
+                date(2024, 1, 19): ActualAnchor(actual_balance=Decimal("1000.00"))
+            },
+        )
+
+        assert [bill.name for bill in periods[0].assigned_bills] == ["PENNYMAC"]
+        assert [bill.name for bill in periods[1].assigned_bills] == ["Car"]
+        assert periods[0].remaining_balance == Decimal("1100.00")
+        assert periods[1].remaining_balance == Decimal("100.00")
+
+    def test_project_moves_grace_bill_forward_to_avoid_overbooked_period(
+        self,
+    ) -> None:
+        bills = [
+            BillInput(
+                id=1,
+                name="PENNYMAC",
+                amount=Decimal("900.00"),
+                recurrence=BillRecurrence.one_time,
+                due_day=None,
+                first_due_date=date(2024, 1, 17),
+                grace_period_days=5,
+            ),
+            BillInput(
+                id=2,
+                name="Utilities",
+                amount=Decimal("900.00"),
+                recurrence=BillRecurrence.one_time,
+                due_day=None,
+                first_due_date=date(2024, 1, 12),
+            ),
+        ]
+
+        periods = project(
+            date(2024, 1, 5),
+            PayFrequency.biweekly,
+            2,
+            Decimal("1000.00"),
+            ZERO,
+            bills,
+        )
+
+        assert [bill.name for bill in periods[0].assigned_bills] == ["Utilities"]
+        assert [bill.name for bill in periods[1].assigned_bills] == ["PENNYMAC"]
+        assert periods[0].remaining_balance == Decimal("100.00")
+        assert periods[1].remaining_balance == Decimal("200.00")
+
 
 # ---------------------------------------------------------------------------
 # assign_bills — paid-bill relocation
