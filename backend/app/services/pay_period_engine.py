@@ -454,6 +454,124 @@ def assign_bills(
     return periods
 
 
+def _period_indexes_for_payment_window(
+    periods: list[PayPeriodResult], due_date: date, grace_period_days: int
+) -> list[int]:
+    """Return period indexes where a bill can be paid without exceeding grace."""
+    effective_due = due_date + timedelta(days=grace_period_days)
+    return [
+        index
+        for index, period in enumerate(periods)
+        if period.period_end >= due_date and period.period_start <= effective_due
+    ]
+
+
+def _rebalance_score(periods: list[PayPeriodResult]) -> tuple[int, Decimal, Decimal]:
+    deficits = [
+        -period.remaining_balance
+        for period in periods
+        if period.remaining_balance < Decimal("0")
+    ]
+    if not deficits:
+        return (0, Decimal("0"), Decimal("0"))
+    return (len(deficits), sum(deficits, Decimal("0")), max(deficits))
+
+
+def _move_assigned_bill(
+    periods: list[PayPeriodResult],
+    bill: AssignedBill,
+    from_index: int,
+    to_index: int,
+) -> None:
+    periods[from_index].assigned_bills.remove(bill)
+    periods[to_index].assigned_bills.append(bill)
+
+
+def rebalance_grace_period_bills(
+    periods: list[PayPeriodResult],
+    bills: list[BillInput],
+    net_salary: Decimal,
+    beginning_balance: Decimal,
+    actuals: dict[date, ActualAnchor] | None = None,
+    paid_dates: dict[tuple[int, date], date] | None = None,
+) -> None:
+    """Move unpaid bills within grace windows to reduce projected overdrafts.
+
+    Grace periods create payment flexibility: a bill can be carried by any pay
+    period that overlaps its due-date-through-grace window.  The first
+    assignment pass intentionally keeps the simple due-date rule; this pass then
+    tries alternate valid placements and keeps only moves that improve the
+    projected negative balances across the generated schedule.
+    """
+    if not periods:
+        return
+
+    paid_dates = paid_dates or {}
+    bills_by_id = {bill.id: bill for bill in bills}
+    apply_rolling_balances(periods, net_salary, beginning_balance, actuals)
+
+    movable: list[tuple[AssignedBill, list[int]]] = []
+    for period_index, period in enumerate(periods):
+        for assigned in period.assigned_bills:
+            bill = bills_by_id.get(assigned.bill_id)
+            if bill is None:
+                continue
+            if paid_dates.get((assigned.bill_id, assigned.due_date)) is not None:
+                continue
+            candidate_indexes = _period_indexes_for_payment_window(
+                periods, assigned.due_date, bill.grace_period_days
+            )
+            if len(candidate_indexes) <= 1 or period_index not in candidate_indexes:
+                continue
+            movable.append((assigned, candidate_indexes))
+
+    if not movable:
+        return
+
+    # Each accepted move improves the score, so the loop naturally converges.
+    for _ in range(len(movable) * max(1, len(periods))):
+        current_score = _rebalance_score(periods)
+        if current_score[0] == 0:
+            break
+
+        best_move: tuple[AssignedBill, int, int] | None = None
+        best_score = current_score
+
+        for assigned, candidate_indexes in movable:
+            current_index = next(
+                (
+                    index
+                    for index, period in enumerate(periods)
+                    if assigned in period.assigned_bills
+                ),
+                None,
+            )
+            if current_index is None:
+                continue
+
+            for candidate_index in candidate_indexes:
+                if candidate_index == current_index:
+                    continue
+                _move_assigned_bill(periods, assigned, current_index, candidate_index)
+                apply_rolling_balances(periods, net_salary, beginning_balance, actuals)
+                score = _rebalance_score(periods)
+                _move_assigned_bill(periods, assigned, candidate_index, current_index)
+                apply_rolling_balances(periods, net_salary, beginning_balance, actuals)
+                if score < best_score:
+                    best_score = score
+                    best_move = (assigned, current_index, candidate_index)
+
+        if best_move is None:
+            break
+
+        assigned, from_index, to_index = best_move
+        _move_assigned_bill(periods, assigned, from_index, to_index)
+        apply_rolling_balances(periods, net_salary, beginning_balance, actuals)
+
+    for period in periods:
+        period.assigned_bills.sort(key=lambda bill: bill.due_date)
+
+
 def _effective_assigned_amount(bill: AssignedBill) -> Decimal:
     if bill.sinking_fund_applied > 0 or bill.sinking_fund_shortfall > 0:
         return bill.sinking_fund_shortfall
@@ -547,6 +665,14 @@ def project(
     """Generate periods, assign all bills, then apply rolling balances."""
     periods = build_periods(first_paycheck_date, frequency, num_periods)
     assign_bills(periods, bills, paid_dates)
+    rebalance_grace_period_bills(
+        periods,
+        bills,
+        net_salary,
+        beginning_balance,
+        actuals,
+        paid_dates,
+    )
     apply_sinking_funds(periods, bills)
     apply_rolling_balances(periods, net_salary, beginning_balance, actuals)
     return periods
