@@ -141,6 +141,40 @@ describe("PeriodCard", () => {
     expect(screen.queryByLabelText(/late bill/i)).not.toBeInTheDocument();
   });
 
+  it("shows a manual move indicator when bills were manually moved", () => {
+    render(
+      <PeriodCard
+        period={makePeriod({
+          assigned_bills: [
+            makeBill({ bill_id: 1, name: "Rent" }),
+            makeBill({
+              bill_id: 2,
+              name: "Internet",
+              placement_source: "manual",
+              manual_pay_date: "2025-01-03",
+            }),
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getByLabelText(/1 manually moved bill/i)).toBeInTheDocument();
+    expect(screen.getByText("1 bill manually moved")).toBeInTheDocument();
+  });
+
+  it("does not show a manual move indicator when placement is inferred", () => {
+    render(
+      <PeriodCard
+        period={makePeriod({
+          assigned_bills: [makeBill({ placement_source: "inferred" })],
+        })}
+      />,
+    );
+
+    expect(screen.queryByLabelText(/manually moved bill/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/manually moved/i)).not.toBeInTheDocument();
+  });
+
   it("renders opening balance, total bills, and available figures", () => {
     render(
       <PeriodCard

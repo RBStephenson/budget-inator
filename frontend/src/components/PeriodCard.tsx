@@ -55,6 +55,10 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
   const color = balanceColor(period.remaining_balance, period.opening_balance);
   const isOverspent = color === "overspent";
   const hasFlagged = period.flagged_bill_count > 0;
+  const manualMoveCount = period.assigned_bills.filter(
+    (bill) => bill.placement_source === "manual",
+  ).length;
+  const hasManualMoves = manualMoveCount > 0;
 
   const cardClass = [
     "period-card",
@@ -192,6 +196,15 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
           </span>
         )}
 
+        {hasManualMoves && (
+          <span
+            className="period-card__move-badge"
+            aria-label={`${manualMoveCount} manually moved bill(s)`}
+          >
+            Moved {manualMoveCount}
+          </span>
+        )}
+
         <span className="period-card__chevron" aria-hidden>
           {expanded ? "▲" : "▼"}
         </span>
@@ -268,6 +281,14 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
           </span>
         )}
       </div>
+
+      {hasManualMoves && (
+        <div className="period-card__manual-move-row">
+          <span>
+            {manualMoveCount} bill{manualMoveCount === 1 ? "" : "s"} manually moved
+          </span>
+        </div>
+      )}
 
       {parseFloat(period.remaining_balance) > 0 && (
         <div className="period-card__rebalance-row">
