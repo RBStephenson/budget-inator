@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ApiError } from "../api/client";
 import { deleteAllData, exportData, importData } from "../api/data";
 import {
   createPaySchedule,
@@ -126,9 +127,15 @@ export function SettingsPage() {
       await importData(payload);
       // Import replaces all data, so the loaded schedule/form is now stale —
       // re-sync from the server before the user can save over it.
-      const sched = await getPaySchedule();
-      setExisting(sched);
-      setForm(initialForm(sched));
+      try {
+        const sched = await getPaySchedule();
+        setExisting(sched);
+        setForm(initialForm(sched));
+      } catch (err) {
+        if (!(err instanceof ApiError) || err.status !== 404) throw err;
+        setExisting(null);
+        setForm(initialForm(null));
+      }
       setErrors({});
       setImportStatus("done");
       setTimeout(() => setImportStatus("idle"), 3000);

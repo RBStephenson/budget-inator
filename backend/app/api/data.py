@@ -155,8 +155,8 @@ class ImportBill(BaseModel):
 class ImportBillInstance(BaseModel):
     bill_index: int = Field(ge=0)
     due_date: date
-    estimated_amount: Decimal
-    actual_amount: Decimal | None = None
+    estimated_amount: Decimal = Field(ge=0)
+    actual_amount: Decimal | None = Field(default=None, ge=0)
     status: BillStatus
     paid_at: datetime | None = None
 
@@ -229,8 +229,8 @@ class ImportPayPeriodOverride(BaseModel):
 
 class ImportPayPeriodActual(BaseModel):
     pay_date: date
-    actual_net_pay: Decimal | None = None
-    actual_balance: Decimal | None = None
+    actual_net_pay: Decimal | None = Field(default=None, ge=0)
+    actual_balance: Decimal | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
     def at_least_one(self) -> ImportPayPeriodActual:

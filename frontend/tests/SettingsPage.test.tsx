@@ -436,4 +436,47 @@ describe("SettingsPage — data management", () => {
     // Re-fetched schedule means the page is now in edit mode.
     expect(screen.getByRole("button", { name: /save changes/i })).toBeInTheDocument();
   });
+
+  it("treats an imported backup without a schedule as successful", async () => {
+    vi.spyOn(globalThis, "fetch")
+      // initial load: no schedule yet
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+        json: async () => ({}),
+      } as Response)
+      // POST /api/data/import
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 204,
+        statusText: "No Content",
+        json: async () => ({}),
+      } as Response)
+      // GET /api/pay-schedule re-fetch after import: backup had no schedule
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+        json: async () => ({}),
+      } as Response);
+
+    renderWithToast(<SettingsPage />);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /save and go to dashboard/i }),
+      ).toBeInTheDocument(),
+    );
+
+    const backup = JSON.stringify({ version: 6, bills: [] });
+    const file = new File([backup], "empty-backup.json", { type: "application/json" });
+    Object.defineProperty(file, "text", { value: () => Promise.resolve(backup) });
+    await userEvent.upload(screen.getByLabelText(/import backup file/i), file);
+
+    await waitFor(() => expect(screen.getByText(/imported/i)).toBeInTheDocument());
+    expect(
+      screen.getByRole("button", { name: /save and go to dashboard/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/not found/i)).not.toBeInTheDocument();
+  });
 });

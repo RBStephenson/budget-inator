@@ -4,7 +4,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -31,7 +31,7 @@ def _resolve_paid_at(body: BillInstanceWrite, now: datetime) -> datetime | None:
 
 class BillInstanceWrite(BaseModel):
     status: BillStatus
-    actual_amount: Decimal | None = None
+    actual_amount: Decimal | None = Field(default=None, ge=0)
     # When marking paid, lets the caller back-date the payment. Falls back to
     # the server time when omitted. Ignored unless status is paid.
     paid_at: datetime | None = None
