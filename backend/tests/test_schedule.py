@@ -384,9 +384,7 @@ def test_manual_pay_date_relocates_unpaid_bill(client: TestClient, db):
     assert all(b["name"] != "Internet" for b in periods[1]["assigned_bills"])
 
 
-def test_rebalance_preview_suggests_pulling_future_bill_back(
-    client: TestClient, db
-):
+def test_rebalance_preview_suggests_pulling_future_bill_back(client: TestClient, db):
     source_pay_date = date.today()
     future_pay_date = source_pay_date + timedelta(days=14)
     _make_schedule(db, first_paycheck=source_pay_date, net_salary="1000.00")
@@ -469,9 +467,7 @@ def test_rebalance_apply_persists_manual_moves(client: TestClient, db):
         f"/schedule?from={source_pay_date.isoformat()}&to={to_date.isoformat()}"
     ).json()
     p0_bill = next(
-        b
-        for b in schedule["periods"][0]["assigned_bills"]
-        if b["name"] == "Internet"
+        b for b in schedule["periods"][0]["assigned_bills"] if b["name"] == "Internet"
     )
     assert p0_bill["placement_source"] == "manual"
     assert p0_bill["manual_pay_date"] == source_pay_date.isoformat()

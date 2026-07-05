@@ -418,9 +418,7 @@ class TestImport:
         ov = db.query(PayPeriodOverride).one()
         assert ov.overridden_pay_date == date(2025, 1, 2)
 
-    def test_round_trip_preserves_manual_bill_placement(
-        self, client: TestClient, db
-    ):
+    def test_round_trip_preserves_manual_bill_placement(self, client: TestClient, db):
         _seed(db)
         bill = db.query(Bill).one()
         db.add(
