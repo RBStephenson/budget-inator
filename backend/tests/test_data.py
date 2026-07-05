@@ -337,6 +337,33 @@ class TestImport:
         resp = client.post("/data/import", json=payload)
         assert resp.status_code == 422
 
+    def test_import_rejects_negative_instance_actual_amount(
+        self, client: TestClient, db
+    ):
+        payload = {
+            "version": 6,
+            "bills": [
+                {
+                    "name": "Rent",
+                    "amount": "100.00",
+                    "recurrence": "monthly",
+                    "due_day": 1,
+                    "category": "housing",
+                }
+            ],
+            "bill_instances": [
+                {
+                    "bill_index": 0,
+                    "due_date": "2025-01-01",
+                    "estimated_amount": "100.00",
+                    "actual_amount": "-1.00",
+                    "status": "paid",
+                }
+            ],
+        }
+        resp = client.post("/data/import", json=payload)
+        assert resp.status_code == 422
+
     def test_import_rejects_duplicate_overrides(self, client: TestClient, db):
         payload = {
             "version": 2,
@@ -466,6 +493,17 @@ class TestPayPeriodActualsRoundTrip:
             "version": 3,
             "bills": [],
             "pay_period_actuals": [{"pay_date": "2025-01-03"}],
+        }
+        resp = client.post("/data/import", json=payload)
+        assert resp.status_code == 422
+
+    def test_import_rejects_negative_actuals(self, client: TestClient, db):
+        payload = {
+            "version": 6,
+            "bills": [],
+            "pay_period_actuals": [
+                {"pay_date": "2025-01-03", "actual_balance": "-1.00"}
+            ],
         }
         resp = client.post("/data/import", json=payload)
         assert resp.status_code == 422

@@ -85,6 +85,12 @@ class TestMonthlySummaryBasics:
         r = client.get("/schedule/monthly-summary?from=2025-06&to=2025-01")
         assert r.status_code == 422
 
+    def test_range_over_limit_returns_422(self, client: TestClient, db) -> None:
+        _make_schedule(db, first_paycheck=date(2025, 1, 3))
+        r = client.get("/schedule/monthly-summary?from=2025-01&to=2028-01")
+        assert r.status_code == 422
+        assert "months" in r.json()["detail"].lower()
+
     def test_invalid_month_format_returns_422(self, client: TestClient, db) -> None:
         _make_schedule(db, first_paycheck=date(2025, 1, 3))
         r = client.get("/schedule/monthly-summary?from=jan-2025")

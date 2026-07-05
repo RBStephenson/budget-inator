@@ -103,11 +103,35 @@ _CATEGORY_ORDER = [
     "other",
 ]
 
+MAX_SCHEDULE_RANGE_DAYS = 730
+MAX_MONTHLY_SUMMARY_MONTHS = 36
+MAX_PROJECTED_PERIODS = 5000
+
 
 def _periods_needed(first_paycheck: date, target: date, frequency: PayFrequency) -> int:
     """Conservative upper bound on periods needed to reach *target*."""
     delta = max(0, (target - first_paycheck).days)
     return delta // _MIN_PERIOD_DAYS[frequency] + 5
+
+
+def _ensure_schedule_range_allowed(from_date: date, to_date: date) -> None:
+    if (to_date - from_date).days > MAX_SCHEDULE_RANGE_DAYS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"date range must be {MAX_SCHEDULE_RANGE_DAYS} days or less",
+        )
+
+
+def _ensure_projected_periods_allowed(num_needed: int) -> None:
+    if num_needed > MAX_PROJECTED_PERIODS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"schedule projection is limited to {MAX_PROJECTED_PERIODS} periods",
+        )
+
+
+def _month_span(from_year: int, from_month: int, to_year: int, to_month: int) -> int:
+    return (to_year - from_year) * 12 + (to_month - from_month) + 1
 
 
 def _find_current_index(periods: list[PayPeriodResult], today: date) -> int:
@@ -260,8 +284,10 @@ def build_schedule(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="'to' must be >= 'from'",
             )
+        _ensure_schedule_range_allowed(from_date, to_date)
 
         num_needed = _periods_needed(first_paycheck, to_date, frequency)
+        _ensure_projected_periods_allowed(num_needed)
         projection_end = build_periods(first_paycheck, frequency, num_needed)[
             -1
         ].period_end
@@ -416,6 +442,14 @@ def build_monthly_summary(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="'to' must be >= 'from'",
         )
+    if _month_span(from_year, from_m, to_year, to_m) > MAX_MONTHLY_SUMMARY_MONTHS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"monthly summary range must be {MAX_MONTHLY_SUMMARY_MONTHS} "
+                "months or less"
+            ),
+        )
 
     window_start = date(from_year, from_m, 1)
     window_end = _month_last_day(to_year, to_m)
@@ -430,6 +464,7 @@ def build_monthly_summary(
     # its own payday so the monthly view agrees with the pay-period view.
     actuals = _load_actuals(db)
     num_needed = _periods_needed(first_paycheck, window_end, frequency)
+    _ensure_projected_periods_allowed(num_needed)
     all_pay_periods = build_periods(first_paycheck, frequency, num_needed)
     income_by_month: dict[tuple[int, int], Decimal] = defaultdict(Decimal)
     for p in all_pay_periods:

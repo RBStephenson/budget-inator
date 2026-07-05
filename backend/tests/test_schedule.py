@@ -137,6 +137,13 @@ def test_to_before_from_returns_422(client: TestClient, db):
     assert resp.status_code == 422
 
 
+def test_date_range_over_limit_returns_422(client: TestClient, db):
+    _make_schedule(db, first_paycheck=date(2025, 1, 3))
+    resp = client.get("/schedule?from=2025-01-01&to=2027-01-02")
+    assert resp.status_code == 422
+    assert "range" in resp.json()["detail"].lower()
+
+
 def test_bills_assigned_to_correct_period(client: TestClient, db):
     # Biweekly starting 2025-01-03; period 0 = Jan 3–16, period 1 = Jan 17–30
     _make_schedule(db, first_paycheck=date(2025, 1, 3))

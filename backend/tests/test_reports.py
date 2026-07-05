@@ -116,6 +116,11 @@ class TestBudgetPdfEndpoint:
         r = client.get("/reports/budget.pdf")
         assert r.status_code == 404
 
+    def test_rejects_oversized_date_range(self, client: TestClient, db) -> None:
+        _make_schedule(db, first_paycheck=date(2025, 1, 3))
+        r = client.get("/reports/budget.pdf?from=2025-01-01&to=2027-01-02")
+        assert r.status_code == 422
+
 
 class TestReportData:
     def test_returns_report_data_with_schedule_and_monthly(
