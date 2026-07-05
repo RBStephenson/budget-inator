@@ -16,6 +16,8 @@ class AssignedBillOut(BaseModel):
     actual_amount: Decimal | None = None
     is_variable: bool = False
     category: str = "other"
+    placement_source: str = "inferred"
+    manual_pay_date: date | None = None
     sinking_fund_applied: Decimal = Decimal("0")
     sinking_fund_shortfall: Decimal = Decimal("0")
 
@@ -59,3 +61,33 @@ class ScheduleSummary(BaseModel):
 class ScheduleResponse(BaseModel):
     periods: list[PayPeriodOut]
     summary: ScheduleSummary
+
+
+class RebalancePreviewRequest(BaseModel):
+    source_pay_date: date
+    max_moves: int = Field(default=5, ge=1, le=20)
+
+
+class RebalanceMove(BaseModel):
+    bill_id: int
+    name: str
+    due_date: date
+    amount: Decimal
+    from_pay_date: date
+    to_pay_date: date
+    from_period_remaining_before: Decimal
+    from_period_remaining_after: Decimal
+    source_remaining_before: Decimal
+    source_remaining_after: Decimal
+    reason: str
+
+
+class RebalancePreviewResponse(BaseModel):
+    source_pay_date: date
+    source_remaining_before: Decimal
+    source_remaining_after: Decimal
+    moves: list[RebalanceMove]
+
+
+class RebalanceApplyRequest(BaseModel):
+    moves: list[RebalanceMove]

@@ -648,6 +648,14 @@ body {
   box-shadow: 0 0 0 2px #e0e7ff;
 }
 
+.period-card__rebalance-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.55rem 1.25rem;
+  border-top: 1px solid #f3f4f6;
+  background: #ffffff;
+}
+
 .btn-icon {
   display: inline-flex;
   align-items: center;
@@ -1388,6 +1396,36 @@ body {
   justify-content: flex-end;
   gap: 0.75rem;
   padding: 0 1.5rem 1.25rem;
+}
+
+.rebalance-dialog {
+  padding-top: 1.25rem;
+}
+
+.rebalance-dialog h3,
+.rebalance-dialog p {
+  margin: 0 1.5rem 1rem;
+}
+
+.rebalance-dialog__moves {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0 1.5rem 1.25rem;
+  padding: 0;
+  list-style: none;
+}
+
+.rebalance-dialog__moves li {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+}
+
+.rebalance-dialog__moves span,
+.rebalance-dialog__moves small {
+  color: #6b7280;
 }
 
 .btn--ghost {

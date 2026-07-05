@@ -35,6 +35,9 @@ class BillInstanceWrite(BaseModel):
     # When marking paid, lets the caller back-date the payment. Falls back to
     # the server time when omitted. Ignored unless status is paid.
     paid_at: datetime | None = None
+    # Optional manual placement for unpaid bills. The schedule uses the period
+    # containing this payday instead of the inferred due-date period.
+    manual_pay_date: date | None = None
 
 
 class BillInstanceOut(BaseModel):
@@ -45,6 +48,7 @@ class BillInstanceOut(BaseModel):
     actual_amount: Decimal | None
     status: str
     paid_at: datetime | None
+    manual_pay_date: date | None
 
     model_config = {"from_attributes": True}
 
@@ -80,6 +84,7 @@ def upsert_bill_instance(
             actual_amount=body.actual_amount,
             status=body.status,
             paid_at=paid_at,
+            manual_pay_date=body.manual_pay_date,
             created_at=now,
             updated_at=now,
         )
@@ -90,6 +95,8 @@ def upsert_bill_instance(
         # preserves the stored value, an explicit null clears it.
         if "actual_amount" in body.model_fields_set:
             inst.actual_amount = body.actual_amount
+        if "manual_pay_date" in body.model_fields_set:
+            inst.manual_pay_date = body.manual_pay_date
         inst.paid_at = paid_at
         inst.updated_at = now
 

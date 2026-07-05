@@ -2,13 +2,23 @@ from __future__ import annotations
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.schemas.monthly import MonthlySummaryResponse
-from app.schemas.schedule import ScheduleResponse
-from app.services.schedule_service import build_monthly_summary, build_schedule
+from app.schemas.schedule import (
+    RebalanceApplyRequest,
+    RebalancePreviewRequest,
+    RebalancePreviewResponse,
+    ScheduleResponse,
+)
+from app.services.schedule_service import (
+    apply_rebalance_moves,
+    build_monthly_summary,
+    build_rebalance_preview,
+    build_schedule,
+)
 
 router = APIRouter(prefix="/schedule", tags=["schedule"])
 
@@ -29,3 +39,19 @@ def get_monthly_summary(
     db: Session = Depends(get_db),
 ) -> MonthlySummaryResponse:
     return build_monthly_summary(db, from_month, to_month)
+
+
+@router.post("/rebalance-preview", response_model=RebalancePreviewResponse)
+def preview_rebalance(
+    body: RebalancePreviewRequest,
+    db: Session = Depends(get_db),
+) -> RebalancePreviewResponse:
+    return build_rebalance_preview(db, body)
+
+
+@router.post("/rebalance-apply", status_code=status.HTTP_204_NO_CONTENT)
+def apply_rebalance(
+    body: RebalanceApplyRequest,
+    db: Session = Depends(get_db),
+) -> None:
+    apply_rebalance_moves(db, body)

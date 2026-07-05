@@ -14,6 +14,8 @@ export function makeBill(overrides: Partial<AssignedBill> = {}): AssignedBill {
     actual_amount: null,
     is_variable: false,
     category: "housing",
+    placement_source: "inferred",
+    manual_pay_date: null,
     sinking_fund_applied: "0.00",
     sinking_fund_shortfall: "0.00",
     ...overrides,

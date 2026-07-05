@@ -28,10 +28,13 @@ export function BillRow({ bill, payOnDate, onRefetch, onEdit }: Props) {
   const [actualInput, setActualInput] = useState("");
   const [payingPaid, setPayingPaid] = useState(false);
   const [paidDate, setPaidDate] = useState(todayISO());
+  const [movingBill, setMovingBill] = useState(false);
+  const [manualPayDate, setManualPayDate] = useState(payOnDate);
   const { addToast } = useToast();
   const isLate = bill.status === "late_flagged";
   const isPaid = bill.status === "paid";
   const isSkipped = bill.status === "skipped";
+  const isManual = bill.placement_source === "manual";
 
   async function markAs(
     newStatus: "paid" | "skipped" | "pending",
@@ -44,6 +47,46 @@ export function BillRow({ bill, payOnDate, onRefetch, onEdit }: Props) {
       onRefetch?.();
     } catch {
       addToast("Could not update the bill status. Please try again.", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveManualMove() {
+    if (!manualPayDate) return;
+    setSaving(true);
+    try {
+      await patchBillInstance(
+        bill.bill_id,
+        bill.due_date,
+        "pending",
+        undefined,
+        undefined,
+        manualPayDate,
+      );
+      setMovingBill(false);
+      onRefetch?.();
+    } catch {
+      addToast("Could not move the bill. Please try again.", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function clearManualMove() {
+    setSaving(true);
+    try {
+      await patchBillInstance(
+        bill.bill_id,
+        bill.due_date,
+        "pending",
+        undefined,
+        undefined,
+        null,
+      );
+      onRefetch?.();
+    } catch {
+      addToast("Could not reset the bill move. Please try again.", "error");
     } finally {
       setSaving(false);
     }
@@ -106,6 +149,11 @@ export function BillRow({ bill, payOnDate, onRefetch, onEdit }: Props) {
         {reserveApplied && (
           <span className="bill-row__meta">
             Fund applied {fmtCurrency(bill.sinking_fund_applied)}
+          </span>
+        )}
+        {isManual && bill.manual_pay_date && (
+          <span className="bill-row__meta">
+            Moved to {fmt(bill.manual_pay_date)}
           </span>
         )}
       </span>
@@ -188,7 +236,60 @@ export function BillRow({ bill, payOnDate, onRefetch, onEdit }: Props) {
             ✏
           </button>
         )}
-        {bill.is_variable && !isPaid && !isSkipped && !payingPaid && (
+        {!isPaid && !isSkipped && !payingPaid && !editingActual && (
+          movingBill ? (
+            <span className="bill-row__paid-edit">
+              <input
+                className="bill-row__paid-input"
+                type="date"
+                value={manualPayDate}
+                onChange={(e) => setManualPayDate(e.target.value)}
+                aria-label="Move bill to pay date"
+                autoFocus
+              />
+              <button
+                className="btn-action btn-action--confirm"
+                disabled={saving || !manualPayDate}
+                onClick={saveManualMove}
+                aria-label="Confirm bill move"
+              >
+                âœ“
+              </button>
+              <button
+                className="btn-action"
+                disabled={saving}
+                onClick={() => setMovingBill(false)}
+                aria-label="Cancel bill move"
+              >
+                âœ•
+              </button>
+            </span>
+          ) : (
+            <>
+              <button
+                className="btn-action"
+                disabled={saving}
+                onClick={() => {
+                  setManualPayDate(bill.manual_pay_date ?? payOnDate);
+                  setMovingBill(true);
+                }}
+              >
+                Move
+              </button>
+              {isManual && (
+                <button
+                  className="btn-action"
+                  disabled={saving}
+                  onClick={clearManualMove}
+                  aria-label="Reset bill move"
+                >
+                  Reset move
+                </button>
+              )}
+            </>
+          )
+        )}
+        {bill.is_variable && !isPaid && !isSkipped && !payingPaid && !movingBill && (
           editingActual ? (
             <span className="bill-row__actual-edit">
               <input

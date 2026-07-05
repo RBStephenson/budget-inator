@@ -18,11 +18,12 @@ from app.utils import utcnow
 
 router = APIRouter(prefix="/data", tags=["data"])
 
-EXPORT_VERSION = 6
+EXPORT_VERSION = 7
 # v2 has no pay_period_actuals; v2/v3 have no month-end due-date flag.
 # v2-v4 have no bill_versions; imports backfill one baseline version per bill.
 # v2-v5 have no sinking fund flags; imports default them to false.
-SUPPORTED_IMPORT_VERSIONS = {2, 3, 4, 5, 6}
+# v2-v6 have no manual bill placement dates.
+SUPPORTED_IMPORT_VERSIONS = {2, 3, 4, 5, 6, 7}
 
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
@@ -59,6 +60,7 @@ class ExportBillInstance(BaseModel):
     actual_amount: Decimal | None
     status: BillStatus
     paid_at: datetime | None
+    manual_pay_date: date | None
 
 
 class ExportBillVersion(BaseModel):
@@ -159,6 +161,7 @@ class ImportBillInstance(BaseModel):
     actual_amount: Decimal | None = Field(default=None, ge=0)
     status: BillStatus
     paid_at: datetime | None = None
+    manual_pay_date: date | None = None
 
 
 class ImportBillVersion(BaseModel):
@@ -419,6 +422,7 @@ def export_data(db: Session = Depends(get_db)) -> ExportPayload:
             actual_amount=r.actual_amount,
             status=BillStatus(r.status),
             paid_at=r.paid_at,
+            manual_pay_date=r.manual_pay_date,
         )
         for r in instances
     ]
@@ -554,6 +558,7 @@ def import_data(body: ImportPayload, db: Session = Depends(get_db)) -> None:
                 actual_amount=inst.actual_amount,
                 status=inst.status,
                 paid_at=inst.paid_at,
+                manual_pay_date=inst.manual_pay_date,
                 created_at=now,
                 updated_at=now,
             )

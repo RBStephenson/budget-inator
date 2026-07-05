@@ -8,6 +8,8 @@ export interface AssignedBill {
   actual_amount: string | null;
   is_variable: boolean;
   category: string;
+  placement_source: "inferred" | "manual" | "paid";
+  manual_pay_date: string | null;
   sinking_fund_applied: string;
   sinking_fund_shortfall: string;
 }
@@ -49,4 +51,25 @@ export interface ScheduleSummary {
 export interface ScheduleResponse {
   periods: PayPeriod[];
   summary: ScheduleSummary;
+}
+
+export interface RebalanceMove {
+  bill_id: number;
+  name: string;
+  due_date: string;
+  amount: string;
+  from_pay_date: string;
+  to_pay_date: string;
+  from_period_remaining_before: string;
+  from_period_remaining_after: string;
+  source_remaining_before: string;
+  source_remaining_after: string;
+  reason: string;
+}
+
+export interface RebalancePreview {
+  source_pay_date: string;
+  source_remaining_before: string;
+  source_remaining_after: string;
+  moves: RebalanceMove[];
 }

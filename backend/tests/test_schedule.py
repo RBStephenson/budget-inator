@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app.models import Bill, PaySchedule
+from app.models import Bill, BillInstance, PaySchedule
 from app.models.pay_period_actual import PayPeriodActual
 
 # ---------------------------------------------------------------------------
@@ -359,6 +359,122 @@ def test_future_bill_paid_early_relocates_to_current_period(client: TestClient, 
     assert float(periods[0]["total_bills"]) == pytest.approx(800.0)
     assert float(periods[0]["remaining_balance"]) == pytest.approx(700.0)
     assert float(periods[1]["opening_balance"]) == pytest.approx(1700.0)
+
+
+def test_manual_pay_date_relocates_unpaid_bill(client: TestClient, db):
+    _make_schedule(db, first_paycheck=date(2025, 1, 3))
+    bill = _make_monthly_bill(db, name="Internet", amount="100.00", due_day=20)
+    db.add(
+        BillInstance(
+            bill_id=bill.id,
+            due_date=date(2025, 1, 20),
+            estimated_amount="100.00",
+            status="pending",
+            manual_pay_date=date(2025, 1, 3),
+        )
+    )
+    db.commit()
+
+    resp = client.get("/schedule?from=2025-01-03&to=2025-01-30")
+    assert resp.status_code == 200
+    periods = resp.json()["periods"]
+    p0_bill = next(b for b in periods[0]["assigned_bills"] if b["name"] == "Internet")
+    assert p0_bill["placement_source"] == "manual"
+    assert p0_bill["manual_pay_date"] == "2025-01-03"
+    assert all(b["name"] != "Internet" for b in periods[1]["assigned_bills"])
+
+
+def test_rebalance_preview_suggests_pulling_future_bill_back(
+    client: TestClient, db
+):
+    source_pay_date = date.today()
+    future_pay_date = source_pay_date + timedelta(days=14)
+    _make_schedule(db, first_paycheck=source_pay_date, net_salary="1000.00")
+    big = _make_one_time_bill(
+        db,
+        name="Big Bill",
+        amount="2600.00",
+        due_date=source_pay_date + timedelta(days=2),
+    )
+    _make_one_time_bill(
+        db,
+        name="Internet",
+        amount="500.00",
+        due_date=future_pay_date + timedelta(days=2),
+    )
+    db.add(
+        BillInstance(
+            bill_id=big.id,
+            due_date=source_pay_date + timedelta(days=2),
+            estimated_amount="2600.00",
+            status="pending",
+            manual_pay_date=future_pay_date,
+        )
+    )
+    db.commit()
+
+    resp = client.post(
+        "/schedule/rebalance-preview",
+        json={"source_pay_date": source_pay_date.isoformat()},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["source_pay_date"] == source_pay_date.isoformat()
+    assert body["source_remaining_before"] == "1500.00"
+    assert body["source_remaining_after"] == "1000.00"
+    assert len(body["moves"]) == 1
+    move = body["moves"][0]
+    assert move["name"] == "Internet"
+    assert move["from_pay_date"] == future_pay_date.isoformat()
+    assert move["to_pay_date"] == source_pay_date.isoformat()
+    assert "funds are available" in move["reason"]
+
+
+def test_rebalance_apply_persists_manual_moves(client: TestClient, db):
+    source_pay_date = date.today()
+    future_pay_date = source_pay_date + timedelta(days=14)
+    _make_schedule(db, first_paycheck=source_pay_date, net_salary="1000.00")
+    big = _make_one_time_bill(
+        db,
+        name="Big Bill",
+        amount="2600.00",
+        due_date=source_pay_date + timedelta(days=2),
+    )
+    _make_one_time_bill(
+        db,
+        name="Internet",
+        amount="500.00",
+        due_date=future_pay_date + timedelta(days=2),
+    )
+    db.add(
+        BillInstance(
+            bill_id=big.id,
+            due_date=source_pay_date + timedelta(days=2),
+            estimated_amount="2600.00",
+            status="pending",
+            manual_pay_date=future_pay_date,
+        )
+    )
+    db.commit()
+
+    preview = client.post(
+        "/schedule/rebalance-preview",
+        json={"source_pay_date": source_pay_date.isoformat()},
+    ).json()
+    resp = client.post("/schedule/rebalance-apply", json={"moves": preview["moves"]})
+    assert resp.status_code == 204
+
+    to_date = future_pay_date + timedelta(days=13)
+    schedule = client.get(
+        f"/schedule?from={source_pay_date.isoformat()}&to={to_date.isoformat()}"
+    ).json()
+    p0_bill = next(
+        b
+        for b in schedule["periods"][0]["assigned_bills"]
+        if b["name"] == "Internet"
+    )
+    assert p0_bill["placement_source"] == "manual"
+    assert p0_bill["manual_pay_date"] == source_pay_date.isoformat()
 
 
 def test_no_instance_leaves_status_as_on_time(client: TestClient, db):
