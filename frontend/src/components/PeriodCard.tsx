@@ -3,7 +3,10 @@ import type { PayPeriod } from "../types/schedule";
 import { CATEGORY_LABELS, CATEGORY_ORDER } from "../types/bill";
 import { BillRow } from "./BillRow";
 import { putPayPeriodOverride, deletePayPeriodOverride } from "../api/payPeriodOverrides";
+import { applyRebalance, previewRebalance } from "../api/rebalance";
+import { useToast } from "../context/ToastContext";
 import { fmtCurrency } from "../utils/currency";
+import type { RebalancePreview } from "../types/schedule";
 
 interface Props {
   period: PayPeriod;
@@ -45,6 +48,9 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
   const [editingPayDate, setEditingPayDate] = useState(false);
   const [payDateInput, setPayDateInput] = useState("");
   const [savingPayDate, setSavingPayDate] = useState(false);
+  const [rebalancePreview, setRebalancePreview] = useState<RebalancePreview | null>(null);
+  const [rebalanceLoading, setRebalanceLoading] = useState(false);
+  const { addToast } = useToast();
 
   const color = balanceColor(period.remaining_balance, period.opening_balance);
   const isOverspent = color === "overspent";
@@ -88,6 +94,35 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
       onRefetch?.();
     } finally {
       setSavingPayDate(false);
+    }
+  }
+
+  async function openRebalancePreview() {
+    setRebalanceLoading(true);
+    try {
+      const preview = await previewRebalance(period.original_pay_date);
+      setRebalancePreview(preview);
+    } catch {
+      addToast("Could not preview rebalance moves. Please try again.", "error");
+    } finally {
+      setRebalanceLoading(false);
+    }
+  }
+
+  async function confirmRebalance() {
+    if (!rebalancePreview || rebalancePreview.moves.length === 0) {
+      setRebalancePreview(null);
+      return;
+    }
+    setRebalanceLoading(true);
+    try {
+      await applyRebalance(rebalancePreview.moves);
+      setRebalancePreview(null);
+      onRefetch?.();
+    } catch {
+      addToast("Could not apply rebalance moves. Please try again.", "error");
+    } finally {
+      setRebalanceLoading(false);
     }
   }
 
@@ -234,6 +269,18 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
         )}
       </div>
 
+      {parseFloat(period.remaining_balance) > 0 && (
+        <div className="period-card__rebalance-row">
+          <button
+            className="btn btn--secondary"
+            onClick={openRebalancePreview}
+            disabled={rebalanceLoading}
+          >
+            {rebalanceLoading ? "Checking..." : "Rebalance available funds"}
+          </button>
+        </div>
+      )}
+
       {expanded && (
         <div className="period-card__body">
           {period.assigned_bills.length === 0 ? (
@@ -289,6 +336,53 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
               </ul>
             </div>
           )}
+        </div>
+      )}
+
+      {rebalancePreview && (
+        <div className="modal-overlay" role="presentation">
+          <div className="modal modal--sm rebalance-dialog" role="dialog" aria-modal="true">
+            <h3>Rebalance available funds</h3>
+            {rebalancePreview.moves.length === 0 ? (
+              <p>No eligible future bills can move into this period right now.</p>
+            ) : (
+              <>
+                <p>
+                  Available changes from{" "}
+                  {fmtCurrency(rebalancePreview.source_remaining_before)} to{" "}
+                  {fmtCurrency(rebalancePreview.source_remaining_after)}.
+                </p>
+                <ul className="rebalance-dialog__moves">
+                  {rebalancePreview.moves.map((move) => (
+                    <li key={`${move.bill_id}-${move.due_date}`}>
+                      <strong>{move.name}</strong>
+                      <span>
+                        {fmtDateShort(move.from_pay_date)} to{" "}
+                        {fmtDateShort(move.to_pay_date)} · {fmtCurrency(move.amount)}
+                      </span>
+                      <small>{move.reason}</small>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            <div className="confirm-dialog__actions">
+              <button
+                className="btn btn--secondary"
+                onClick={() => setRebalancePreview(null)}
+                disabled={rebalanceLoading}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn--primary"
+                onClick={confirmRebalance}
+                disabled={rebalanceLoading}
+              >
+                {rebalancePreview.moves.length === 0 ? "Done" : "Apply moves"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

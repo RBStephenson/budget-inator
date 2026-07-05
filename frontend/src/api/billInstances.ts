@@ -8,12 +8,14 @@ export async function patchBillInstance(
   instanceStatus: InstanceStatus,
   actualAmount?: string,
   paidAt?: string,
+  manualPayDate?: string | null,
 ): Promise<void> {
   const body: Record<string, unknown> = { status: instanceStatus };
   if (actualAmount !== undefined) body.actual_amount = actualAmount;
   // A YYYY-MM-DD date the backend coerces to a datetime; lets the user
   // back-date a payment. Only meaningful when marking paid.
   if (paidAt !== undefined) body.paid_at = paidAt;
+  if (manualPayDate !== undefined) body.manual_pay_date = manualPayDate;
 
   return patch<void>(`/bill-instances/${billId}/${dueDate}`, body);
 }

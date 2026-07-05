@@ -63,7 +63,7 @@ class TestExport:
         resp = client.get("/data/export")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["version"] == 6
+        assert data["version"] == 7
         assert data["pay_schedule"] is None
         assert data["bills"] == []
         assert data["bill_versions"] == []
@@ -76,7 +76,7 @@ class TestExport:
         resp = client.get("/data/export")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["version"] == 6
+        assert data["version"] == 7
         assert data["pay_schedule"]["net_salary"] == "2000.00"
         assert data["pay_schedule"]["frequency"] == "biweekly"
         assert len(data["bills"]) == 1
@@ -121,6 +121,7 @@ class TestExport:
         assert inst["actual_amount"] == "1150.00"
         assert inst["status"] == "paid"
         assert inst["paid_at"] is not None
+        assert inst["manual_pay_date"] is None
 
         assert len(data["pay_period_overrides"]) == 1
         ov = data["pay_period_overrides"][0]
@@ -416,6 +417,28 @@ class TestImport:
         assert inst.paid_at == datetime(2025, 1, 1, 12, 0, 0)
         ov = db.query(PayPeriodOverride).one()
         assert ov.overridden_pay_date == date(2025, 1, 2)
+
+    def test_round_trip_preserves_manual_bill_placement(self, client: TestClient, db):
+        _seed(db)
+        bill = db.query(Bill).one()
+        db.add(
+            BillInstance(
+                bill_id=bill.id,
+                due_date=date(2025, 1, 1),
+                estimated_amount="1200.00",
+                status="pending",
+                manual_pay_date=date(2025, 1, 3),
+            )
+        )
+        db.commit()
+
+        backup = client.get("/data/export").json()
+        assert backup["bill_instances"][0]["manual_pay_date"] == "2025-01-03"
+
+        resp = client.post("/data/import", json=backup)
+        assert resp.status_code == 204
+        restored = db.query(BillInstance).one()
+        assert restored.manual_pay_date == date(2025, 1, 3)
 
 
 class TestDelete:

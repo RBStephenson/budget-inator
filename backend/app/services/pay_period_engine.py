@@ -38,6 +38,8 @@ class AssignedBill:
     status: str  # "on_time" | "late_flagged"
     category: str = "other"
     is_variable: bool = False
+    placement_source: str = "inferred"
+    manual_pay_date: date | None = None
     sinking_fund_applied: Decimal = Decimal("0")
     sinking_fund_shortfall: Decimal = Decimal("0")
 
@@ -381,6 +383,7 @@ def assign_bills(
     periods: list[PayPeriodResult],
     bills: list[BillInput],
     paid_dates: dict[tuple[int, date], date] | None = None,
+    manual_pay_dates: dict[tuple[int, date], date] | None = None,
 ) -> list[PayPeriodResult]:
     """
     Assign bill occurrences to pay periods.  Mutates and returns *periods*.
@@ -401,6 +404,7 @@ def assign_bills(
         return periods
 
     paid_dates = paid_dates or {}
+    manual_pay_dates = manual_pay_dates or {}
     period_start = periods[0].period_start
     window_end = periods[-1].period_end
 
@@ -415,16 +419,28 @@ def assign_bills(
         for due_date in due_dates_for_bill(bill, gen_start, window_end):
             effective_due = due_date + timedelta(days=bill.grace_period_days)
             paid_on = paid_dates.get((bill.id, due_date))
+            manual_pay_date = manual_pay_dates.get((bill.id, due_date))
             paid_period = (
                 _find_period_containing(periods, paid_on)
                 if paid_on is not None
                 else None
             )
+            manual_period = (
+                _find_period_containing(periods, manual_pay_date)
+                if manual_pay_date is not None
+                else None
+            )
             period: PayPeriodResult
+            placement_source = "inferred"
             if paid_period is not None:
                 # Relocate the paid bill to the period it was actually paid in.
                 period = paid_period
                 status = "on_time"
+                placement_source = "paid"
+            elif manual_period is not None:
+                period = manual_period
+                status = "on_time"
+                placement_source = "manual"
             else:
                 if effective_due > window_end:
                     continue
@@ -445,6 +461,8 @@ def assign_bills(
                     status=status,
                     category=bill.category,
                     is_variable=bill.is_variable,
+                    placement_source=placement_source,
+                    manual_pay_date=manual_pay_date,
                 )
             )
 
@@ -494,6 +512,7 @@ def rebalance_grace_period_bills(
     beginning_balance: Decimal,
     actuals: dict[date, ActualAnchor] | None = None,
     paid_dates: dict[tuple[int, date], date] | None = None,
+    manual_pay_dates: dict[tuple[int, date], date] | None = None,
 ) -> None:
     """Move unpaid bills within grace windows to reduce projected overdrafts.
 
@@ -507,6 +526,7 @@ def rebalance_grace_period_bills(
         return
 
     paid_dates = paid_dates or {}
+    manual_pay_dates = manual_pay_dates or {}
     bills_by_id = {bill.id: bill for bill in bills}
     apply_rolling_balances(periods, net_salary, beginning_balance, actuals)
 
@@ -517,6 +537,8 @@ def rebalance_grace_period_bills(
             if bill is None:
                 continue
             if paid_dates.get((assigned.bill_id, assigned.due_date)) is not None:
+                continue
+            if manual_pay_dates.get((assigned.bill_id, assigned.due_date)) is not None:
                 continue
             candidate_indexes = _period_indexes_for_payment_window(
                 periods, assigned.due_date, bill.grace_period_days
@@ -661,10 +683,11 @@ def project(
     bills: list[BillInput],
     actuals: dict[date, ActualAnchor] | None = None,
     paid_dates: dict[tuple[int, date], date] | None = None,
+    manual_pay_dates: dict[tuple[int, date], date] | None = None,
 ) -> list[PayPeriodResult]:
     """Generate periods, assign all bills, then apply rolling balances."""
     periods = build_periods(first_paycheck_date, frequency, num_periods)
-    assign_bills(periods, bills, paid_dates)
+    assign_bills(periods, bills, paid_dates, manual_pay_dates)
     rebalance_grace_period_bills(
         periods,
         bills,
@@ -672,6 +695,7 @@ def project(
         beginning_balance,
         actuals,
         paid_dates,
+        manual_pay_dates,
     )
     apply_sinking_funds(periods, bills)
     apply_rolling_balances(periods, net_salary, beginning_balance, actuals)

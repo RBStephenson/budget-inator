@@ -93,7 +93,7 @@ def test_export_import_preserves_sinking_fund_flag(client: TestClient, db) -> No
     _make_annual_bill(db)
 
     backup = client.get("/data/export").json()
-    assert backup["version"] == 6
+    assert backup["version"] == 7
     assert backup["bills"][0]["sinking_fund_enabled"] is True
     assert backup["bill_versions"][0]["sinking_fund_enabled"] is True
 

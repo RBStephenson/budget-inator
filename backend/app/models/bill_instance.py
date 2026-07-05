@@ -38,6 +38,7 @@ class BillInstance(Base):
         String, default=BillStatus.pending, server_default=text("'pending'")
     )
     paid_at: Mapped[datetime | None] = mapped_column(DateTime)
+    manual_pay_date: Mapped[date | None] = mapped_column(Date, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=utcnow, server_default=text("CURRENT_TIMESTAMP")
     )

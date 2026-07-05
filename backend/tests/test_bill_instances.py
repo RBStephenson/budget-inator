@@ -83,6 +83,28 @@ class TestUpsertBillInstance:
         assert resp.status_code == 200
         assert resp.json()["actual_amount"] == "750.00"
 
+    def test_stores_manual_pay_date(self, client: TestClient, db):
+        bill = _make_bill(db)
+        resp = client.patch(
+            f"/bill-instances/{bill.id}/2025-01-01",
+            json={"status": "pending", "manual_pay_date": "2025-01-03"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["manual_pay_date"] == "2025-01-03"
+
+    def test_explicit_null_clears_manual_pay_date(self, client: TestClient, db):
+        bill = _make_bill(db)
+        client.patch(
+            f"/bill-instances/{bill.id}/2025-01-01",
+            json={"status": "pending", "manual_pay_date": "2025-01-03"},
+        )
+        resp = client.patch(
+            f"/bill-instances/{bill.id}/2025-01-01",
+            json={"status": "pending", "manual_pay_date": None},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["manual_pay_date"] is None
+
     def test_rejects_negative_actual_amount(self, client: TestClient, db):
         bill = _make_bill(db)
         resp = client.patch(

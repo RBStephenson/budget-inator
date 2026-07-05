@@ -151,6 +151,52 @@ describe("BillRow", () => {
     await waitFor(() => expect(onRefetch).toHaveBeenCalledOnce());
   });
 
+  it("sends manual_pay_date when confirming a bill move", async () => {
+    mockPatch();
+    const onRefetch = vi.fn();
+    render(
+      <BillRow
+        bill={makeBill({ status: "on_time" })}
+        payOnDate="2025-01-03"
+        onRefetch={onRefetch}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /^move$/i }));
+    fireEvent.change(screen.getByLabelText(/move bill to pay date/i), {
+      target: { value: "2025-01-17" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: /confirm bill move/i }));
+
+    await waitFor(() => expect(onRefetch).toHaveBeenCalledOnce());
+    const fetchMock = vi.mocked(globalThis.fetch);
+    const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string);
+    expect(body.status).toBe("pending");
+    expect(body.manual_pay_date).toBe("2025-01-17");
+  });
+
+  it("shows moved metadata and can reset a manual move", async () => {
+    mockPatch();
+    const onRefetch = vi.fn();
+    render(
+      <BillRow
+        bill={makeBill({
+          placement_source: "manual",
+          manual_pay_date: "2025-01-17",
+        })}
+        payOnDate="2025-01-17"
+        onRefetch={onRefetch}
+      />,
+    );
+
+    expect(screen.getByText(/moved to jan 17/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /reset bill move/i }));
+
+    await waitFor(() => expect(onRefetch).toHaveBeenCalledOnce());
+    const fetchMock = vi.mocked(globalThis.fetch);
+    const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string);
+    expect(body.manual_pay_date).toBeNull();
+  });
+
   it("shows an error toast and skips refetch when marking paid fails", async () => {
     mockPatch(false);
     const onRefetch = vi.fn();

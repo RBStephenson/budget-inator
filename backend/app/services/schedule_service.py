@@ -28,11 +28,15 @@ from app.schemas.monthly import (
 from app.schemas.schedule import (
     AssignedBillOut,
     PayPeriodOut,
+    RebalanceApplyRequest,
+    RebalanceMove,
+    RebalancePreviewRequest,
+    RebalancePreviewResponse,
     ScheduleResponse,
     ScheduleSummary,
     SinkingFundContributionOut,
 )
-from app.services.bill_versions import bill_inputs_for_window
+from app.services.bill_versions import bill_input_for_due_date, bill_inputs_for_window
 from app.services.pay_period_engine import (
     ActualAnchor,
     BillInput,
@@ -41,6 +45,7 @@ from app.services.pay_period_engine import (
     due_dates_for_bill,
     project,
 )
+from app.utils import utcnow
 
 # Keyed by (bill_id, due_date)
 _InstanceMap = dict[tuple[int, date], BillInstance]
@@ -49,6 +54,7 @@ _OverrideMap = dict[date, date]
 # Keyed by pay_date → confirmed payday actuals (#55)
 _ActualsMap = dict[date, ActualAnchor]
 _PaidDatesMap = dict[tuple[int, date], date]
+_ManualPayDateMap = dict[tuple[int, date], date]
 
 
 def _load_paid_dates(db: Session) -> _PaidDatesMap:
@@ -68,6 +74,22 @@ def _load_paid_dates(db: Session) -> _PaidDatesMap:
     )
     return {
         (r.bill_id, r.due_date): r.paid_at.date() for r in rows if r.paid_at is not None
+    }
+
+
+def _load_manual_pay_dates(db: Session) -> _ManualPayDateMap:
+    rows = (
+        db.query(BillInstance)
+        .filter(
+            BillInstance.manual_pay_date.isnot(None),
+            BillInstance.status.notin_([BillStatus.paid, BillStatus.skipped]),
+        )
+        .all()
+    )
+    return {
+        (r.bill_id, r.due_date): r.manual_pay_date
+        for r in rows
+        if r.manual_pay_date is not None
     }
 
 
@@ -167,6 +189,8 @@ def _to_period_out(
                 actual_amount=inst.actual_amount if inst else None,
                 is_variable=b.is_variable,
                 category=b.category,
+                placement_source=b.placement_source,
+                manual_pay_date=b.manual_pay_date,
                 sinking_fund_applied=b.sinking_fund_applied,
                 sinking_fund_shortfall=b.sinking_fund_shortfall,
             )
@@ -249,6 +273,7 @@ def build_schedule(
     bill_rows = db.query(Bill).all()
     actuals = _load_actuals(db)
     paid_dates = _load_paid_dates(db)
+    manual_pay_dates = _load_manual_pay_dates(db)
 
     today = date.today()
 
@@ -270,6 +295,7 @@ def build_schedule(
             bills,
             actuals,
             paid_dates,
+            manual_pay_dates,
         )
         current_idx = _find_current_index(all_periods, today)
         window = all_periods[current_idx : current_idx + default_count]
@@ -303,6 +329,7 @@ def build_schedule(
             bills,
             actuals,
             paid_dates,
+            manual_pay_dates,
         )
         # Include periods that overlap [from_date, to_date]
         window = [
@@ -363,6 +390,150 @@ def build_schedule(
             total_flagged_bills=total_flagged,
         ),
     )
+
+
+def build_rebalance_preview(
+    db: Session,
+    body: RebalancePreviewRequest,
+) -> RebalancePreviewResponse:
+    schedule = build_schedule(db, default_count=8)
+    source_index = next(
+        (
+            index
+            for index, period in enumerate(schedule.periods)
+            if period.original_pay_date == body.source_pay_date
+            or period.pay_date == body.source_pay_date
+        ),
+        None,
+    )
+    if source_index is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="source pay period not found in the current schedule window",
+        )
+
+    source_period = schedule.periods[source_index]
+    source_remaining = Decimal(str(source_period.remaining_balance))
+    source_start = source_remaining
+    moves: list[RebalanceMove] = []
+
+    if source_remaining <= 0:
+        return RebalancePreviewResponse(
+            source_pay_date=source_period.original_pay_date,
+            source_remaining_before=source_start,
+            source_remaining_after=source_remaining,
+            moves=[],
+        )
+
+    future_periods = [
+        period
+        for period in schedule.periods[source_index + 1 :]
+        if Decimal(str(period.remaining_balance)) < 0
+    ]
+
+    for period in future_periods:
+        future_remaining = Decimal(str(period.remaining_balance))
+        candidates = sorted(
+            (
+                bill
+                for bill in period.assigned_bills
+                if bill.status == "on_time"
+                and bill.placement_source == "inferred"
+                and bill.sinking_fund_applied == 0
+                and bill.sinking_fund_shortfall == 0
+            ),
+            key=lambda bill: (bill.due_date, Decimal(str(bill.amount))),
+        )
+
+        for bill in candidates:
+            amount = (
+                Decimal(str(bill.actual_amount))
+                if bill.actual_amount is not None
+                else Decimal(str(bill.amount))
+            )
+            if amount <= 0 or source_remaining - amount < 0:
+                continue
+
+            before_source = source_remaining
+            before_future = future_remaining
+            source_remaining -= amount
+            future_remaining += amount
+            moves.append(
+                RebalanceMove(
+                    bill_id=bill.bill_id,
+                    name=bill.name,
+                    due_date=bill.due_date,
+                    amount=amount,
+                    from_pay_date=period.original_pay_date,
+                    to_pay_date=source_period.original_pay_date,
+                    from_period_remaining_before=before_future,
+                    from_period_remaining_after=future_remaining,
+                    source_remaining_before=before_source,
+                    source_remaining_after=source_remaining,
+                    reason=(
+                        f"{bill.name} is due {bill.due_date.isoformat()} and can "
+                        f"be paid from the {source_period.pay_date.isoformat()} "
+                        "paycheck because funds are available."
+                    ),
+                )
+            )
+            if len(moves) >= body.max_moves:
+                break
+            if future_remaining >= 0:
+                break
+
+        if len(moves) >= body.max_moves or source_remaining <= 0:
+            break
+
+    return RebalancePreviewResponse(
+        source_pay_date=source_period.original_pay_date,
+        source_remaining_before=source_start,
+        source_remaining_after=source_remaining,
+        moves=moves,
+    )
+
+
+def apply_rebalance_moves(db: Session, body: RebalanceApplyRequest) -> None:
+    now = utcnow()
+    for move in body.moves:
+        bill = db.get(Bill, move.bill_id)
+        if bill is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Bill {move.bill_id} not found",
+            )
+
+        inst = (
+            db.query(BillInstance)
+            .filter(
+                BillInstance.bill_id == move.bill_id,
+                BillInstance.due_date == move.due_date,
+            )
+            .first()
+        )
+        if inst is not None and inst.status in (BillStatus.paid, BillStatus.skipped):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="paid or skipped bills cannot be manually rebalanced",
+            )
+
+        if inst is None:
+            bill_terms = bill_input_for_due_date(db, bill, move.due_date)
+            inst = BillInstance(
+                bill_id=move.bill_id,
+                due_date=move.due_date,
+                estimated_amount=bill_terms.amount,
+                status=BillStatus.pending,
+                manual_pay_date=move.to_pay_date,
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(inst)
+        else:
+            inst.manual_pay_date = move.to_pay_date
+            inst.updated_at = now
+
+    db.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -490,6 +661,7 @@ def build_monthly_summary(
         bill_inputs,
         actuals,
         _load_paid_dates(db),
+        _load_manual_pay_dates(db),
     )
     sinking_by_month: dict[tuple[int, int], Decimal] = defaultdict(Decimal)
     for p in projected_periods:
