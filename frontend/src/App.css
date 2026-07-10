@@ -1773,7 +1773,7 @@ body {
 }
 
 .settings-data__file-label {
-  display: inline-block;
+  display: inline-flex;
   cursor: pointer;
 }
 
