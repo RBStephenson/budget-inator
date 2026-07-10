@@ -35,6 +35,7 @@ export function BillRow({ bill, payOnDate, onRefetch, onEdit }: Props) {
   const isPaid = bill.status === "paid";
   const isSkipped = bill.status === "skipped";
   const isManual = bill.placement_source === "manual";
+  const isCarriedOver = bill.is_carried_over;
 
   async function markAs(
     newStatus: "paid" | "skipped" | "pending",
@@ -133,6 +134,7 @@ export function BillRow({ bill, payOnDate, onRefetch, onEdit }: Props) {
         isLate ? "bill-row--late" : "",
         isPaid ? "bill-row--paid" : "",
         isSkipped ? "bill-row--skipped" : "",
+        isCarriedOver ? "bill-row--carried" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -154,6 +156,11 @@ export function BillRow({ bill, payOnDate, onRefetch, onEdit }: Props) {
         {isManual && bill.manual_pay_date && (
           <span className="bill-row__meta">
             Moved to {fmt(bill.manual_pay_date)}
+          </span>
+        )}
+        {isCarriedOver && (
+          <span className="bill-row__carry-badge" aria-label="Unpaid from previous period">
+            Unpaid from previous period
           </span>
         )}
       </span>

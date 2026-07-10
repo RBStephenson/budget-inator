@@ -191,9 +191,14 @@ def _period_flowables(period: PayPeriodOut, styles) -> list:
             subtotal = Decimal("0")
             for bill in bills:
                 amt = _assigned_amount(bill)
-                if bill.status != "skipped":
+                if bill.status != "skipped" and not bill.is_carried_over:
                     subtotal += amt
                 amount_str = ("~" if bill.is_variable else "") + _money(amt)
+                status = (
+                    "Unpaid prior"
+                    if bill.is_carried_over
+                    else _STATUS_LABELS.get(bill.status, bill.status)
+                )
                 bill_row = len(data)
                 data.append(
                     [
@@ -201,7 +206,7 @@ def _period_flowables(period: PayPeriodOut, styles) -> list:
                         _fmt_day(bill.due_date),
                         _fmt_day(period.pay_date),
                         amount_str,
-                        _STATUS_LABELS.get(bill.status, bill.status),
+                        status,
                     ]
                 )
                 if bill.status == "late_flagged":

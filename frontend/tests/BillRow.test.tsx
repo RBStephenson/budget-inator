@@ -59,6 +59,18 @@ describe("BillRow", () => {
     expect(container.querySelector(".bill-row--late")).toBeInTheDocument();
   });
 
+  it("shows an unpaid previous-period badge for carried bills", () => {
+    const { container } = render(
+      <BillRow
+        bill={makeBill({ is_carried_over: true, due_date: "2025-01-15" })}
+        payOnDate="2025-01-31"
+      />,
+    );
+    expect(screen.getByLabelText(/unpaid from previous period/i)).toBeInTheDocument();
+    expect(container.querySelector(".bill-row--carried")).toBeInTheDocument();
+    expect(screen.getByText(/jan 15/i)).toBeInTheDocument();
+  });
+
   it("shows Paid and Skip buttons for a pending bill", () => {
     render(<BillRow bill={makeBill({ status: "on_time" })} payOnDate="2025-01-03" />);
     expect(screen.getByRole("button", { name: /paid/i })).toBeInTheDocument();

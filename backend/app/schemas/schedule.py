@@ -18,6 +18,7 @@ class AssignedBillOut(BaseModel):
     category: str = "other"
     placement_source: str = "inferred"
     manual_pay_date: date | None = None
+    is_carried_over: bool = False
     sinking_fund_applied: Decimal = Decimal("0")
     sinking_fund_shortfall: Decimal = Decimal("0")
 
