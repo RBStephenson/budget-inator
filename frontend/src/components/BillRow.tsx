@@ -163,6 +163,15 @@ export function BillRow({ bill, payOnDate, onRefetch, onEdit }: Props) {
             Unpaid from previous period
           </span>
         )}
+        <span className="bill-row__status-word">
+          {isPaid
+            ? "PAID"
+            : isSkipped
+              ? "SKIPPED"
+              : isLate
+                ? "CAN'T PAY ON TIME"
+                : "DUE SOON"}
+        </span>
       </span>
       <span className="bill-row__dates">
         <span className="bill-row__date-label">Due</span>
