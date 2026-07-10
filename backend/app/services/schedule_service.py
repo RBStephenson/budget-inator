@@ -427,9 +427,7 @@ def build_schedule(
         ]
         _add_carried_unpaid_bills(carry_period_outs)
         window_indexes = {p.period_index for p in window}
-        period_outs = [
-            p for p in carry_period_outs if p.period_index in window_indexes
-        ]
+        period_outs = [p for p in carry_period_outs if p.period_index in window_indexes]
     else:
         period_outs = []
 
