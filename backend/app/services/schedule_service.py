@@ -207,7 +207,11 @@ def _to_period_out(
         return bo.amount
 
     total = sum(
-        (_effective_amount(bo) for bo in bills_out if bo.status != BillStatus.skipped),
+        (
+            _effective_amount(bo)
+            for bo in bills_out
+            if bo.status != BillStatus.skipped and not bo.is_carried_over
+        ),
         Decimal("0"),
     )
     total_sinking_funds = sum(
@@ -244,6 +248,36 @@ def _to_period_out(
             for c in p.sinking_fund_contributions
         ],
     )
+
+
+def _add_carried_unpaid_bills(periods: list[PayPeriodOut]) -> None:
+    carried: dict[tuple[int, date], AssignedBillOut] = {}
+
+    for period in periods:
+        current_bills = list(period.assigned_bills)
+        current_keys = {(bill.bill_id, bill.due_date) for bill in current_bills}
+        carry_ins = [
+            bill.model_copy(update={"is_carried_over": True})
+            for key, bill in carried.items()
+            if key not in current_keys
+        ]
+        period.assigned_bills = sorted(
+            [*current_bills, *carry_ins],
+            key=lambda bill: (bill.due_date, bill.name.lower(), bill.bill_id),
+        )
+        period.flagged_bill_count = sum(
+            1 for bill in period.assigned_bills if bill.status == "late_flagged"
+        )
+
+        next_carried: dict[tuple[int, date], AssignedBillOut] = {}
+        for bill in period.assigned_bills:
+            key = (bill.bill_id, bill.due_date)
+            if bill.status in (BillStatus.paid, BillStatus.skipped):
+                continue
+            if bill.placement_source == "paid":
+                continue
+            next_carried[key] = bill.model_copy(update={"is_carried_over": True})
+        carried = next_carried
 
 
 def build_schedule(
@@ -346,12 +380,20 @@ def build_schedule(
     override_map: _OverrideMap = {}
     if window:
         window_end = window[-1].period_end
+        carry_start = window[0].period_start - timedelta(days=365)
+        carry_periods = [
+            p
+            for p in all_periods
+            if p.period_end >= carry_start and p.period_start <= window_end
+        ]
         # Past-due bills are pulled forward into the current period, so an
         # assigned bill's due date can precede the window's first period_start
         # (see assign_bills' 365-day look-back). Anchor the overlay query to the
         # earliest assigned due date, not period_start, or paid/skipped records
         # for those past-due bills get dropped and the bill renders as unpaid.
-        assigned_due_dates = [b.due_date for p in window for b in p.assigned_bills]
+        assigned_due_dates = [
+            b.due_date for p in carry_periods for b in p.assigned_bills
+        ]
         instance_lower_bound = min([window[0].period_start, *assigned_due_dates])
         rows = (
             db.query(BillInstance)
@@ -363,7 +405,7 @@ def build_schedule(
         )
         instances = {(r.bill_id, r.due_date): r for r in rows}
 
-        pay_dates = [p.pay_date for p in window]
+        pay_dates = [p.pay_date for p in carry_periods]
         override_rows = (
             db.query(PayPeriodOverride)
             .filter(PayPeriodOverride.original_pay_date.in_(pay_dates))
@@ -373,7 +415,23 @@ def build_schedule(
             r.original_pay_date: r.overridden_pay_date for r in override_rows
         }
 
-    period_outs = [_to_period_out(p, instances, override_map) for p in window]
+    if window:
+        carry_start = window[0].period_start - timedelta(days=365)
+        carry_periods = [
+            p
+            for p in all_periods
+            if p.period_end >= carry_start and p.period_start <= window[-1].period_end
+        ]
+        carry_period_outs = [
+            _to_period_out(p, instances, override_map) for p in carry_periods
+        ]
+        _add_carried_unpaid_bills(carry_period_outs)
+        window_indexes = {p.period_index for p in window}
+        period_outs = [
+            p for p in carry_period_outs if p.period_index in window_indexes
+        ]
+    else:
+        period_outs = []
 
     total_flagged = sum(
         1 for p in period_outs for b in p.assigned_bills if b.status == "late_flagged"

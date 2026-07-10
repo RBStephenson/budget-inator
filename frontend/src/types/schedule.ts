@@ -10,6 +10,7 @@ export interface AssignedBill {
   category: string;
   placement_source: "inferred" | "manual" | "paid";
   manual_pay_date: string | null;
+  is_carried_over: boolean;
   sinking_fund_applied: string;
   sinking_fund_shortfall: string;
 }

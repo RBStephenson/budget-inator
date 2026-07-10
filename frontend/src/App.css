@@ -943,6 +943,11 @@ body {
   text-decoration-color: #9ca3af;
 }
 
+.bill-row--carried {
+  border-left: 3px solid #f59e0b;
+  padding-left: 0.75rem;
+}
+
 .bill-row__status-badge {
   font-size: 0.8rem;
   font-weight: 700;
@@ -955,6 +960,17 @@ body {
 
 .bill-row__status-badge--skipped {
   color: #9ca3af;
+}
+
+.bill-row__carry-badge {
+  border: 1px solid #f59e0b;
+  border-radius: var(--radius-sm);
+  color: #92400e;
+  background: #fffbeb;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
 .bill-row__actions {
