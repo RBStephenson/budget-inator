@@ -90,7 +90,11 @@ def test_effective_dated_edit_does_not_rewrite_past_schedule(
 
     after = client.get("/schedule?from=2025-01-03&to=2025-02-13").json()
     jan_after = after["periods"][0]["assigned_bills"][0]
-    feb_after = after["periods"][2]["assigned_bills"][0]
+    # January's still-unpaid Rent occurrence carries forward into February
+    # (see #152), so pick February's own occurrence rather than index 0.
+    feb_after = next(
+        b for b in after["periods"][2]["assigned_bills"] if not b["is_carried_over"]
+    )
 
     assert jan_after["name"] == "Rent"
     assert jan_after["amount"] == "800.00"
