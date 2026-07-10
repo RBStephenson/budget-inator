@@ -92,3 +92,7 @@ desktop.ini
 # ── Logs ──────────────────────────────────────────────────────────────────────
 *.log
 logs/
+
+# Local agent instructions
+.agents/
+AGENTS.md
