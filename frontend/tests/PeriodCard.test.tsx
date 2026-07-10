@@ -185,9 +185,68 @@ describe("PeriodCard", () => {
         })}
       />,
     );
-    expect(screen.getByText("$2,000.00")).toBeInTheDocument();
+    expect(screen.getAllByText("$2,000.00").length).toBeGreaterThan(0);
     expect(screen.getByText("−$800.00")).toBeInTheDocument();
     expect(screen.getByText("$1,200.00")).toBeInTheDocument();
+  });
+});
+
+describe("PeriodCard - starting balance actual", () => {
+  it("shows the editable starting balance row", () => {
+    render(<PeriodCard period={makePeriod({ opening_balance: "1500.00" })} />);
+
+    expect(screen.getByText("Starting balance")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /edit starting balance/i })).toBeInTheDocument();
+  });
+
+  it("saves a corrected starting balance and preserves recorded net pay", async () => {
+    const onRefetch = vi.fn();
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: async () => [
+          {
+            pay_date: "2025-01-03",
+            actual_net_pay: "2100.00",
+            actual_balance: "1400.00",
+          },
+        ],
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: async () => ({
+          pay_date: "2025-01-03",
+          actual_net_pay: "2100.00",
+          actual_balance: "1450.00",
+        }),
+      } as Response);
+
+    render(
+      <PeriodCard
+        period={makePeriod({ original_pay_date: "2025-01-03", opening_balance: "1400.00" })}
+        onRefetch={onRefetch}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /edit starting balance/i }));
+    const input = screen.getByRole("spinbutton", { name: /^starting balance$/i });
+    await userEvent.clear(input);
+    await userEvent.type(input, "1450.00");
+    await userEvent.click(screen.getByRole("button", { name: /confirm starting balance/i }));
+
+    await waitFor(() => expect(onRefetch).toHaveBeenCalledOnce());
+    expect(fetchSpy.mock.calls[0][0]).toContain("/pay-period-actuals");
+    expect(fetchSpy.mock.calls[1][0]).toContain("/pay-period-actuals/2025-01-03");
+    expect(fetchSpy.mock.calls[1][1]?.method).toBe("PUT");
+    expect(JSON.parse(String(fetchSpy.mock.calls[1][1]?.body))).toEqual({
+      actual_net_pay: "2100.00",
+      actual_balance: "1450",
+    });
   });
 });
 

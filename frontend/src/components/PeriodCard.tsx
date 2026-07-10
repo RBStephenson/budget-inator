@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { PayPeriod } from "../types/schedule";
 import { CATEGORY_LABELS, CATEGORY_ORDER } from "../types/bill";
 import { BillRow } from "./BillRow";
+import { listPayPeriodActuals, putPayPeriodActual } from "../api/payPeriodActuals";
 import { putPayPeriodOverride, deletePayPeriodOverride } from "../api/payPeriodOverrides";
 import { applyRebalance, previewRebalance } from "../api/rebalance";
 import { useToast } from "../context/ToastContext";
@@ -48,6 +49,9 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
   const [editingPayDate, setEditingPayDate] = useState(false);
   const [payDateInput, setPayDateInput] = useState("");
   const [savingPayDate, setSavingPayDate] = useState(false);
+  const [editingOpeningBalance, setEditingOpeningBalance] = useState(false);
+  const [openingBalanceInput, setOpeningBalanceInput] = useState("");
+  const [savingOpeningBalance, setSavingOpeningBalance] = useState(false);
   const [rebalancePreview, setRebalancePreview] = useState<RebalancePreview | null>(null);
   const [rebalanceLoading, setRebalanceLoading] = useState(false);
   const { addToast } = useToast();
@@ -98,6 +102,42 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
       onRefetch?.();
     } finally {
       setSavingPayDate(false);
+    }
+  }
+
+  function startOpeningBalanceEdit() {
+    setOpeningBalanceInput(String(parseFloat(period.opening_balance)));
+    setEditingOpeningBalance(true);
+  }
+
+  function cancelOpeningBalanceEdit() {
+    setEditingOpeningBalance(false);
+    setOpeningBalanceInput("");
+  }
+
+  async function saveOpeningBalance() {
+    const nextBalance = parseFloat(openingBalanceInput);
+    if (openingBalanceInput.trim() === "" || isNaN(nextBalance) || nextBalance < 0) {
+      addToast("Enter a starting balance of 0 or more.", "error");
+      return;
+    }
+
+    setSavingOpeningBalance(true);
+    try {
+      const actuals = await listPayPeriodActuals();
+      const existing = actuals.find((actual) => actual.pay_date === period.original_pay_date);
+      await putPayPeriodActual(period.original_pay_date, {
+        actualNetPay: existing?.actual_net_pay ?? undefined,
+        actualBalance: openingBalanceInput,
+      });
+      setEditingOpeningBalance(false);
+      setOpeningBalanceInput("");
+      addToast("Starting balance updated.", "success");
+      onRefetch?.();
+    } catch {
+      addToast("Could not update the starting balance. Please try again.", "error");
+    } finally {
+      setSavingOpeningBalance(false);
     }
   }
 
@@ -278,6 +318,52 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
                 ↺
               </button>
             )}
+          </span>
+        )}
+      </div>
+
+      <div className="period-card__opening-row">
+        <span className="period-card__opening-label">Starting balance</span>
+        {editingOpeningBalance ? (
+          <span className="period-card__opening-edit">
+            <input
+              className="period-card__opening-input"
+              type="number"
+              min="0"
+              step="0.01"
+              value={openingBalanceInput}
+              onChange={(e) => setOpeningBalanceInput(e.target.value)}
+              aria-label="Starting balance"
+              autoFocus
+            />
+            <button
+              className="btn-action btn-action--confirm"
+              disabled={savingOpeningBalance}
+              onClick={saveOpeningBalance}
+              aria-label="Confirm starting balance"
+            >
+              ✓
+            </button>
+            <button
+              className="btn-action"
+              disabled={savingOpeningBalance}
+              onClick={cancelOpeningBalanceEdit}
+              aria-label="Cancel starting balance edit"
+            >
+              ✕
+            </button>
+          </span>
+        ) : (
+          <span className="period-card__opening-value">
+            {fmtCurrency(period.opening_balance)}
+            <button
+              className="btn-icon"
+              onClick={startOpeningBalanceEdit}
+              aria-label="Edit starting balance"
+              disabled={savingOpeningBalance}
+            >
+              ✏
+            </button>
           </span>
         )}
       </div>
