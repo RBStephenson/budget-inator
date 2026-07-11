@@ -41,9 +41,9 @@ describe("BillFormModal — add mode", () => {
 
   it("switches to due-date field when recurrence changes to biweekly", async () => {
     renderWithToast(<BillFormModal onSave={vi.fn()} onClose={vi.fn()} />);
-    await userEvent.selectOptions(screen.getByLabelText(/recurrence/i), "biweekly");
+    await userEvent.click(screen.getByRole("button", { name: "Bi-weekly" }));
     expect(screen.queryByLabelText(/due day/i)).not.toBeInTheDocument();
-    expect(screen.getByLabelText(/due date/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/next due date/i)).toBeInTheDocument();
   });
 
   it("shows validation errors when submitting an empty form", async () => {
@@ -122,8 +122,8 @@ describe("BillFormModal — add mode", () => {
     await userEvent.type(screen.getByLabelText(/^name/i), "Insurance");
     await userEvent.type(screen.getByLabelText(/^amount/i), "1200");
     await userEvent.selectOptions(screen.getByLabelText(/category/i), "insurance");
-    await userEvent.selectOptions(screen.getByLabelText(/recurrence/i), "annual");
-    await userEvent.type(screen.getByLabelText(/due date/i), "2025-03-01");
+    await userEvent.click(screen.getByRole("button", { name: "Annual" }));
+    await userEvent.type(screen.getByLabelText(/next due date/i), "2025-03-01");
     await userEvent.click(screen.getByLabelText(/build a sinking fund/i));
     await userEvent.click(screen.getByRole("button", { name: /add bill/i }));
     await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
