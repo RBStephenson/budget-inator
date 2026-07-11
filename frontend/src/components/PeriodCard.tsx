@@ -5,6 +5,7 @@ import { BillRow } from "./BillRow";
 import { listPayPeriodActuals, putPayPeriodActual } from "../api/payPeriodActuals";
 import { putPayPeriodOverride, deletePayPeriodOverride } from "../api/payPeriodOverrides";
 import { applyRebalance, previewRebalance } from "../api/rebalance";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { useToast } from "../context/ToastContext";
 import { fmtCurrency } from "../utils/currency";
 import type { RebalancePreview } from "../types/schedule";
@@ -447,50 +448,36 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
       )}
 
       {rebalancePreview && (
-        <div className="modal-overlay" role="presentation">
-          <div className="modal modal--sm rebalance-dialog" role="dialog" aria-modal="true">
-            <h3>Rebalance available funds</h3>
-            {rebalancePreview.moves.length === 0 ? (
-              <p>No eligible future bills can move into this period right now.</p>
-            ) : (
-              <>
-                <p>
-                  Available changes from{" "}
-                  {fmtCurrency(rebalancePreview.source_remaining_before)} to{" "}
-                  {fmtCurrency(rebalancePreview.source_remaining_after)}.
-                </p>
-                <ul className="rebalance-dialog__moves">
-                  {rebalancePreview.moves.map((move) => (
-                    <li key={`${move.bill_id}-${move.due_date}`}>
-                      <strong>{move.name}</strong>
-                      <span>
-                        {fmtDateShort(move.from_pay_date)} to{" "}
-                        {fmtDateShort(move.to_pay_date)} · {fmtCurrency(move.amount)}
-                      </span>
-                      <small>{move.reason}</small>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-            <div className="confirm-dialog__actions">
-              <button
-                className="btn btn--secondary"
-                onClick={() => setRebalancePreview(null)}
-                disabled={rebalanceLoading}
-              >
-                Cancel
-              </button>
-              <button
-                className="btn btn--primary"
-                onClick={confirmRebalance}
-                disabled={rebalanceLoading}
-              >
-                {rebalancePreview.moves.length === 0 ? "Done" : "Apply moves"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          title="Rebalance available funds"
+          message={
+            rebalancePreview.moves.length === 0
+              ? "No eligible future bills can move into this period right now."
+              : `Available changes from ${fmtCurrency(
+                  rebalancePreview.source_remaining_before,
+                )} to ${fmtCurrency(rebalancePreview.source_remaining_after)}.`
+          }
+          confirmLabel={rebalancePreview.moves.length === 0 ? "Done" : "Apply moves"}
+          onConfirm={confirmRebalance}
+          onCancel={() => setRebalancePreview(null)}
+          confirmDisabled={rebalanceLoading}
+        >
+          {rebalancePreview.moves.length > 0 && (
+            <ul className="rebalance-dialog__moves">
+              {rebalancePreview.moves.map((move) => (
+                <li key={`${move.bill_id}-${move.due_date}`}>
+                  <span className="rebalance-dialog__move-icon" aria-hidden="true">↔</span>
+                  <strong>{move.name}</strong>
+                  <span>
+                    {fmtDateShort(move.from_pay_date)} to{" "}
+                    {fmtDateShort(move.to_pay_date)} · {fmtCurrency(move.amount)}
+                  </span>
+                  <small>{move.reason}</small>
+                </li>
+              ))}
+            </ul>
+          )}
+        </ConfirmDialog>
       )}
     </div>
   );

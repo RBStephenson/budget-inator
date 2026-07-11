@@ -96,4 +96,32 @@ describe("ConfirmDialog", () => {
       expect(screen.getByRole("button", { name: "Confirm" })).not.toBeDisabled();
     });
   });
+
+  describe("multi-item confirm (children slot)", () => {
+    it("renders extra content between the message and the action buttons", () => {
+      render(
+        <ConfirmDialog message="Preview changes" onConfirm={vi.fn()} onCancel={vi.fn()}>
+          <ul>
+            <li>Move A</li>
+            <li>Move B</li>
+          </ul>
+        </ConfirmDialog>,
+      );
+      expect(screen.getByText("Move A")).toBeInTheDocument();
+      expect(screen.getByText("Move B")).toBeInTheDocument();
+    });
+
+    it("respects an externally-controlled confirmDisabled prop", () => {
+      render(
+        <ConfirmDialog
+          message="Preview changes"
+          confirmLabel="Apply moves"
+          onConfirm={vi.fn()}
+          onCancel={vi.fn()}
+          confirmDisabled
+        />,
+      );
+      expect(screen.getByRole("button", { name: "Apply moves" })).toBeDisabled();
+    });
+  });
 });
