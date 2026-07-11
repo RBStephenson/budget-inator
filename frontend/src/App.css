@@ -434,6 +434,14 @@ body {
   flex: 1 1 8rem;
 }
 
+.quick-add__input--recurrence {
+  flex: 1 1 8rem;
+}
+
+.quick-add__input--due {
+  flex: 1 1 6rem;
+}
+
 .quick-add__submit {
   min-height: 44px;
 }
@@ -1427,6 +1435,17 @@ body {
   background: linear-gradient(180deg, #ffffff 0%, var(--color-surface-alt) 100%);
 }
 
+.bill-table-controls .bill-table-search,
+.bill-table-controls .bill-table-category-filter,
+.bill-table-controls .btn-sort,
+.bill-table-controls .btn-clear-filters {
+  min-height: 44px;
+}
+
+.bill-table__actions .btn-action {
+  min-height: 44px;
+}
+
 .bill-table-controls__label {
   font-size: 0.8rem;
   color: #9ca3af;
@@ -1547,7 +1566,7 @@ body {
 }
 
 .bill-table tfoot td {
-  border-top: 1px solid var(--color-border-strong);
+  border-top: 2px solid var(--color-border-strong);
   border-bottom: none;
   font-weight: 600;
   padding-top: 0.75rem;
