@@ -134,185 +134,211 @@ export function BillFormModal({ bill, onSave, onClose }: Props) {
   const isMonthly = form.recurrence === "monthly";
 
   return (
-    <div className="modal-overlay" role="dialog" aria-modal="true" aria-label={bill ? "Edit bill" : "Add bill"}>
-      <div className="modal">
-        <div className="modal__header">
-          <h2 className="modal__title">{bill ? "Edit bill" : "Add bill"}</h2>
-          <button className="modal__close" onClick={onClose} aria-label="Close">✕</button>
+    <div className="slideover-backdrop" onClick={onClose}>
+      <div
+        className="slideover"
+        role="dialog"
+        aria-modal="true"
+        aria-label={bill ? "Edit bill" : "Add bill"}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="slideover__header">
+          <h2 className="slideover__title">{bill ? "Edit bill" : "Add bill"}</h2>
+          <button className="slideover__close" onClick={onClose} aria-label="Close">✕</button>
         </div>
 
-        <form onSubmit={handleSubmit} noValidate>
-          <div className="form-grid">
-            <div className="form-field form-field--wide">
-              <label htmlFor="bf-name">Name</label>
-              <input
-                id="bf-name"
-                ref={nameRef}
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              />
-              {errors.name && <span className="form-error">{errors.name}</span>}
-            </div>
+        <form onSubmit={handleSubmit} noValidate className="slideover__form">
+          <div className="slideover__body">
+            <section className="form-section">
+              <h3 className="form-section__title">1 · Basics</h3>
 
-            {bill && (
               <div className="form-field">
-                <label htmlFor="bf-effective-date">Effective date</label>
+                <label htmlFor="bf-name">Name</label>
                 <input
-                  id="bf-effective-date"
-                  type="date"
-                  value={form.effective_date}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, effective_date: e.target.value }))
-                  }
+                  id="bf-name"
+                  ref={nameRef}
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 />
-                <span className="form-hint">
-                  Applies this edit from this date forward. Use payment status to
-                  correct one occurrence.
-                </span>
+                {errors.name && <span className="form-error">{errors.name}</span>}
               </div>
-            )}
 
-            <div className="form-field">
-              <label htmlFor="bf-amount">
-                Amount {form.is_variable && <span className="form-hint">(estimated)</span>}
-              </label>
-              <input
-                id="bf-amount"
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={form.amount}
-                onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-              />
-              {errors.amount && <span className="form-error">{errors.amount}</span>}
-            </div>
+              {bill && (
+                <div className="form-field">
+                  <label htmlFor="bf-effective-date">Effective date</label>
+                  <input
+                    id="bf-effective-date"
+                    type="date"
+                    value={form.effective_date}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, effective_date: e.target.value }))
+                    }
+                  />
+                  <span className="form-hint">
+                    Applies this edit from this date forward. Use payment status to
+                    correct one occurrence.
+                  </span>
+                </div>
+              )}
 
-            <div className="form-field">
-              <label htmlFor="bf-category">Category</label>
-              <select
-                id="bf-category"
-                value={form.category}
-                onChange={(e) => setForm((f) => ({ ...f, category: e.target.value as BillCategory }))}
-              >
-                <option value="">Select…</option>
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
-                ))}
-              </select>
-              {errors.category && <span className="form-error">{errors.category}</span>}
-            </div>
-
-            <div className="form-field">
-              <label htmlFor="bf-recurrence">Recurrence</label>
-              <select
-                id="bf-recurrence"
-                value={form.recurrence}
-                onChange={(e) => setRecurrence(e.target.value as BillRecurrence)}
-              >
-                {RECURRENCES.map((r) => (
-                  <option key={r} value={r}>{RECURRENCE_LABELS[r]}</option>
-                ))}
-              </select>
-            </div>
-
-            {isMonthly ? (
               <div className="form-field">
-                <label htmlFor="bf-due-day">Due day (1–31)</label>
+                <label htmlFor="bf-amount">
+                  Amount {form.is_variable && <span className="form-hint">(estimated)</span>}
+                </label>
                 <input
-                  id="bf-due-day"
+                  id="bf-amount"
                   type="number"
-                  min="1"
-                  max="31"
-                  value={form.due_day}
-                  disabled={form.due_day_is_month_end}
-                  onChange={(e) => setForm((f) => ({ ...f, due_day: e.target.value }))}
+                  min="0.01"
+                  step="0.01"
+                  value={form.amount}
+                  onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
                 />
+                {errors.amount && <span className="form-error">{errors.amount}</span>}
+              </div>
+
+              <div className="form-field">
+                <label htmlFor="bf-category">Category</label>
+                <select
+                  id="bf-category"
+                  value={form.category}
+                  onChange={(e) => setForm((f) => ({ ...f, category: e.target.value as BillCategory }))}
+                >
+                  <option value="">Select…</option>
+                  {CATEGORIES.map((c) => (
+                    <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
+                  ))}
+                </select>
+                {errors.category && <span className="form-error">{errors.category}</span>}
+              </div>
+            </section>
+
+            <section className="form-section">
+              <h3 className="form-section__title">2 · Schedule</h3>
+
+              <div className="form-field form-field--wide">
+                <span className="form-field__label">Recurrence</span>
+                <div className="recurrence-pills" role="group" aria-label="Recurrence">
+                  {RECURRENCES.map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      className={
+                        r === form.recurrence
+                          ? "recurrence-pill recurrence-pill--active"
+                          : "recurrence-pill"
+                      }
+                      aria-pressed={r === form.recurrence}
+                      onClick={() => setRecurrence(r)}
+                    >
+                      {RECURRENCE_LABELS[r]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {isMonthly ? (
+                <div className="form-field">
+                  <label htmlFor="bf-due-day">Due day (1–31)</label>
+                  <input
+                    id="bf-due-day"
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={form.due_day}
+                    disabled={form.due_day_is_month_end}
+                    onChange={(e) => setForm((f) => ({ ...f, due_day: e.target.value }))}
+                  />
+                  <label className="form-toggle">
+                    <input
+                      type="checkbox"
+                      checked={form.due_day_is_month_end}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          due_day_is_month_end: e.target.checked,
+                        }))
+                      }
+                    />
+                    Last day of month
+                  </label>
+                  {errors.due_day && <span className="form-error">{errors.due_day}</span>}
+                </div>
+              ) : (
+                <div className="form-field">
+                  <label htmlFor="bf-due-date">Next due date</label>
+                  <input
+                    id="bf-due-date"
+                    type="date"
+                    value={form.due_date}
+                    onChange={(e) => setForm((f) => ({ ...f, due_date: e.target.value }))}
+                  />
+                  {errors.due_date && <span className="form-error">{errors.due_date}</span>}
+                </div>
+              )}
+
+              <div className="form-field">
+                <label htmlFor="bf-grace">Grace period (days)</label>
+                <input
+                  id="bf-grace"
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={form.grace_period_days}
+                  onChange={(e) => setForm((f) => ({ ...f, grace_period_days: e.target.value }))}
+                />
+                {errors.grace_period_days && (
+                  <span className="form-error">{errors.grace_period_days}</span>
+                )}
+              </div>
+            </section>
+
+            <section className="form-section">
+              <h3 className="form-section__title">3 · Options</h3>
+
+              <div className="form-field form-field--wide">
                 <label className="form-toggle">
                   <input
                     type="checkbox"
-                    checked={form.due_day_is_month_end}
+                    checked={form.is_variable}
+                    onChange={(e) => setForm((f) => ({ ...f, is_variable: e.target.checked }))}
+                  />
+                  Variable amount (actual may differ from estimate)
+                </label>
+              </div>
+
+              <div className="form-field form-field--wide">
+                <label className="form-toggle">
+                  <input
+                    type="checkbox"
+                    checked={form.sinking_fund_enabled}
                     onChange={(e) =>
                       setForm((f) => ({
                         ...f,
-                        due_day_is_month_end: e.target.checked,
+                        sinking_fund_enabled: e.target.checked,
                       }))
                     }
                   />
-                  Last day of month
+                  Build a sinking fund for this bill
                 </label>
-                {errors.due_day && <span className="form-error">{errors.due_day}</span>}
+                <span className="form-hint">
+                  Reserves part of each paycheck before the next due date, useful
+                  for quarterly, semi-annual, and annual bills.
+                </span>
               </div>
-            ) : (
-              <div className="form-field">
-                <label htmlFor="bf-due-date">Due date</label>
-                <input
-                  id="bf-due-date"
-                  type="date"
-                  value={form.due_date}
-                  onChange={(e) => setForm((f) => ({ ...f, due_date: e.target.value }))}
+
+              <div className="form-field form-field--wide">
+                <label htmlFor="bf-notes">Notes (optional)</label>
+                <textarea
+                  id="bf-notes"
+                  rows={2}
+                  value={form.notes}
+                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
                 />
-                {errors.due_date && <span className="form-error">{errors.due_date}</span>}
               </div>
-            )}
-
-            <div className="form-field">
-              <label htmlFor="bf-grace">Grace period (days)</label>
-              <input
-                id="bf-grace"
-                type="number"
-                min="0"
-                placeholder="0"
-                value={form.grace_period_days}
-                onChange={(e) => setForm((f) => ({ ...f, grace_period_days: e.target.value }))}
-              />
-              {errors.grace_period_days && (
-                <span className="form-error">{errors.grace_period_days}</span>
-              )}
-            </div>
-
-            <div className="form-field form-field--wide">
-              <label className="form-toggle">
-                <input
-                  type="checkbox"
-                  checked={form.is_variable}
-                  onChange={(e) => setForm((f) => ({ ...f, is_variable: e.target.checked }))}
-                />
-                Variable amount (actual may differ from estimate)
-              </label>
-            </div>
-
-            <div className="form-field form-field--wide">
-              <label className="form-toggle">
-                <input
-                  type="checkbox"
-                  checked={form.sinking_fund_enabled}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      sinking_fund_enabled: e.target.checked,
-                    }))
-                  }
-                />
-                Build a sinking fund for this bill
-              </label>
-              <span className="form-hint">
-                Reserves part of each paycheck before the next due date, useful
-                for quarterly, semi-annual, and annual bills.
-              </span>
-            </div>
-
-            <div className="form-field form-field--wide">
-              <label htmlFor="bf-notes">Notes (optional)</label>
-              <textarea
-                id="bf-notes"
-                rows={2}
-                value={form.notes}
-                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-              />
-            </div>
+            </section>
           </div>
 
-          <div className="modal__footer">
+          <div className="slideover__footer">
             <button type="button" className="btn btn--ghost" onClick={onClose}>
               Cancel
             </button>
