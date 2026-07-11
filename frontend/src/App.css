@@ -1949,10 +1949,18 @@ body {
 }
 
 .settings-page__content {
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(20rem, 0.85fr);
-  gap: 1.25rem;
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.settings-form .form-field input,
+.settings-form .form-field select {
+  min-height: 48px;
+}
+
+.settings-data__row .btn {
+  min-height: 48px;
 }
 
 .settings-card {
@@ -2029,7 +2037,11 @@ body {
 
 .settings-data__item--danger {
   background: #fef2f2;
-  border-color: #fecaca;
+  border: 2px solid #fecaca;
+}
+
+.settings-data__item--danger .settings-data__desc {
+  color: #991b1b;
 }
 
 .settings-data__desc {
@@ -2081,7 +2093,6 @@ body {
     width: 100%;
   }
 
-  .settings-page__content,
   .help-page__body {
     grid-template-columns: 1fr;
   }

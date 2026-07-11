@@ -374,6 +374,7 @@ export function SettingsPage() {
                 disabled={deleteStatus === "busy"}
                 aria-label="Delete all data"
               >
+                <span aria-hidden="true">🗑 </span>
                 {deleteStatus === "busy" ? "Deleting…" : "Delete all data"}
               </button>
               {deleteStatus === "done" && (

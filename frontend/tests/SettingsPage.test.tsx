@@ -392,6 +392,20 @@ describe("SettingsPage — data management", () => {
     expect(screen.getByText(/enter your pay details/i)).toBeInTheDocument();
   });
 
+  it("renders the danger zone as visually distinct from the other data rows", async () => {
+    mockFetch404();
+    renderWithToast(<SettingsPage />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /delete all data/i })).toBeInTheDocument(),
+    );
+
+    const deleteButton = screen.getByRole("button", { name: /delete all data/i });
+    const dangerRow = deleteButton.closest(".settings-data__item--danger");
+    expect(dangerRow).not.toBeNull();
+    expect(dangerRow).toHaveClass("settings-data__item--danger");
+    expect(deleteButton).toHaveClass("btn--danger");
+  });
+
   it("refreshes the form from re-fetched data after import (#81)", async () => {
     vi.spyOn(globalThis, "fetch")
       // initial load: no schedule yet
