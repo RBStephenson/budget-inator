@@ -52,6 +52,8 @@ export function HelpPage() {
             it, collapsed by default. Each card shows:
           </p>
           <ul>
+            <li>Stat cards for available cash, bills due, late flags, and paid progress</li>
+            <li>Quick Add for fast monthly bills, with a link to the full bill form</li>
             <li>Bills grouped by category with per-category subtotals</li>
             <li>
               <strong>Available to spend</strong> — opening balance minus all pending and
@@ -59,6 +61,21 @@ export function HelpPage() {
               amber (&lt;20&nbsp;%), red (overspent)
             </li>
           </ul>
+
+          <p>
+            After payday, a banner asks for your actual deposit or current balance.
+            Saving either value re-anchors the rolling projection from that pay date.
+            You can also edit the starting balance directly on a period card.
+          </p>
+          <p>
+            If a period has money left over, use <strong>Rebalance available funds</strong>{" "}
+            to preview eligible future bills that can move into that paycheck. Applied
+            moves can be reset from the bill row.
+          </p>
+          <p>
+            Expand <strong>Past periods</strong> to review completed periods and
+            retroactively mark missed payments.
+          </p>
 
           <h4 className="help-section__subtitle">By Month</h4>
           <p>
@@ -83,6 +100,12 @@ export function HelpPage() {
             Deactivated bills are hidden from the schedule but not permanently deleted.
             Edits use an effective date, so past schedule, monthly summary, and PDF
             history keep the bill terms that applied at the time.
+          </p>
+          <p>
+            Use Quick Add for common bills, or open the full form for effective dates,
+            month-end due rules, grace periods, sinking funds, variable amounts, and notes.
+            The bills table can be searched, filtered by category, sorted by name or
+            annual cost, and expanded to show inactive bills.
           </p>
           <table className="help-table">
             <thead>
@@ -124,6 +147,7 @@ export function HelpPage() {
                   variable bills are applied against the reserve when entered.
                 </td>
               </tr>
+              <tr><td>Notes</td><td>Optional reminder text saved with the bill and included in backups</td></tr>
             </tbody>
           </table>
         </section>
@@ -137,6 +161,13 @@ export function HelpPage() {
             <li><strong>↺ Pending</strong> — resets back to pending (the default)</li>
           </ul>
           <p>Status changes apply only to that bill in that specific period.</p>
+          <p>
+            When a pay period becomes past, any bills left unpaid from that period
+            appear in the current period card with an{" "}
+            <strong>Unpaid from previous period</strong> badge. These reminders keep
+            the original due date and are not added to the current period&apos;s total
+            a second time.
+          </p>
 
           <h4 className="help-section__subtitle">Variable bill actuals</h4>
           <p>
@@ -150,6 +181,11 @@ export function HelpPage() {
             Click the pencil icon next to the pay date on any period card to enter an
             actual pay date. The override applies to that period only and is used when
             flagging late bills.
+          </p>
+          <p>
+            Use <strong>Move</strong> on a bill row to place that specific unpaid
+            occurrence on a different pay date. Use <strong>Reset move</strong> to
+            return it to the computed schedule.
           </p>
         </section>
 
@@ -169,7 +205,7 @@ export function HelpPage() {
           </p>
           <ul>
             <li><strong>Pay Period Schedule</strong> — each upcoming period with its bills, statuses, and available-to-spend balance</li>
-            <li><strong>Monthly Summary</strong> — monthly income, total bills, and net remaining across the full schedule window</li>
+            <li><strong>Monthly Summary</strong> — monthly income, total bills, sinking-fund reserves, and net remaining across the full schedule window</li>
           </ul>
         </section>
 
@@ -188,7 +224,7 @@ export function HelpPage() {
 
           <h4 className="help-section__subtitle">Data management</h4>
           <ul>
-            <li><strong>Export backup</strong> — downloads a JSON file with your full pay schedule, bills, and payment history</li>
+            <li><strong>Export backup</strong> — downloads a JSON file with your full pay schedule, bills, effective-dated bill history, payment history, adjusted pay dates, and payday actuals</li>
             <li><strong>Import backup</strong> — restores from a backup file; this overwrites all current data</li>
             <li><strong>Delete all data</strong> — permanently removes everything and returns the app to the first-time setup state</li>
           </ul>
