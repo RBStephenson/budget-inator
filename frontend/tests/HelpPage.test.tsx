@@ -35,6 +35,13 @@ describe("HelpPage", () => {
     expect(screen.getAllByText(/15th\/month-end/i).length).toBeGreaterThan(0);
   });
 
+  it("documents unpaid bill carryover reminders", () => {
+    render(<HelpPage />);
+    expect(screen.getByText(/unpaid from previous period/i)).toBeInTheDocument();
+    expect(screen.getByText(/original due date/i)).toBeInTheDocument();
+    expect(screen.getByText(/not added to the current period/i)).toBeInTheDocument();
+  });
+
   it("navigates to / when the back link is clicked", async () => {
     const user = userEvent.setup();
     const pushState = vi.spyOn(history, "pushState");

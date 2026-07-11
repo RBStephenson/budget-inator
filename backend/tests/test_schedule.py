@@ -155,60 +155,69 @@ def test_bills_assigned_to_correct_period(client: TestClient, db):
     periods = resp.json()["periods"]
     p0_names = [b["name"] for b in periods[0]["assigned_bills"]]
     assert "Internet" in p0_names
-    p1_internet = next(
-        b for b in periods[1]["assigned_bills"] if b["name"] == "Internet"
-    )
-    assert p1_internet["due_date"] == "2025-01-15"
-    assert p1_internet["is_carried_over"] is True
+    assert all(b["name"] != "Internet" for b in periods[1]["assigned_bills"])
 
 
-def test_unpaid_bill_carries_forward_without_changing_due_date_or_totals(
+def test_unpaid_bill_carries_into_current_period_only(
     client: TestClient, db
 ):
-    _make_schedule(db, first_paycheck=date(2025, 1, 3), net_salary="1000.00")
-    _make_monthly_bill(db, name="Internet", amount="100.00", due_day=15)
+    today = date.today()
+    due_date = today - timedelta(days=7)
+    _make_schedule(db, first_paycheck=today - timedelta(days=14), net_salary="1000.00")
+    _make_one_time_bill(db, name="Internet", amount="100.00", due_date=due_date)
 
-    resp = client.get("/schedule?from=2025-01-03&to=2025-01-30")
+    resp = client.get("/schedule")
     assert resp.status_code == 200
     periods = resp.json()["periods"]
-    carried = next(b for b in periods[1]["assigned_bills"] if b["name"] == "Internet")
+    current, upcoming = periods[0], periods[1:]
+    carried = next(b for b in current["assigned_bills"] if b["name"] == "Internet")
 
-    assert carried["due_date"] == "2025-01-15"
+    assert carried["due_date"] == due_date.isoformat()
     assert carried["is_carried_over"] is True
-    assert float(periods[0]["total_bills"]) == pytest.approx(100.0)
-    assert float(periods[1]["total_bills"]) == pytest.approx(0.0)
+    assert float(current["total_bills"]) == pytest.approx(0.0)
+    assert all(
+        b["name"] != "Internet"
+        for period in upcoming
+        for b in period["assigned_bills"]
+    )
 
 
-def test_paid_bill_does_not_carry_forward(client: TestClient, db):
-    _make_schedule(db, first_paycheck=date(2025, 1, 3))
-    bill = _make_monthly_bill(db, name="Internet", due_day=15)
+def test_paid_bill_does_not_carry_into_current_period(client: TestClient, db):
+    today = date.today()
+    due_date = today - timedelta(days=7)
+    _make_schedule(db, first_paycheck=today - timedelta(days=14))
+    bill = _make_one_time_bill(db, name="Internet", amount="100.00", due_date=due_date)
 
     patch = client.patch(
-        f"/bill-instances/{bill.id}/2025-01-15",
+        f"/bill-instances/{bill.id}/{due_date.isoformat()}",
         json={"status": "paid"},
     )
     assert patch.status_code == 200
 
-    resp = client.get("/schedule?from=2025-01-03&to=2025-01-30")
+    resp = client.get("/schedule")
     assert resp.status_code == 200
     periods = resp.json()["periods"]
-    assert all(b["name"] != "Internet" for b in periods[1]["assigned_bills"])
+    internet = next(b for b in periods[0]["assigned_bills"] if b["name"] == "Internet")
+    assert internet["status"] == "paid"
+    assert internet["is_carried_over"] is False
 
 
-def test_skipped_bill_does_not_carry_forward(client: TestClient, db):
-    _make_schedule(db, first_paycheck=date(2025, 1, 3))
-    bill = _make_monthly_bill(db, name="Internet", due_day=15)
+def test_skipped_bill_does_not_carry_into_current_period(client: TestClient, db):
+    today = date.today()
+    due_date = today - timedelta(days=7)
+    _make_schedule(db, first_paycheck=today - timedelta(days=14))
+    bill = _make_one_time_bill(db, name="Internet", amount="100.00", due_date=due_date)
 
     patch = client.patch(
-        f"/bill-instances/{bill.id}/2025-01-15",
+        f"/bill-instances/{bill.id}/{due_date.isoformat()}",
         json={"status": "skipped"},
     )
     assert patch.status_code == 200
 
-    resp = client.get("/schedule?from=2025-01-03&to=2025-01-30")
+    resp = client.get("/schedule")
     assert resp.status_code == 200
     periods = resp.json()["periods"]
-    assert all(b["name"] != "Internet" for b in periods[1]["assigned_bills"])
+    assert all(b["name"] != "Internet" for b in periods[0]["assigned_bills"])
 
 
 def test_rolling_balance_carries_over(client: TestClient, db):
@@ -434,9 +443,7 @@ def test_manual_pay_date_relocates_unpaid_bill(client: TestClient, db):
     p0_bill = next(b for b in periods[0]["assigned_bills"] if b["name"] == "Internet")
     assert p0_bill["placement_source"] == "manual"
     assert p0_bill["manual_pay_date"] == "2025-01-03"
-    p1_bill = next(b for b in periods[1]["assigned_bills"] if b["name"] == "Internet")
-    assert p1_bill["due_date"] == "2025-01-20"
-    assert p1_bill["is_carried_over"] is True
+    assert all(b["name"] != "Internet" for b in periods[1]["assigned_bills"])
 
 
 def test_rebalance_preview_suggests_pulling_future_bill_back(client: TestClient, db):

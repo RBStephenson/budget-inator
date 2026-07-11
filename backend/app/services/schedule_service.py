@@ -250,24 +250,28 @@ def _to_period_out(
     )
 
 
-def _add_carried_unpaid_bills(periods: list[PayPeriodOut]) -> None:
+def _add_carried_unpaid_bills(
+    periods: list[PayPeriodOut],
+    carry_target_index: int,
+) -> None:
     carried: dict[tuple[int, date], AssignedBillOut] = {}
 
     for period in periods:
         current_bills = list(period.assigned_bills)
         current_keys = {(bill.bill_id, bill.due_date) for bill in current_bills}
-        carry_ins = [
-            bill.model_copy(update={"is_carried_over": True})
-            for key, bill in carried.items()
-            if key not in current_keys
-        ]
-        period.assigned_bills = sorted(
-            [*current_bills, *carry_ins],
-            key=lambda bill: (bill.due_date, bill.name.lower(), bill.bill_id),
-        )
-        period.flagged_bill_count = sum(
-            1 for bill in period.assigned_bills if bill.status == "late_flagged"
-        )
+        if period.period_index == carry_target_index:
+            carry_ins = [
+                bill.model_copy(update={"is_carried_over": True})
+                for key, bill in carried.items()
+                if key not in current_keys
+            ]
+            period.assigned_bills = sorted(
+                [*current_bills, *carry_ins],
+                key=lambda bill: (bill.due_date, bill.name.lower(), bill.bill_id),
+            )
+            period.flagged_bill_count = sum(
+                1 for bill in period.assigned_bills if bill.status == "late_flagged"
+            )
 
         next_carried: dict[tuple[int, date], AssignedBillOut] = {}
         for bill in period.assigned_bills:
@@ -425,7 +429,8 @@ def build_schedule(
         carry_period_outs = [
             _to_period_out(p, instances, override_map) for p in carry_periods
         ]
-        _add_carried_unpaid_bills(carry_period_outs)
+        carry_target_index = _find_current_index(all_periods, today)
+        _add_carried_unpaid_bills(carry_period_outs, carry_target_index)
         window_indexes = {p.period_index for p in window}
         period_outs = [p for p in carry_period_outs if p.period_index in window_indexes]
     else:

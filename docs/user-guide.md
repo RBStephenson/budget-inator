@@ -119,7 +119,7 @@ Each bill row on the period card has three action buttons:
 
 Status changes apply only to that bill's occurrence in that specific period. They don't affect other periods or the bill's configuration.
 
-Unpaid bills from earlier pay periods remain visible in later period cards with an **Unpaid from previous period** badge. These carried rows keep the original due date and are visual reminders only; the bill is not added to that later period's total a second time.
+When a pay period becomes past, any bills left unpaid from that period appear in the current period card with an **Unpaid from previous period** badge. These carried rows keep the original due date and are visual reminders only; the bill is not added to the current period's total a second time.
 
 ### Sinking funds
 

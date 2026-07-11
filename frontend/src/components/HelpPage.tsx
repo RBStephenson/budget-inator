@@ -137,6 +137,13 @@ export function HelpPage() {
             <li><strong>↺ Pending</strong> — resets back to pending (the default)</li>
           </ul>
           <p>Status changes apply only to that bill in that specific period.</p>
+          <p>
+            When a pay period becomes past, any bills left unpaid from that period
+            appear in the current period card with an{" "}
+            <strong>Unpaid from previous period</strong> badge. These reminders keep
+            the original due date and are not added to the current period&apos;s total
+            a second time.
+          </p>
 
           <h4 className="help-section__subtitle">Variable bill actuals</h4>
           <p>
