@@ -99,7 +99,8 @@ export function BillsPage() {
 
       {deactivateTarget && (
         <ConfirmDialog
-          message={`Deactivate "${deactivateTarget.name}"? It will be hidden from the schedule.`}
+          title={`Deactivate "${deactivateTarget.name}"?`}
+          message="It will be hidden from the schedule."
           confirmLabel={deactivating ? "Deactivating…" : "Deactivate"}
           onConfirm={handleDeactivateConfirm}
           onCancel={() => setDeactivateTarget(null)}

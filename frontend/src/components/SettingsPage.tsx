@@ -387,10 +387,12 @@ export function SettingsPage() {
 
       {showDeleteConfirm && (
         <ConfirmDialog
-          message="Delete all data? Your pay schedule, bills, and bill history will be permanently removed. This cannot be undone."
+          title="Delete all data?"
+          message="Your pay schedule, bills, and bill history will be permanently removed. This cannot be undone."
           confirmLabel="Delete everything"
           onConfirm={handleDeleteConfirmed}
           onCancel={() => setShowDeleteConfirm(false)}
+          destructive
         />
       )}
     </div>

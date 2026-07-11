@@ -44,4 +44,56 @@ describe("ConfirmDialog", () => {
     );
     expect(screen.getByText("Delete it")).toBeInTheDocument();
   });
+
+  it("renders a title when provided", () => {
+    render(
+      <ConfirmDialog
+        title="Deactivate this bill?"
+        message="It will be hidden from the schedule."
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("heading", { name: "Deactivate this bill?" }),
+    ).toBeInTheDocument();
+  });
+
+  describe("destructive variant", () => {
+    it("disables the confirm button until DELETE is typed exactly", async () => {
+      const user = userEvent.setup();
+      const onConfirm = vi.fn();
+      render(
+        <ConfirmDialog
+          message="This cannot be undone."
+          confirmLabel="Delete everything"
+          onConfirm={onConfirm}
+          onCancel={vi.fn()}
+          destructive
+        />,
+      );
+
+      const confirmButton = screen.getByRole("button", { name: "Delete everything" });
+      expect(confirmButton).toBeDisabled();
+
+      const gate = screen.getByLabelText(/type delete to confirm/i);
+      await user.type(gate, "delete");
+      expect(confirmButton).toBeDisabled();
+
+      await user.clear(gate);
+      await user.type(gate, "DELETE");
+      expect(confirmButton).not.toBeDisabled();
+
+      await user.click(confirmButton);
+      expect(onConfirm).toHaveBeenCalledOnce();
+    });
+
+    it("does not show the DELETE gate for a standard (non-destructive) dialog", () => {
+      render(
+        <ConfirmDialog message="Sure?" onConfirm={vi.fn()} onCancel={vi.fn()} />,
+      );
+      expect(screen.queryByLabelText(/type delete to confirm/i)).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Confirm" })).not.toBeDisabled();
+    });
+  });
 });
