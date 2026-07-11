@@ -158,9 +158,7 @@ def test_bills_assigned_to_correct_period(client: TestClient, db):
     assert all(b["name"] != "Internet" for b in periods[1]["assigned_bills"])
 
 
-def test_unpaid_bill_carries_into_current_period_only(
-    client: TestClient, db
-):
+def test_unpaid_bill_carries_into_current_period_only(client: TestClient, db):
     today = date.today()
     due_date = today - timedelta(days=7)
     _make_schedule(db, first_paycheck=today - timedelta(days=14), net_salary="1000.00")
@@ -176,9 +174,7 @@ def test_unpaid_bill_carries_into_current_period_only(
     assert carried["is_carried_over"] is True
     assert float(current["total_bills"]) == pytest.approx(0.0)
     assert all(
-        b["name"] != "Internet"
-        for period in upcoming
-        for b in period["assigned_bills"]
+        b["name"] != "Internet" for period in upcoming for b in period["assigned_bills"]
     )
 
 
