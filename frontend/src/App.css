@@ -2401,7 +2401,7 @@ body {
 
 .help-page__body {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
   align-items: start;
 }
@@ -2435,10 +2435,6 @@ body {
   border: 1px solid #e5e7eb;
   border-radius: 0.9rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-}
-
-.help-section:nth-child(3) {
-  grid-column: 1 / -1;
 }
 
 .help-table {
