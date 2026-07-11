@@ -319,6 +319,11 @@ describe("PeriodCard - explicit rebalance", () => {
     expect(
       screen.getByText(/available changes from \$1,500.00 to \$1,000.00/i),
     ).toBeInTheDocument();
+    // Renders inside the shared ConfirmDialog shell (BI-10), not an ad-hoc modal
+    expect(
+      screen.getByRole("heading", { name: /rebalance available funds/i }),
+    ).toBeInTheDocument();
+    expect(document.querySelector(".confirm-dialog")).not.toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: /apply moves/i }));
     await waitFor(() => expect(onRefetch).toHaveBeenCalledOnce());

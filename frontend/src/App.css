@@ -2011,21 +2011,15 @@ body {
   min-height: 48px;
 }
 
-.rebalance-dialog {
-  padding-top: 1.25rem;
-}
-
-.rebalance-dialog h3,
-.rebalance-dialog p {
-  margin: 0 1.5rem 1rem;
-}
-
 .rebalance-dialog__moves {
   display: grid;
   gap: 0.75rem;
   margin: 0 1.5rem 1.25rem;
   padding: 0;
   list-style: none;
+  text-align: left;
+  max-height: 40vh;
+  overflow-y: auto;
 }
 
 .rebalance-dialog__moves li {
@@ -2034,6 +2028,11 @@ body {
   padding: 0.75rem;
   border: 1px solid #e5e7eb;
   border-radius: 0.5rem;
+}
+
+.rebalance-dialog__move-icon {
+  color: var(--color-primary);
+  font-weight: 700;
 }
 
 .rebalance-dialog__moves span,
