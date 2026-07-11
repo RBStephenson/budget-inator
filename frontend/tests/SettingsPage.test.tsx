@@ -335,6 +335,7 @@ describe("SettingsPage — data management", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: /delete all data/i }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/type delete to confirm/i), "DELETE");
     await userEvent.click(screen.getByRole("button", { name: /delete everything/i }));
     await waitFor(() => {
       const deleteCall = fetchSpy.mock.calls.find(
@@ -380,6 +381,7 @@ describe("SettingsPage — data management", () => {
       expect(screen.getByRole("button", { name: /save changes/i })).toBeInTheDocument(),
     );
     await userEvent.click(screen.getByRole("button", { name: /delete all data/i }));
+    await userEvent.type(screen.getByLabelText(/type delete to confirm/i), "DELETE");
     await userEvent.click(screen.getByRole("button", { name: /delete everything/i }));
 
     // After delete the form must switch back to create mode, so a subsequent

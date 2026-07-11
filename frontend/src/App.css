@@ -1970,9 +1970,34 @@ body {
 
 /* ── Confirm dialog ──────────────────────────────────────────────────────────── */
 
+.confirm-dialog {
+  text-align: center;
+}
+
+.confirm-dialog__icon {
+  font-size: 1.75rem;
+  padding: 1.5rem 1.5rem 0;
+}
+
+.confirm-dialog__title {
+  margin: 0.5rem 1.5rem 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
 .confirm-dialog__message {
-  padding: 1.5rem 1.5rem 1rem;
+  padding: 0.5rem 1.5rem 1rem;
   font-size: 0.95rem;
+  color: var(--color-muted);
+}
+
+.confirm-dialog--destructive {
+  border-top: 3px solid var(--color-danger);
+}
+
+.confirm-dialog__delete-gate {
+  text-align: left;
+  padding: 0 1.5rem 1rem;
 }
 
 .confirm-dialog__actions {
@@ -1980,6 +2005,10 @@ body {
   justify-content: flex-end;
   gap: 0.75rem;
   padding: 0 1.5rem 1.25rem;
+}
+
+.confirm-dialog__actions .btn {
+  min-height: 48px;
 }
 
 .rebalance-dialog {
