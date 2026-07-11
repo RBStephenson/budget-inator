@@ -5,6 +5,7 @@ import { getBill } from "../api/bills";
 import { downloadBudgetPdf } from "../api/reports";
 import { useToast } from "../context/ToastContext";
 import type { Bill } from "../types/bill";
+import { fmtCurrency } from "../utils/currency";
 import { AnnualCostModal } from "./AnnualCostModal";
 import { BillFormModal } from "./BillFormModal";
 import { FlaggedBillsBanner } from "./FlaggedBillsBanner";
@@ -13,6 +14,7 @@ import { MonthCard } from "./MonthCard";
 import { PastPeriods } from "./PastPeriods";
 import { PaydayActualsBanner } from "./PaydayActualsBanner";
 import { PeriodCard } from "./PeriodCard";
+import { QuickAddBar } from "./QuickAddBar";
 
 type DashboardView = "periods" | "monthly";
 
@@ -21,6 +23,7 @@ export function Dashboard() {
   const [downloading, setDownloading] = useState(false);
   const [showAnnualCost, setShowAnnualCost] = useState(false);
   const [editBill, setEditBill] = useState<Bill | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
   const { addToast } = useToast();
   const { data, status, refetch } = useSchedule();
   const {
@@ -141,8 +144,30 @@ export function Dashboard() {
           )}
           {(() => {
             const [current, ...upcoming] = data.periods;
+            const paidCount = current.assigned_bills.filter((b) => b.status === "paid").length;
             return (
               <>
+                <div className="stat-cards">
+                  <div className="stat-card">
+                    <span className="stat-card__label">Available</span>
+                    <span className="stat-card__value">{fmtCurrency(current.remaining_balance)}</span>
+                  </div>
+                  <div className="stat-card">
+                    <span className="stat-card__label">Bills due</span>
+                    <span className="stat-card__value">{current.assigned_bills.length}</span>
+                  </div>
+                  <div className="stat-card stat-card--warn">
+                    <span className="stat-card__label">Flagged late</span>
+                    <span className="stat-card__value">{current.flagged_bill_count}</span>
+                  </div>
+                  <div className="stat-card">
+                    <span className="stat-card__label">Paid so far</span>
+                    <span className="stat-card__value">
+                      {paidCount}/{current.assigned_bills.length}
+                    </span>
+                  </div>
+                </div>
+                <QuickAddBar onAdded={refetch} onOpenFullForm={() => setShowAddForm(true)} />
                 <PaydayActualsBanner period={current} onRecorded={refetch} />
                 <PeriodCard period={current} isHero onRefetch={refetch} onEditBill={handleEditBill} />
                 {upcoming.length > 0 && (
@@ -183,6 +208,13 @@ export function Dashboard() {
           bill={editBill}
           onSave={() => { setEditBill(null); refetch(); }}
           onClose={() => setEditBill(null)}
+        />
+      )}
+
+      {showAddForm && (
+        <BillFormModal
+          onSave={() => { setShowAddForm(false); refetch(); }}
+          onClose={() => setShowAddForm(false)}
         />
       )}
     </div>

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Dashboard } from "../src/components/Dashboard";
@@ -403,6 +403,55 @@ describe("Dashboard — PDF download", () => {
     await user.click(screen.getByRole("button", { name: /download pdf/i }));
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent(/could not generate/i),
+    );
+  });
+
+  it("shows stat cards for the current period", async () => {
+    mockFetch(
+      makeSchedule([
+        makePeriod({
+          remaining_balance: "300.00",
+          flagged_bill_count: 1,
+          assigned_bills: [
+            makeBill({ status: "paid" }),
+            makeBill({ bill_id: 2, status: "on_time" }),
+          ],
+        }),
+      ]),
+    );
+    const { container } = renderWithToast(<Dashboard />);
+
+    await waitFor(() => expect(container.querySelector(".stat-cards")).not.toBeNull());
+    const statCards = container.querySelector(".stat-cards") as HTMLElement;
+    expect(within(statCards).getByText("Available")).toBeInTheDocument();
+    expect(within(statCards).getByText("$300.00")).toBeInTheDocument();
+    expect(within(statCards).getByText("Bills due")).toBeInTheDocument();
+    expect(within(statCards).getByText("Flagged late")).toBeInTheDocument();
+    expect(within(statCards).getByText("Paid so far")).toBeInTheDocument();
+    expect(within(statCards).getByText("1/2")).toBeInTheDocument();
+  });
+
+  it("adds a bill via the quick-add bar and refetches the schedule", async () => {
+    const user = userEvent.setup();
+    const schedule = makeSchedule([makePeriod()]);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
+      if (String(url).includes("/bills")) {
+        return Promise.resolve({ ok: true, status: 201, json: async () => ({ id: 9 }) } as Response);
+      }
+      return Promise.resolve({ ok: true, status: 200, json: async () => schedule } as Response);
+    });
+    renderWithToast(<Dashboard />);
+    await waitFor(() => expect(screen.queryByText(/loading/i)).not.toBeInTheDocument());
+
+    await user.type(screen.getByLabelText(/bill name/i), "Gym");
+    await user.type(screen.getByLabelText(/amount/i), "40");
+    await user.click(screen.getByRole("button", { name: /^add$/i }));
+
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenCalledWith(
+        expect.stringContaining("/bills"),
+        expect.objectContaining({ method: "POST" }),
+      ),
     );
   });
 });
