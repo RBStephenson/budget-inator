@@ -78,4 +78,43 @@ describe("QuickAddBar", () => {
     await user.click(screen.getByRole("button", { name: /open full form/i }));
     expect(onOpenFullForm).toHaveBeenCalledOnce();
   });
+
+  describe("with showScheduleFields", () => {
+    it("shows a due-day input for monthly recurrence and a due-date input otherwise", async () => {
+      const user = userEvent.setup();
+      renderWithToast(
+        <QuickAddBar onAdded={vi.fn()} onOpenFullForm={vi.fn()} showScheduleFields />,
+      );
+
+      expect(screen.getByLabelText(/due day/i)).toBeInTheDocument();
+      expect(screen.queryByLabelText(/next due date/i)).not.toBeInTheDocument();
+
+      await user.selectOptions(screen.getByLabelText(/recurrence/i), "weekly");
+
+      expect(screen.queryByLabelText(/due day/i)).not.toBeInTheDocument();
+      expect(screen.getByLabelText(/next due date/i)).toBeInTheDocument();
+    });
+
+    it("posts due_day for monthly bills", async () => {
+      const user = userEvent.setup();
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+        ok: true,
+        status: 201,
+        json: async () => ({ id: 5 }),
+      } as Response);
+
+      renderWithToast(
+        <QuickAddBar onAdded={vi.fn()} onOpenFullForm={vi.fn()} showScheduleFields />,
+      );
+      await user.type(screen.getByLabelText(/bill name/i), "Rent");
+      await user.type(screen.getByLabelText(/^amount$/i), "900");
+      await user.click(screen.getByRole("button", { name: /^add$/i }));
+
+      const call = fetchSpy.mock.calls[0];
+      const body = JSON.parse(String(call[1]?.body));
+      expect(body.recurrence).toBe("monthly");
+      expect(body.due_day).toBeTypeOf("number");
+      expect(body.due_date).toBeUndefined();
+    });
+  });
 });

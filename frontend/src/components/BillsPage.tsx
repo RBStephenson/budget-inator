@@ -7,6 +7,7 @@ import { BillFormModal } from "./BillFormModal";
 import { BillTable } from "./BillTable";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Link } from "./Link";
+import { QuickAddBar } from "./QuickAddBar";
 
 export function BillsPage() {
   const { bills, status, refetch } = useBills();
@@ -57,6 +58,12 @@ export function BillsPage() {
           </button>
         </div>
       </div>
+
+      <QuickAddBar
+        onAdded={refetch}
+        onOpenFullForm={() => setAddOpen(true)}
+        showScheduleFields
+      />
 
       {status === "loading" && (
         <p className="dashboard__state">Loading bills…</p>

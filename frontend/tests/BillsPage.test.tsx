@@ -1,4 +1,4 @@
-import { render as rtlRender, screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { BillsPage } from "../src/components/BillsPage";
@@ -131,6 +131,45 @@ describe("BillsPage", () => {
     await waitFor(() =>
       expect(screen.getByRole("link", { name: /dashboard/i })).toBeInTheDocument(),
     );
+  });
+
+  it("shows the quick-add bar with recurrence and due-day fields", async () => {
+    mockListBills([]);
+    render(<BillsPage />);
+    await waitFor(() => expect(screen.getByLabelText(/bill name/i)).toBeInTheDocument());
+    expect(screen.getByLabelText(/recurrence/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/due day/i)).toBeInTheDocument();
+  });
+
+  it("adds a bill via quick-add with a non-monthly recurrence and refetches the list", async () => {
+    const user = userEvent.setup();
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((url, init) => {
+      if (String(url).includes("/bills") && init?.method === "POST") {
+        return Promise.resolve({ ok: true, status: 201, json: async () => ({ id: 9 }) } as Response);
+      }
+      return Promise.resolve({ ok: true, status: 200, json: async () => [] } as Response);
+    });
+    render(<BillsPage />);
+    await waitFor(() => expect(screen.getByLabelText(/bill name/i)).toBeInTheDocument());
+
+    await user.type(screen.getByLabelText(/bill name/i), "Car Insurance");
+    await user.type(screen.getByLabelText(/^amount$/i), "600");
+    await user.selectOptions(screen.getByLabelText(/recurrence/i), "semiannual");
+    fireEvent.change(screen.getByLabelText(/next due date/i), { target: { value: "2026-08-01" } });
+    await user.click(screen.getByRole("button", { name: /^add$/i }));
+
+    await waitFor(() => {
+      const call = fetchSpy.mock.calls.find(
+        ([, init]) => init?.method === "POST",
+      );
+      expect(call).toBeTruthy();
+      const body = JSON.parse(String(call?.[1]?.body));
+      expect(body).toMatchObject({
+        name: "Car Insurance",
+        recurrence: "semiannual",
+        due_date: "2026-08-01",
+      });
+    });
   });
 
 });
