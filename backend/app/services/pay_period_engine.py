@@ -42,6 +42,25 @@ class AssignedBill:
     manual_pay_date: date | None = None
     sinking_fund_applied: Decimal = Decimal("0")
     sinking_fund_shortfall: Decimal = Decimal("0")
+    actual_amount: Decimal | None = None
+    skipped: bool = False
+
+
+def _assigned_bill_effective_amount(b: AssignedBill) -> Decimal:
+    """Cash actually committed by *b*, matching schedule_service._to_period_out.
+
+    A confirmed actual amount overrides the estimate; sinking-fund-covered
+    bills draw from the shortfall (what's left after the reserve). This keeps
+    the engine's rollover math and the API's displayed remaining balance from
+    silently diverging when a bill is paid off-estimate or skipped.
+    """
+    if b.actual_amount is not None:
+        if b.sinking_fund_applied > 0:
+            return max(Decimal("0"), b.actual_amount - b.sinking_fund_applied)
+        return b.actual_amount
+    if b.sinking_fund_applied > 0 or b.sinking_fund_shortfall > 0:
+        return b.sinking_fund_shortfall
+    return b.amount
 
 
 @dataclass
@@ -71,12 +90,9 @@ class PayPeriodResult:
     @property
     def remaining_balance(self) -> Decimal:
         bill_total = sum(
-            (
-                b.sinking_fund_shortfall
-                if b.sinking_fund_applied > 0 or b.sinking_fund_shortfall > 0
-                else b.amount
-            )
+            _assigned_bill_effective_amount(b)
             for b in self.assigned_bills
+            if not b.skipped
         )
         contribution_total = sum(
             c.contribution_amount for c in self.sinking_fund_contributions
@@ -160,15 +176,23 @@ def build_periods(
     )
 
     # Need num_periods + 1 pay dates to know each period's end date.
-    pay_dates: list[date] = [first_paycheck_date]
-    for _ in range(num_periods):
-        pay_dates.append(
-            _next_pay_date(
-                pay_dates[-1],
-                frequency,
-                semimonthly_month_end=semimonthly_month_end,
+    if frequency == PayFrequency.monthly:
+        # Derive each date from the original anchor (not the previous one) so a
+        # short month clamping the day (e.g. Jan 31 -> Feb 29) doesn't drag every
+        # later date down with it.
+        pay_dates: list[date] = [
+            _add_months(first_paycheck_date, i) for i in range(num_periods + 1)
+        ]
+    else:
+        pay_dates = [first_paycheck_date]
+        for _ in range(num_periods):
+            pay_dates.append(
+                _next_pay_date(
+                    pay_dates[-1],
+                    frequency,
+                    semimonthly_month_end=semimonthly_month_end,
+                )
             )
-        )
 
     return [
         PayPeriodResult(
@@ -246,15 +270,23 @@ def _biweekly_or_weekly_dates(
 def _anchor_recurrence_dates(
     anchor: date, months: int, window_start: date, window_end: date
 ) -> list[date]:
-    """All occurrences of anchor + k*months in [window_start, window_end]."""
+    """All occurrences of anchor + k*months in [window_start, window_end].
+
+    Each occurrence is derived from *anchor* directly (not the previous
+    occurrence) so a short month clamping the day (e.g. Jan 31 -> Feb 29)
+    doesn't drag every later occurrence down with it.
+    """
+    k = 0
     d = anchor
     # Walk forward to first occurrence >= window_start
     while d < window_start:
-        d = _add_months(d, months)
+        k += 1
+        d = _add_months(anchor, k * months)
     dates = []
     while d <= window_end:
         dates.append(d)
-        d = _add_months(d, months)
+        k += 1
+        d = _add_months(anchor, k * months)
     return dates
 
 
@@ -384,14 +416,22 @@ def assign_bills(
     bills: list[BillInput],
     paid_dates: dict[tuple[int, date], date] | None = None,
     manual_pay_dates: dict[tuple[int, date], date] | None = None,
+    actual_amounts: dict[tuple[int, date], Decimal] | None = None,
+    skipped_dates: set[tuple[int, date]] | None = None,
 ) -> list[PayPeriodResult]:
     """
     Assign bill occurrences to pay periods.  Mutates and returns *periods*.
 
-    Assignment rule: each bill due date is assigned to the last period whose
-    period_start <= effective_due_date (due_date + grace_period_days).  Bills
-    whose effective due date precedes all period starts are attached to the
-    first period and marked late_flagged.
+    Assignment rule: each bill due date is assigned to the period containing
+    it. A grace period does not shift this default placement — it only
+    widens the set of periods ``rebalance_grace_period_bills`` may move the
+    occurrence into later, and only when the due-date period can't cover it.
+    Bills whose due date precedes every period fall back to the period
+    containing the grace-extended effective due date (due_date +
+    grace_period_days), rescuing an already-overdue bill from being
+    late_flagged when its grace window reaches into the schedule; if even
+    that fails, they're attached to the first period and marked
+    late_flagged.
 
     *paid_dates* maps ``(bill_id, due_date)`` to the date a bill was actually
     paid.  A paid occurrence is assigned to the period containing its paid date
@@ -399,12 +439,20 @@ def assign_bills(
     account (e.g. a bill paid early moves from a future period into the current
     one).  Falls back to the due-date rule when the paid date lands outside the
     generated periods.
+
+    *actual_amounts* maps ``(bill_id, due_date)`` to a confirmed actual amount,
+    and *skipped_dates* is the set of ``(bill_id, due_date)`` occurrences marked
+    skipped. Both feed ``PayPeriodResult.remaining_balance``, so a recorded
+    actual amount or skip is reflected in the balance rolled into every later
+    period, not just the one it was recorded in.
     """
     if not periods:
         return periods
 
     paid_dates = paid_dates or {}
     manual_pay_dates = manual_pay_dates or {}
+    actual_amounts = actual_amounts or {}
+    skipped_dates = skipped_dates or set()
     period_start = periods[0].period_start
     window_end = periods[-1].period_end
 
@@ -442,15 +490,20 @@ def assign_bills(
                 status = "on_time"
                 placement_source = "manual"
             else:
-                if effective_due > window_end:
-                    continue
-                due_period = _find_period(periods, effective_due)
-                if due_period is None:
-                    status = "late_flagged"
-                    period = periods[0]
-                else:
+                due_period = _find_period_containing(periods, due_date)
+                if due_period is not None:
                     status = "on_time"
                     period = due_period
+                else:
+                    # due_date precedes every period; see if the grace
+                    # window reaches far enough to place it normally anyway.
+                    rescue_period = _find_period(periods, effective_due)
+                    if rescue_period is None:
+                        status = "late_flagged"
+                        period = periods[0]
+                    else:
+                        status = "on_time"
+                        period = rescue_period
 
             period.assigned_bills.append(
                 AssignedBill(
@@ -463,6 +516,8 @@ def assign_bills(
                     is_variable=bill.is_variable,
                     placement_source=placement_source,
                     manual_pay_date=manual_pay_date,
+                    actual_amount=actual_amounts.get((bill.id, due_date)),
+                    skipped=(bill.id, due_date) in skipped_dates,
                 )
             )
 
@@ -493,6 +548,27 @@ def _rebalance_score(periods: list[PayPeriodResult]) -> tuple[int, Decimal, Deci
     if not deficits:
         return (0, Decimal("0"), Decimal("0"))
     return (len(deficits), sum(deficits, Decimal("0")), max(deficits))
+
+
+def _bill_version_for_due_date(
+    versions: list[BillInput] | None, due_date: date
+) -> BillInput | None:
+    """Pick the version whose active window covers *due_date*.
+
+    ``bills`` can contain multiple entries sharing an id when a bill's terms
+    changed mid-schedule (see ``bill_versions.bill_inputs_for_window``), each
+    scoped to an ``active_start``/``active_end`` window. Falls back to the
+    last version if none matches (versions with no active window set).
+    """
+    if not versions:
+        return None
+    for version in versions:
+        if version.active_start is not None and version.active_start > due_date:
+            continue
+        if version.active_end is not None and version.active_end < due_date:
+            continue
+        return version
+    return versions[-1]
 
 
 def _move_assigned_bill(
@@ -527,13 +603,17 @@ def rebalance_grace_period_bills(
 
     paid_dates = paid_dates or {}
     manual_pay_dates = manual_pay_dates or {}
-    bills_by_id = {bill.id: bill for bill in bills}
+    bills_by_id: dict[int, list[BillInput]] = {}
+    for input_bill in bills:
+        bills_by_id.setdefault(input_bill.id, []).append(input_bill)
     apply_rolling_balances(periods, net_salary, beginning_balance, actuals)
 
     movable: list[tuple[AssignedBill, list[int]]] = []
     for period_index, period in enumerate(periods):
         for assigned in period.assigned_bills:
-            bill = bills_by_id.get(assigned.bill_id)
+            bill = _bill_version_for_due_date(
+                bills_by_id.get(assigned.bill_id), assigned.due_date
+            )
             if bill is None:
                 continue
             if paid_dates.get((assigned.bill_id, assigned.due_date)) is not None:
@@ -627,15 +707,18 @@ def apply_sinking_funds(periods: list[PayPeriodResult], bills: list[BillInput]) 
     for index, period in enumerate(periods):
         # First consume reserve for due occurrences in this period.
         for assigned in period.assigned_bills:
-            if assigned.bill_id not in reserves:
+            if assigned.bill_id not in reserves or assigned.skipped:
                 continue
-            reserve = reserves[assigned.bill_id]
-            applied = min(reserve, assigned.amount)
-            assigned.sinking_fund_applied = applied
-            assigned.sinking_fund_shortfall = max(
-                Decimal("0"), assigned.amount - applied
+            due_amount = (
+                assigned.actual_amount
+                if assigned.actual_amount is not None
+                else assigned.amount
             )
-            reserves[assigned.bill_id] = max(Decimal("0"), reserve - assigned.amount)
+            reserve = reserves[assigned.bill_id]
+            applied = min(reserve, due_amount)
+            assigned.sinking_fund_applied = applied
+            assigned.sinking_fund_shortfall = max(Decimal("0"), due_amount - applied)
+            reserves[assigned.bill_id] = max(Decimal("0"), reserve - due_amount)
 
         for bill in sinking_bills:
             future_due_dates = [
@@ -684,10 +767,14 @@ def project(
     actuals: dict[date, ActualAnchor] | None = None,
     paid_dates: dict[tuple[int, date], date] | None = None,
     manual_pay_dates: dict[tuple[int, date], date] | None = None,
+    actual_amounts: dict[tuple[int, date], Decimal] | None = None,
+    skipped_dates: set[tuple[int, date]] | None = None,
 ) -> list[PayPeriodResult]:
     """Generate periods, assign all bills, then apply rolling balances."""
     periods = build_periods(first_paycheck_date, frequency, num_periods)
-    assign_bills(periods, bills, paid_dates, manual_pay_dates)
+    assign_bills(
+        periods, bills, paid_dates, manual_pay_dates, actual_amounts, skipped_dates
+    )
     rebalance_grace_period_bills(
         periods,
         bills,

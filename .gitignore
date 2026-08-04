@@ -72,6 +72,11 @@ dist-standalone/
 *.pem
 *.key
 
+# machine-local Norton SSL-inspection workaround — see backend/Dockerfile.local
+# and frontend/Dockerfile.local
+docker-compose.override.yml
+Dockerfile.local
+
 # ── OS ────────────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
