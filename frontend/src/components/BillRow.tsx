@@ -269,7 +269,7 @@ export function BillRow({ bill, payOnDate, onRefetch, onEdit }: Props) {
                 onClick={saveManualMove}
                 aria-label="Confirm bill move"
               >
-                âœ“
+                ✓
               </button>
               <button
                 className="btn-action"
@@ -277,7 +277,7 @@ export function BillRow({ bill, payOnDate, onRefetch, onEdit }: Props) {
                 onClick={() => setMovingBill(false)}
                 aria-label="Cancel bill move"
               >
-                âœ•
+                ✕
               </button>
             </span>
           ) : (

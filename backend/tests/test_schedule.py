@@ -354,18 +354,19 @@ def test_paid_with_actual_amount_uses_actual_in_total(client: TestClient, db):
 
 
 def test_paid_past_due_bill_pulled_into_period_shows_paid(client: TestClient, db):
-    """Regression: a past-due bill whose grace period pulls it into a later
-    period keeps its raw (earlier) due date. The paid overlay must still match
-    even though that due date precedes the requested window's first
-    period_start. Previously the instance was dropped and the bill rendered
-    unpaid with no way to undo.
+    """Regression: a bill due before the schedule's first period even starts,
+    rescued into period 0 by its grace window, keeps its raw (earlier) due
+    date. The paid overlay must still match even though that due date
+    precedes the requested window's first period_start. Previously the
+    instance was dropped and the bill rendered unpaid with no way to undo.
     """
-    # Biweekly from 2025-01-03 → periods: 01-31..02-13, 02-14..02-27, ...
-    _make_schedule(db, first_paycheck=date(2025, 1, 3))
-    # Monthly due on the 1st with a 15-day grace: the Feb 1 occurrence has an
-    # effective due of Feb 16, which lands in the 02-14..02-27 period.
-    bill = _make_monthly_bill(
-        db, name="Car Payment", amount="600.00", due_day=1, grace_period_days=15
+    # Biweekly from 2025-02-14 → period 0: 02-14..02-27.
+    _make_schedule(db, first_paycheck=date(2025, 2, 14))
+    # Due 02-01, before period 0 even starts — a bare due-date lookup finds
+    # no period. A 15-day grace reaches Feb 16, which falls in period 0, so
+    # the bill is rescued there instead of being late-flagged.
+    bill = _make_one_time_bill(
+        db, name="Car Payment", amount="600.00", due_date=date(2025, 2, 1), grace=15
     )
 
     # Mark the Feb 1 occurrence paid (raw due date, as the UI sends it).
@@ -375,8 +376,8 @@ def test_paid_past_due_bill_pulled_into_period_shows_paid(client: TestClient, db
     )
     assert patch.status_code == 200
 
-    # Request the period the bill was pulled into — its window_start (02-14) is
-    # AFTER the bill's due date (02-01).
+    # Request the period the bill was rescued into — its window_start
+    # (02-14) is AFTER the bill's due date (02-01).
     resp = client.get("/schedule?from=2025-02-14&to=2025-02-27")
     assert resp.status_code == 200
     bills = [b for p in resp.json()["periods"] for b in p["assigned_bills"]]
