@@ -2,7 +2,7 @@ services:
   backend:
     build: ./backend
     # Bind to loopback only — the API is unauthenticated and must not be
-    # reachable from the LAN. Access via the proxy at http://localhost:8080.
+    # reachable from the LAN. Access via the proxy at http://localhost:8090.
     # Host port 8001 (container stays 8000) to avoid colliding with other
     # local projects that use 8000.
     ports:
@@ -11,7 +11,7 @@ services:
       - ./data:/data
     environment:
       - DATABASE_URL=sqlite:////data/budget.db
-      - CORS_ORIGINS=["http://localhost:8080"]
+      - CORS_ORIGINS=["http://localhost:8090"]
     restart: unless-stopped
 
   frontend:
@@ -27,7 +27,9 @@ services:
   proxy:
     image: nginx:alpine
     ports:
-      - "127.0.0.1:8080:80"
+      # 8080 collides with NVIDIA Broadcast's local web server on this
+      # machine (discovered 2026-08-02) — moved to 8090 to avoid it.
+      - "127.0.0.1:8090:80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
