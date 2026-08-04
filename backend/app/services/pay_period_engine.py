@@ -422,10 +422,16 @@ def assign_bills(
     """
     Assign bill occurrences to pay periods.  Mutates and returns *periods*.
 
-    Assignment rule: each bill due date is assigned to the last period whose
-    period_start <= effective_due_date (due_date + grace_period_days).  Bills
-    whose effective due date precedes all period starts are attached to the
-    first period and marked late_flagged.
+    Assignment rule: each bill due date is assigned to the period containing
+    it. A grace period does not shift this default placement — it only
+    widens the set of periods ``rebalance_grace_period_bills`` may move the
+    occurrence into later, and only when the due-date period can't cover it.
+    Bills whose due date precedes every period fall back to the period
+    containing the grace-extended effective due date (due_date +
+    grace_period_days), rescuing an already-overdue bill from being
+    late_flagged when its grace window reaches into the schedule; if even
+    that fails, they're attached to the first period and marked
+    late_flagged.
 
     *paid_dates* maps ``(bill_id, due_date)`` to the date a bill was actually
     paid.  A paid occurrence is assigned to the period containing its paid date
@@ -484,15 +490,20 @@ def assign_bills(
                 status = "on_time"
                 placement_source = "manual"
             else:
-                if effective_due > window_end:
-                    continue
-                due_period = _find_period(periods, effective_due)
-                if due_period is None:
-                    status = "late_flagged"
-                    period = periods[0]
-                else:
+                due_period = _find_period_containing(periods, due_date)
+                if due_period is not None:
                     status = "on_time"
                     period = due_period
+                else:
+                    # due_date precedes every period; see if the grace
+                    # window reaches far enough to place it normally anyway.
+                    rescue_period = _find_period(periods, effective_due)
+                    if rescue_period is None:
+                        status = "late_flagged"
+                        period = periods[0]
+                    else:
+                        status = "on_time"
+                        period = rescue_period
 
             period.assigned_bills.append(
                 AssignedBill(
