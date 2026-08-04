@@ -101,9 +101,7 @@ def _load_actual_amounts(db: Session) -> dict[tuple[int, date], Decimal]:
     forward into every later period's opening_balance (see PayPeriodResult
     .remaining_balance / apply_rolling_balances).
     """
-    rows = (
-        db.query(BillInstance).filter(BillInstance.actual_amount.isnot(None)).all()
-    )
+    rows = db.query(BillInstance).filter(BillInstance.actual_amount.isnot(None)).all()
     return {
         (r.bill_id, r.due_date): Decimal(str(r.actual_amount))
         for r in rows
