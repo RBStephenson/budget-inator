@@ -495,9 +495,11 @@ class TestLateFlagging:
 
 
 class TestGracePeriod:
-    def test_grace_shifts_assignment_to_later_period(self) -> None:
+    def test_grace_defaults_to_due_date_period_when_funds_allow(self) -> None:
         # Period 0: Jan 5–18; Period 1: Jan 19–Feb 1
-        # Bill due Jan 17, grace 5 days → effective Jan 22 → Period 1
+        # Bill due Jan 17, grace 5 days, but nothing else competing for
+        # funds → stays in its due-date period rather than shifting to the
+        # end of the grace window (Jan 22, period 1).
         periods = _biweekly_periods(3)
         bill = BillInput(
             id=1,
@@ -509,9 +511,9 @@ class TestGracePeriod:
             grace_period_days=5,
         )
         assign_bills(periods, [bill])
-        assert len(periods[0].assigned_bills) == 0
-        assert len(periods[1].assigned_bills) == 1
-        assert periods[1].assigned_bills[0].due_date == date(2024, 1, 17)
+        assert len(periods[0].assigned_bills) == 1
+        assert periods[0].assigned_bills[0].due_date == date(2024, 1, 17)
+        assert len(periods[1].assigned_bills) == 0
 
     def test_zero_grace_uses_actual_due_date(self) -> None:
         periods = _biweekly_periods(3)
@@ -542,9 +544,12 @@ class TestGracePeriod:
         assign_bills(periods, [bill])
         assert periods[0].assigned_bills[0].status == "on_time"
 
-    def test_project_moves_grace_bill_backward_to_avoid_overbooked_period(
+    def test_project_keeps_grace_bill_at_due_date_when_funds_allow(
         self,
     ) -> None:
+        # PENNYMAC's due-date period (period 0) covers both bills fine, so
+        # it should stay there by default rather than drifting to the end
+        # of its grace window.
         bills = [
             BillInput(
                 id=1,
@@ -585,6 +590,9 @@ class TestGracePeriod:
     def test_project_moves_grace_bill_forward_to_avoid_overbooked_period(
         self,
     ) -> None:
+        # PENNYMAC defaults to period 0 (its due date), but period 0 can't
+        # cover both bills on a $1000 salary — only the grace bill has
+        # anywhere else to go, so it rolls forward into period 1.
         bills = [
             BillInput(
                 id=1,

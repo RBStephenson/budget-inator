@@ -2,13 +2,20 @@ import { render as rtlRender, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { PeriodCard } from "../src/components/PeriodCard";
+import { ToastContainer } from "../src/components/ToastContainer";
 import { ToastProvider } from "../src/context/ToastContext";
 import { makeBill, makePeriod } from "./fixtures";
 
 // PeriodCard renders BillRow, which calls useToast(); wrap every render in
-// a ToastProvider.
+// a ToastProvider. ToastContainer is included so error/success toasts are
+// visible in the DOM for assertions.
 function render(ui: React.ReactElement) {
-  return rtlRender(<ToastProvider>{ui}</ToastProvider>);
+  return rtlRender(
+    <ToastProvider>
+      {ui}
+      <ToastContainer />
+    </ToastProvider>,
+  );
 }
 
 beforeEach(() => vi.restoreAllMocks());
@@ -501,5 +508,39 @@ describe("PeriodCard — pay date override", () => {
     const fetchMock = vi.mocked(globalThis.fetch);
     expect(fetchMock.mock.calls[0][0]).toContain("pay-period-overrides/2025-01-03");
     expect(fetchMock.mock.calls[0][1]?.method).toBe("DELETE");
+  });
+
+  it("shows an error toast and keeps the input open when saving the override fails", async () => {
+    mockFetch(false);
+    const onRefetch = vi.fn();
+    render(<PeriodCard period={makePeriod({ original_pay_date: "2025-01-03" })} onRefetch={onRefetch} />);
+    await userEvent.click(screen.getByRole("button", { name: /edit pay date/i }));
+    const input = screen.getByLabelText(/override pay date/i);
+    await userEvent.clear(input);
+    await userEvent.type(input, "2025-01-02");
+    await userEvent.click(screen.getByRole("button", { name: /confirm pay date/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/could not update the pay date/i)).toBeInTheDocument(),
+    );
+    expect(onRefetch).not.toHaveBeenCalled();
+    expect(screen.getByLabelText(/override pay date/i)).toBeInTheDocument();
+  });
+
+  it("shows an error toast when resetting the override fails", async () => {
+    mockFetch(false);
+    const onRefetch = vi.fn();
+    render(
+      <PeriodCard
+        period={makePeriod({ is_overridden: true, pay_date: "2025-01-02", original_pay_date: "2025-01-03" })}
+        onRefetch={onRefetch}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /reset pay date/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/could not reset the pay date/i)).toBeInTheDocument(),
+    );
+    expect(onRefetch).not.toHaveBeenCalled();
   });
 });
