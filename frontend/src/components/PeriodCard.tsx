@@ -91,6 +91,8 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
       setEditingPayDate(false);
       setPayDateInput("");
       onRefetch?.();
+    } catch {
+      addToast("Could not update the pay date. Please try again.", "error");
     } finally {
       setSavingPayDate(false);
     }
@@ -101,6 +103,8 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
     try {
       await deletePayPeriodOverride(period.original_pay_date);
       onRefetch?.();
+    } catch {
+      addToast("Could not reset the pay date. Please try again.", "error");
     } finally {
       setSavingPayDate(false);
     }
