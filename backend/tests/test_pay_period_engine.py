@@ -124,6 +124,16 @@ class TestBuildPeriods:
         assert periods[0].period_end == date(2024, 2, 14)
         assert periods[1].period_start == date(2024, 2, 15)
 
+    def test_monthly_day_31_anchor_does_not_drift_after_short_month(self) -> None:
+        # Feb clamps to the 29th (2024 is a leap year); March has 31 days again
+        # and should recover the original day instead of staying clamped.
+        periods = build_periods(date(2024, 1, 31), PayFrequency.monthly, 3)
+        assert [period.pay_date for period in periods] == [
+            date(2024, 1, 31),
+            date(2024, 2, 29),
+            date(2024, 3, 31),
+        ]
+
     def test_pay_date_equals_period_start(self) -> None:
         periods = _biweekly_periods(2)
         for p in periods:
@@ -328,6 +338,22 @@ class TestDueDatesForBill:
             date(2024, 4, 15),
             date(2024, 7, 15),
             date(2024, 10, 15),
+        ]
+
+    def test_quarterly_day_31_anchor_does_not_drift_after_short_month(self) -> None:
+        # Jan 31 -> Apr 30 (clamped, April has 30 days) -> should recover to
+        # Jul 31 rather than staying clamped at the 30th.
+        bill = _bill(
+            recurrence=BillRecurrence.quarterly,
+            due_day=None,
+            first_due_date=date(2024, 1, 31),
+        )
+        dates = due_dates_for_bill(bill, date(2024, 1, 1), date(2024, 12, 31))
+        assert dates == [
+            date(2024, 1, 31),
+            date(2024, 4, 30),
+            date(2024, 7, 31),
+            date(2024, 10, 31),
         ]
 
     def test_annual(self) -> None:
@@ -732,3 +758,66 @@ class TestProject:
             bills=[],
         )
         assert result == []
+
+
+# ---------------------------------------------------------------------------
+# project — actual amounts / skipped bills roll forward into later periods
+# ---------------------------------------------------------------------------
+
+
+class TestActualAmountAndSkipRollover:
+    def test_skipped_bill_excluded_from_its_own_and_next_periods_balance(self) -> None:
+        bill = _bill(due_day=5, amount="200.00")
+        skipped_periods = project(
+            first_paycheck_date=date(2024, 1, 5),
+            frequency=PayFrequency.biweekly,
+            num_periods=2,
+            net_salary=SALARY,
+            beginning_balance=ZERO,
+            bills=[bill],
+            skipped_dates={(bill.id, date(2024, 1, 5))},
+        )
+        baseline_periods = project(
+            first_paycheck_date=date(2024, 1, 5),
+            frequency=PayFrequency.biweekly,
+            num_periods=2,
+            net_salary=SALARY,
+            beginning_balance=ZERO,
+            bills=[bill],
+        )
+        # Skipping the bill frees its $200 for period 0 and, since that
+        # balance rolls forward, for period 1's opening balance too.
+        assert skipped_periods[0].remaining_balance == (
+            baseline_periods[0].remaining_balance + Decimal("200.00")
+        )
+        assert skipped_periods[1].opening_balance == (
+            baseline_periods[1].opening_balance + Decimal("200.00")
+        )
+
+    def test_actual_amount_overrides_estimate_for_rollover(self) -> None:
+        bill = _bill(due_day=5, amount="200.00")
+        periods = project(
+            first_paycheck_date=date(2024, 1, 5),
+            frequency=PayFrequency.biweekly,
+            num_periods=2,
+            net_salary=SALARY,
+            beginning_balance=ZERO,
+            bills=[bill],
+            actual_amounts={(bill.id, date(2024, 1, 5)): Decimal("250.00")},
+        )
+        baseline_periods = project(
+            first_paycheck_date=date(2024, 1, 5),
+            frequency=PayFrequency.biweekly,
+            num_periods=2,
+            net_salary=SALARY,
+            beginning_balance=ZERO,
+            bills=[bill],
+        )
+        # Paying $50 over the $200 estimate costs $50 more in period 0, and
+        # that shortfall rolls forward into period 1's opening balance too.
+        assert periods[0].remaining_balance == (
+            baseline_periods[0].remaining_balance - Decimal("50.00")
+        )
+        assert periods[1].opening_balance == (
+            baseline_periods[1].opening_balance - Decimal("50.00")
+        )

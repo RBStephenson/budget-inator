@@ -93,6 +93,37 @@ def _load_manual_pay_dates(db: Session) -> _ManualPayDateMap:
     }
 
 
+def _load_actual_amounts(db: Session) -> dict[tuple[int, date], Decimal]:
+    """Confirmed actual bill amounts, keyed by (bill_id, due_date).
+
+    Loaded in full (not windowed): an actual amount recorded against an
+    earlier occurrence changes that period's remaining_balance, which rolls
+    forward into every later period's opening_balance (see PayPeriodResult
+    .remaining_balance / apply_rolling_balances).
+    """
+    rows = (
+        db.query(BillInstance).filter(BillInstance.actual_amount.isnot(None)).all()
+    )
+    return {
+        (r.bill_id, r.due_date): Decimal(str(r.actual_amount))
+        for r in rows
+        if r.actual_amount is not None
+    }
+
+
+def _load_skipped_dates(db: Session) -> set[tuple[int, date]]:
+    """Bill occurrences marked skipped, keyed by (bill_id, due_date).
+
+    Loaded in full for the same reason as _load_actual_amounts: a skip
+    recorded against an earlier occurrence must exclude it from every later
+    period's rolled-forward balance, not just the period it was recorded in.
+    """
+    rows = (
+        db.query(BillInstance).filter(BillInstance.status == BillStatus.skipped).all()
+    )
+    return {(r.bill_id, r.due_date) for r in rows}
+
+
 def _load_actuals(db: Session) -> _ActualsMap:
     """All confirmed payday actuals, keyed by pay date (see #55).
 
@@ -312,6 +343,8 @@ def build_schedule(
     actuals = _load_actuals(db)
     paid_dates = _load_paid_dates(db)
     manual_pay_dates = _load_manual_pay_dates(db)
+    actual_amounts = _load_actual_amounts(db)
+    skipped_dates = _load_skipped_dates(db)
 
     today = date.today()
 
@@ -334,6 +367,8 @@ def build_schedule(
             actuals,
             paid_dates,
             manual_pay_dates,
+            actual_amounts,
+            skipped_dates,
         )
         current_idx = _find_current_index(all_periods, today)
         window = all_periods[current_idx : current_idx + default_count]
@@ -368,6 +403,8 @@ def build_schedule(
             actuals,
             paid_dates,
             manual_pay_dates,
+            actual_amounts,
+            skipped_dates,
         )
         # Include periods that overlap [from_date, to_date]
         window = [
@@ -723,6 +760,8 @@ def build_monthly_summary(
         actuals,
         _load_paid_dates(db),
         _load_manual_pay_dates(db),
+        _load_actual_amounts(db),
+        _load_skipped_dates(db),
     )
     sinking_by_month: dict[tuple[int, int], Decimal] = defaultdict(Decimal)
     for p in projected_periods:
