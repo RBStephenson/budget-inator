@@ -619,6 +619,65 @@ class TestGracePeriod:
         assert periods[0].remaining_balance == Decimal("100.00")
         assert periods[1].remaining_balance == Decimal("200.00")
 
+    def test_rebalance_uses_grace_of_version_active_at_due_date(self) -> None:
+        # Same scenario as
+        # test_project_moves_grace_bill_backward_to_avoid_overbooked_period, but
+        # PENNYMAC's terms are split across two versions sharing id=1: the
+        # active one (grace=5) generates the Jan 17 due date, while a decoy
+        # future version (grace=0, active from Jan 21 on) generates no
+        # occurrence in this window at all. Rebalancing must use the grace of
+        # the version that actually produced the occurrence, not whichever
+        # version happens to be last in the list.
+        bills = [
+            BillInput(
+                id=1,
+                name="PENNYMAC",
+                amount=Decimal("900.00"),
+                recurrence=BillRecurrence.one_time,
+                due_day=None,
+                first_due_date=date(2024, 1, 17),
+                grace_period_days=5,
+                active_start=date(2024, 1, 1),
+                active_end=date(2024, 1, 20),
+            ),
+            BillInput(
+                id=1,
+                name="PENNYMAC",
+                amount=Decimal("900.00"),
+                recurrence=BillRecurrence.one_time,
+                due_day=None,
+                first_due_date=date(2024, 1, 17),
+                grace_period_days=0,
+                active_start=date(2024, 1, 21),
+                active_end=date(2024, 2, 1),
+            ),
+            BillInput(
+                id=2,
+                name="Car",
+                amount=Decimal("900.00"),
+                recurrence=BillRecurrence.one_time,
+                due_day=None,
+                first_due_date=date(2024, 1, 25),
+            ),
+        ]
+
+        periods = project(
+            date(2024, 1, 5),
+            PayFrequency.biweekly,
+            2,
+            Decimal("2000.00"),
+            ZERO,
+            bills,
+            actuals={
+                date(2024, 1, 19): ActualAnchor(actual_balance=Decimal("1000.00"))
+            },
+        )
+
+        assert [bill.name for bill in periods[0].assigned_bills] == ["PENNYMAC"]
+        assert [bill.name for bill in periods[1].assigned_bills] == ["Car"]
+        assert periods[0].remaining_balance == Decimal("1100.00")
+        assert periods[1].remaining_balance == Decimal("100.00")
+
 
 # ---------------------------------------------------------------------------
 # assign_bills — paid-bill relocation

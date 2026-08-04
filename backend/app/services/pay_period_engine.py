@@ -539,6 +539,27 @@ def _rebalance_score(periods: list[PayPeriodResult]) -> tuple[int, Decimal, Deci
     return (len(deficits), sum(deficits, Decimal("0")), max(deficits))
 
 
+def _bill_version_for_due_date(
+    versions: list[BillInput] | None, due_date: date
+) -> BillInput | None:
+    """Pick the version whose active window covers *due_date*.
+
+    ``bills`` can contain multiple entries sharing an id when a bill's terms
+    changed mid-schedule (see ``bill_versions.bill_inputs_for_window``), each
+    scoped to an ``active_start``/``active_end`` window. Falls back to the
+    last version if none matches (versions with no active window set).
+    """
+    if not versions:
+        return None
+    for version in versions:
+        if version.active_start is not None and version.active_start > due_date:
+            continue
+        if version.active_end is not None and version.active_end < due_date:
+            continue
+        return version
+    return versions[-1]
+
+
 def _move_assigned_bill(
     periods: list[PayPeriodResult],
     bill: AssignedBill,
@@ -571,13 +592,17 @@ def rebalance_grace_period_bills(
 
     paid_dates = paid_dates or {}
     manual_pay_dates = manual_pay_dates or {}
-    bills_by_id = {bill.id: bill for bill in bills}
+    bills_by_id: dict[int, list[BillInput]] = {}
+    for input_bill in bills:
+        bills_by_id.setdefault(input_bill.id, []).append(input_bill)
     apply_rolling_balances(periods, net_salary, beginning_balance, actuals)
 
     movable: list[tuple[AssignedBill, list[int]]] = []
     for period_index, period in enumerate(periods):
         for assigned in period.assigned_bills:
-            bill = bills_by_id.get(assigned.bill_id)
+            bill = _bill_version_for_due_date(
+                bills_by_id.get(assigned.bill_id), assigned.due_date
+            )
             if bill is None:
                 continue
             if paid_dates.get((assigned.bill_id, assigned.due_date)) is not None:
