@@ -186,6 +186,19 @@ describe("BillRow", () => {
     expect(body.manual_pay_date).toBe("2025-01-17");
   });
 
+  it("renders proper checkmark/cross glyphs on the move confirm/cancel buttons", async () => {
+    render(
+      <BillRow bill={makeBill({ status: "on_time" })} payOnDate="2025-01-03" />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /^move$/i }));
+    expect(screen.getByRole("button", { name: /confirm bill move/i }).textContent).toBe(
+      "✓",
+    );
+    expect(screen.getByRole("button", { name: /cancel bill move/i }).textContent).toBe(
+      "✕",
+    );
+  });
+
   it("shows moved metadata and can reset a manual move", async () => {
     mockPatch();
     const onRefetch = vi.fn();

@@ -124,6 +124,16 @@ class TestBuildPeriods:
         assert periods[0].period_end == date(2024, 2, 14)
         assert periods[1].period_start == date(2024, 2, 15)
 
+    def test_monthly_day_31_anchor_does_not_drift_after_short_month(self) -> None:
+        # Feb clamps to the 29th (2024 is a leap year); March has 31 days again
+        # and should recover the original day instead of staying clamped.
+        periods = build_periods(date(2024, 1, 31), PayFrequency.monthly, 3)
+        assert [period.pay_date for period in periods] == [
+            date(2024, 1, 31),
+            date(2024, 2, 29),
+            date(2024, 3, 31),
+        ]
+
     def test_pay_date_equals_period_start(self) -> None:
         periods = _biweekly_periods(2)
         for p in periods:
@@ -330,6 +340,22 @@ class TestDueDatesForBill:
             date(2024, 10, 15),
         ]
 
+    def test_quarterly_day_31_anchor_does_not_drift_after_short_month(self) -> None:
+        # Jan 31 -> Apr 30 (clamped, April has 30 days) -> should recover to
+        # Jul 31 rather than staying clamped at the 30th.
+        bill = _bill(
+            recurrence=BillRecurrence.quarterly,
+            due_day=None,
+            first_due_date=date(2024, 1, 31),
+        )
+        dates = due_dates_for_bill(bill, date(2024, 1, 1), date(2024, 12, 31))
+        assert dates == [
+            date(2024, 1, 31),
+            date(2024, 4, 30),
+            date(2024, 7, 31),
+            date(2024, 10, 31),
+        ]
+
     def test_annual(self) -> None:
         bill = _bill(
             recurrence=BillRecurrence.annual,
@@ -469,9 +495,11 @@ class TestLateFlagging:
 
 
 class TestGracePeriod:
-    def test_grace_shifts_assignment_to_later_period(self) -> None:
+    def test_grace_defaults_to_due_date_period_when_funds_allow(self) -> None:
         # Period 0: Jan 5–18; Period 1: Jan 19–Feb 1
-        # Bill due Jan 17, grace 5 days → effective Jan 22 → Period 1
+        # Bill due Jan 17, grace 5 days, but nothing else competing for
+        # funds → stays in its due-date period rather than shifting to the
+        # end of the grace window (Jan 22, period 1).
         periods = _biweekly_periods(3)
         bill = BillInput(
             id=1,
@@ -483,9 +511,9 @@ class TestGracePeriod:
             grace_period_days=5,
         )
         assign_bills(periods, [bill])
-        assert len(periods[0].assigned_bills) == 0
-        assert len(periods[1].assigned_bills) == 1
-        assert periods[1].assigned_bills[0].due_date == date(2024, 1, 17)
+        assert len(periods[0].assigned_bills) == 1
+        assert periods[0].assigned_bills[0].due_date == date(2024, 1, 17)
+        assert len(periods[1].assigned_bills) == 0
 
     def test_zero_grace_uses_actual_due_date(self) -> None:
         periods = _biweekly_periods(3)
@@ -516,9 +544,12 @@ class TestGracePeriod:
         assign_bills(periods, [bill])
         assert periods[0].assigned_bills[0].status == "on_time"
 
-    def test_project_moves_grace_bill_backward_to_avoid_overbooked_period(
+    def test_project_keeps_grace_bill_at_due_date_when_funds_allow(
         self,
     ) -> None:
+        # PENNYMAC's due-date period (period 0) covers both bills fine, so
+        # it should stay there by default rather than drifting to the end
+        # of its grace window.
         bills = [
             BillInput(
                 id=1,
@@ -559,6 +590,9 @@ class TestGracePeriod:
     def test_project_moves_grace_bill_forward_to_avoid_overbooked_period(
         self,
     ) -> None:
+        # PENNYMAC defaults to period 0 (its due date), but period 0 can't
+        # cover both bills on a $1000 salary — only the grace bill has
+        # anywhere else to go, so it rolls forward into period 1.
         bills = [
             BillInput(
                 id=1,
@@ -592,6 +626,65 @@ class TestGracePeriod:
         assert [bill.name for bill in periods[1].assigned_bills] == ["PENNYMAC"]
         assert periods[0].remaining_balance == Decimal("100.00")
         assert periods[1].remaining_balance == Decimal("200.00")
+
+    def test_rebalance_uses_grace_of_version_active_at_due_date(self) -> None:
+        # Same scenario as
+        # test_project_moves_grace_bill_backward_to_avoid_overbooked_period, but
+        # PENNYMAC's terms are split across two versions sharing id=1: the
+        # active one (grace=5) generates the Jan 17 due date, while a decoy
+        # future version (grace=0, active from Jan 21 on) generates no
+        # occurrence in this window at all. Rebalancing must use the grace of
+        # the version that actually produced the occurrence, not whichever
+        # version happens to be last in the list.
+        bills = [
+            BillInput(
+                id=1,
+                name="PENNYMAC",
+                amount=Decimal("900.00"),
+                recurrence=BillRecurrence.one_time,
+                due_day=None,
+                first_due_date=date(2024, 1, 17),
+                grace_period_days=5,
+                active_start=date(2024, 1, 1),
+                active_end=date(2024, 1, 20),
+            ),
+            BillInput(
+                id=1,
+                name="PENNYMAC",
+                amount=Decimal("900.00"),
+                recurrence=BillRecurrence.one_time,
+                due_day=None,
+                first_due_date=date(2024, 1, 17),
+                grace_period_days=0,
+                active_start=date(2024, 1, 21),
+                active_end=date(2024, 2, 1),
+            ),
+            BillInput(
+                id=2,
+                name="Car",
+                amount=Decimal("900.00"),
+                recurrence=BillRecurrence.one_time,
+                due_day=None,
+                first_due_date=date(2024, 1, 25),
+            ),
+        ]
+
+        periods = project(
+            date(2024, 1, 5),
+            PayFrequency.biweekly,
+            2,
+            Decimal("2000.00"),
+            ZERO,
+            bills,
+            actuals={
+                date(2024, 1, 19): ActualAnchor(actual_balance=Decimal("1000.00"))
+            },
+        )
+
+        assert [bill.name for bill in periods[0].assigned_bills] == ["PENNYMAC"]
+        assert [bill.name for bill in periods[1].assigned_bills] == ["Car"]
+        assert periods[0].remaining_balance == Decimal("1100.00")
+        assert periods[1].remaining_balance == Decimal("100.00")
 
 
 # ---------------------------------------------------------------------------
@@ -732,3 +825,66 @@ class TestProject:
             bills=[],
         )
         assert result == []
+
+
+# ---------------------------------------------------------------------------
+# project — actual amounts / skipped bills roll forward into later periods
+# ---------------------------------------------------------------------------
+
+
+class TestActualAmountAndSkipRollover:
+    def test_skipped_bill_excluded_from_its_own_and_next_periods_balance(self) -> None:
+        bill = _bill(due_day=5, amount="200.00")
+        skipped_periods = project(
+            first_paycheck_date=date(2024, 1, 5),
+            frequency=PayFrequency.biweekly,
+            num_periods=2,
+            net_salary=SALARY,
+            beginning_balance=ZERO,
+            bills=[bill],
+            skipped_dates={(bill.id, date(2024, 1, 5))},
+        )
+        baseline_periods = project(
+            first_paycheck_date=date(2024, 1, 5),
+            frequency=PayFrequency.biweekly,
+            num_periods=2,
+            net_salary=SALARY,
+            beginning_balance=ZERO,
+            bills=[bill],
+        )
+        # Skipping the bill frees its $200 for period 0 and, since that
+        # balance rolls forward, for period 1's opening balance too.
+        assert skipped_periods[0].remaining_balance == (
+            baseline_periods[0].remaining_balance + Decimal("200.00")
+        )
+        assert skipped_periods[1].opening_balance == (
+            baseline_periods[1].opening_balance + Decimal("200.00")
+        )
+
+    def test_actual_amount_overrides_estimate_for_rollover(self) -> None:
+        bill = _bill(due_day=5, amount="200.00")
+        periods = project(
+            first_paycheck_date=date(2024, 1, 5),
+            frequency=PayFrequency.biweekly,
+            num_periods=2,
+            net_salary=SALARY,
+            beginning_balance=ZERO,
+            bills=[bill],
+            actual_amounts={(bill.id, date(2024, 1, 5)): Decimal("250.00")},
+        )
+        baseline_periods = project(
+            first_paycheck_date=date(2024, 1, 5),
+            frequency=PayFrequency.biweekly,
+            num_periods=2,
+            net_salary=SALARY,
+            beginning_balance=ZERO,
+            bills=[bill],
+        )
+        # Paying $50 over the $200 estimate costs $50 more in period 0, and
+        # that shortfall rolls forward into period 1's opening balance too.
+        assert periods[0].remaining_balance == (
+            baseline_periods[0].remaining_balance - Decimal("50.00")
+        )
+        assert periods[1].opening_balance == (
+            baseline_periods[1].opening_balance - Decimal("50.00")
+        )
