@@ -178,7 +178,7 @@ export function Dashboard() {
                     ))}
                   </section>
                 )}
-                <PastPeriods currentStart={current.period_start} />
+                <PastPeriods currentStart={current.period_start} onRefetch={refetch} />
               </>
             );
           })()}
