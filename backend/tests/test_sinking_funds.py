@@ -163,6 +163,38 @@ def test_monthly_summary_does_not_double_count_sinking_fund_due_month(
     assert expected_charge < Decimal("1200.00")
 
 
+def test_contribution_amount_quantized_to_cents(client: TestClient, db) -> None:
+    """Regression test: needed / funding_period_count can produce a
+    repeating decimal (e.g. 100/3), and nothing quantized it before it fed
+    reserves/saved_amount/shortfall_amount for every later period. A one-time
+    $100 bill split over exactly 3 funding periods reproduces this: contribution
+    must be a clean 2-decimal string, not a 28-digit repeating value.
+    """
+    _make_schedule(db)
+    resp = client.post(
+        "/bills",
+        json={
+            "name": "Repeating Decimal Test",
+            "amount": "100.00",
+            "recurrence": "one_time",
+            "due_date": "2025-02-20",
+            "grace_period_days": 0,
+            "category": "other",
+            "is_variable": False,
+            "sinking_fund_enabled": True,
+        },
+    )
+    assert resp.status_code == 201
+
+    resp = client.get("/schedule?from=2025-01-03&to=2025-01-16")
+
+    assert resp.status_code == 200
+    period = resp.json()["periods"][0]
+    fund = period["sinking_fund_contributions"][0]
+    assert fund["contribution_amount"] == "33.33"
+    assert fund["saved_amount"] == "33.33"
+
+
 def test_export_import_preserves_sinking_fund_flag(client: TestClient, db) -> None:
     _make_annual_bill(db)
 
