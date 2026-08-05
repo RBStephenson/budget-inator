@@ -341,6 +341,7 @@ def build_schedule(
     if from_date is None and to_date is None:
         # Generate enough periods to find today + (default_count - 1) more
         num_needed = _periods_needed(first_paycheck, today, frequency) + default_count
+        _ensure_projected_periods_allowed(num_needed)
         projection_end = build_periods(first_paycheck, frequency, num_needed)[
             -1
         ].period_end

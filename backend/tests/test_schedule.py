@@ -15,12 +15,17 @@ from app.models.pay_period_actual import PayPeriodActual
 # ---------------------------------------------------------------------------
 
 
-def _make_schedule(db, first_paycheck: date | None = None, net_salary: str = "1000.00"):
+def _make_schedule(
+    db,
+    first_paycheck: date | None = None,
+    net_salary: str = "1000.00",
+    frequency: str = "biweekly",
+):
     sched = PaySchedule(
         net_salary=net_salary,
         first_paycheck_date=first_paycheck or date(2025, 1, 3),
         beginning_balance="500.00",
-        frequency="biweekly",
+        frequency=frequency,
     )
     db.add(sched)
     db.commit()
@@ -142,6 +147,16 @@ def test_date_range_over_limit_returns_422(client: TestClient, db):
     resp = client.get("/schedule?from=2025-01-01&to=2027-01-02")
     assert resp.status_code == 422
     assert "range" in resp.json()["detail"].lower()
+
+
+def test_default_path_over_period_cap_returns_422(client: TestClient, db):
+    # BI-12: the ranged path (?from=/?to=) already 422s here; the default
+    # no-params path skipped the same guard and would silently project
+    # thousands of periods instead.
+    _make_schedule(db, first_paycheck=date(1900, 1, 3), frequency="weekly")
+    resp = client.get("/schedule")
+    assert resp.status_code == 422
+    assert "period" in resp.json()["detail"].lower()
 
 
 def test_bills_assigned_to_correct_period(client: TestClient, db):

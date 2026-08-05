@@ -549,15 +549,60 @@ def _period_indexes_for_payment_window(
     ]
 
 
-def _rebalance_score(periods: list[PayPeriodResult]) -> tuple[int, Decimal, Decimal]:
-    deficits = [
-        -period.remaining_balance
-        for period in periods
-        if period.remaining_balance < Decimal("0")
-    ]
-    if not deficits:
-        return (0, Decimal("0"), Decimal("0"))
-    return (len(deficits), sum(deficits, Decimal("0")), max(deficits))
+def _rebalance_move_score(
+    balances: list[Decimal],
+    deficits: list[Decimal],
+    current_count: int,
+    current_sum: Decimal,
+    current_max: Decimal,
+    lo: int,
+    hi: int,
+    delta: Decimal,
+) -> tuple[int, Decimal, Decimal]:
+    """Score if remaining_balance[lo:hi) each shifted by *delta*, without mutating.
+
+    ``rebalance_grace_period_bills`` runs before sinking funds are applied, so
+    every balance here is purely linear (opening = prev.remaining + income,
+    remaining = opening - bill_total). That means moving one assigned bill
+    between two periods shifts every period strictly between them by the same
+    constant amount and leaves every other period completely unchanged — so a
+    candidate move can be scored in O(hi - lo), bounded by the bill's grace
+    window, instead of a full O(len(periods)) rolling-balance recompute.
+    """
+    new_count = current_count
+    new_sum = current_sum
+    range_max = Decimal("0")
+    range_has_current_max = False
+    for i in range(lo, hi):
+        old_deficit = deficits[i]
+        if old_deficit == current_max:
+            range_has_current_max = True
+        new_deficit = max(Decimal("0"), -(balances[i] + delta))
+        if old_deficit > 0:
+            new_count -= 1
+            new_sum -= old_deficit
+        if new_deficit > 0:
+            new_count += 1
+            new_sum += new_deficit
+        if new_deficit > range_max:
+            range_max = new_deficit
+
+    if not range_has_current_max:
+        # No touched period held the old global max, so it's still achieved,
+        # unchanged, outside the range — no need to rescan for it.
+        new_max = max(range_max, current_max)
+    else:
+        # The touched range held the old max and it may now be lower, so the
+        # true max could now be held elsewhere. Only this (rare) case pays
+        # for a rescan, and only of the untouched periods.
+        new_max = range_max
+        for i, d in enumerate(deficits):
+            if lo <= i < hi:
+                continue
+            if d > new_max:
+                new_max = d
+
+    return (new_count, new_sum, new_max)
 
 
 def _bill_version_for_due_date(
@@ -642,33 +687,48 @@ def rebalance_grace_period_bills(
 
     # Each accepted move improves the score, so the loop naturally converges.
     for _ in range(len(movable) * max(1, len(periods))):
-        current_score = _rebalance_score(periods)
-        if current_score[0] == 0:
+        balances = [p.remaining_balance for p in periods]
+        deficits = [max(Decimal("0"), -b) for b in balances]
+        current_count = sum(1 for d in deficits if d > 0)
+        if current_count == 0:
             break
-
+        current_sum = sum(deficits, Decimal("0"))
+        current_max = max(deficits)
+        best_score = (current_count, current_sum, current_max)
         best_move: tuple[AssignedBill, int, int] | None = None
-        best_score = current_score
+
+        # Snapshot once per outer iteration rather than re-scanning `periods`
+        # per movable bill (that scan was previously O(len(periods)) each).
+        position: dict[int, int] = {
+            id(assigned): index
+            for index, period in enumerate(periods)
+            for assigned in period.assigned_bills
+        }
 
         for assigned, candidate_indexes in movable:
-            current_index = next(
-                (
-                    index
-                    for index, period in enumerate(periods)
-                    if assigned in period.assigned_bills
-                ),
-                None,
-            )
+            current_index = position.get(id(assigned))
             if current_index is None:
                 continue
 
             for candidate_index in candidate_indexes:
                 if candidate_index == current_index:
                     continue
-                _move_assigned_bill(periods, assigned, current_index, candidate_index)
-                apply_rolling_balances(periods, net_salary, beginning_balance, actuals)
-                score = _rebalance_score(periods)
-                _move_assigned_bill(periods, assigned, candidate_index, current_index)
-                apply_rolling_balances(periods, net_salary, beginning_balance, actuals)
+                lo, hi = sorted((current_index, candidate_index))
+                delta = (
+                    assigned.amount
+                    if candidate_index > current_index
+                    else -assigned.amount
+                )
+                score = _rebalance_move_score(
+                    balances,
+                    deficits,
+                    current_count,
+                    current_sum,
+                    current_max,
+                    lo,
+                    hi,
+                    delta,
+                )
                 if score < best_score:
                     best_score = score
                     best_move = (assigned, current_index, candidate_index)
