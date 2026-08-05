@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -433,6 +433,47 @@ def test_future_bill_paid_early_relocates_to_current_period(client: TestClient, 
     assert float(periods[0]["total_bills"]) == pytest.approx(800.0)
     assert float(periods[0]["remaining_balance"]) == pytest.approx(700.0)
     assert float(periods[1]["opening_balance"]) == pytest.approx(1700.0)
+
+
+def test_defaulted_paid_at_relocation_uses_local_date_not_utc(
+    client: TestClient, db, monkeypatch
+):
+    """BI-15: marking paid with no explicit paid_at must place the payment
+    by the local calendar date, not whatever date utcnow() lands on.
+
+    Local date Jan 16 is the last day of period 0 (01-03..01-16); a UTC date
+    one day later (Jan 17) is the first day of period 1. Before the fix, the
+    naive-UTC fallback would misplace the payment into period 1.
+    """
+    import app.api.bill_instances as bill_instances_module
+
+    monkeypatch.setattr(
+        bill_instances_module, "_today_local", lambda: date(2025, 1, 16)
+    )
+    monkeypatch.setattr(
+        bill_instances_module,
+        "utcnow",
+        lambda: datetime(2025, 1, 17, 1, 0),
+    )
+
+    _make_schedule(db, first_paycheck=date(2025, 1, 3), net_salary="1000.00")
+    bill = _make_monthly_bill(db, name="Rent", amount="800.00", due_day=20)
+
+    patch = client.patch(
+        f"/bill-instances/{bill.id}/2025-01-20",
+        json={"status": "paid"},
+    )
+    assert patch.status_code == 200
+
+    resp = client.get("/schedule?from=2025-01-03&to=2025-01-30")
+    assert resp.status_code == 200
+    periods = resp.json()["periods"]
+
+    p0_rent = [b for b in periods[0]["assigned_bills"] if b["name"] == "Rent"]
+    p1_rent = [b for b in periods[1]["assigned_bills"] if b["name"] == "Rent"]
+    assert len(p0_rent) == 1
+    assert p0_rent[0]["status"] == "paid"
+    assert p1_rent == []
 
 
 def test_manual_pay_date_relocates_unpaid_bill(client: TestClient, db):

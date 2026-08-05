@@ -16,17 +16,30 @@ from app.utils import utcnow
 router = APIRouter(prefix="/bill-instances", tags=["bill-instances"])
 
 
-def _resolve_paid_at(body: BillInstanceWrite, now: datetime) -> datetime | None:
+def _today_local() -> date:
+    """The calendar date `paid_at` defaults to when the caller omits one.
+
+    Deliberately the server's local system date, not `utcnow()`'s UTC date:
+    this is a single-user local app where the backend and the user share a
+    machine, so the server's local clock already matches the user's. Using
+    UTC here let a payment's `.date()` land on the wrong calendar day (and
+    therefore the wrong pay period) whenever the user's local evening had
+    already rolled past midnight UTC (BI-15).
+    """
+    return date.today()
+
+
+def _resolve_paid_at(body: BillInstanceWrite) -> datetime | None:
     """Timestamp to store for a payment.
 
     Only paid instances carry a ``paid_at``. When the caller supplied one we
-    honor it (back-dating); otherwise we stamp the current server time.
+    honor it (back-dating); otherwise we stamp today's local calendar date.
     """
     if body.status != BillStatus.paid:
         return None
     if "paid_at" in body.model_fields_set and body.paid_at is not None:
         return body.paid_at
-    return now
+    return datetime.combine(_today_local(), datetime.min.time())
 
 
 class BillInstanceWrite(BaseModel):
@@ -73,7 +86,7 @@ def upsert_bill_instance(
     )
 
     now = utcnow()
-    paid_at = _resolve_paid_at(body, now)
+    paid_at = _resolve_paid_at(body)
     bill_terms = bill_input_for_due_date(db, bill, due_date)
 
     if inst is None:
