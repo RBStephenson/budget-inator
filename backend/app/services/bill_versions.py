@@ -121,15 +121,21 @@ def bill_inputs_for_window(
             continue
 
         for index, version in enumerate(bill_versions):
-            effective_end = (
-                bill_versions[index + 1].effective_date - timedelta(days=1)
-                if index + 1 < len(bill_versions)
-                else window_end
-            )
+            is_last = index + 1 >= len(bill_versions)
             active_start = max(window_start, version.effective_date)
-            active_end = min(window_end, effective_end)
-            if active_start > active_end:
-                continue
+            if is_last:
+                # No successor version, so there's no known end date yet -
+                # leave active_end unbounded rather than clamping it to this
+                # window's end (which would hide the bill from any lookahead
+                # past this window, e.g. sinking-fund due-date projection).
+                active_end = None
+            else:
+                effective_end = bill_versions[index + 1].effective_date - timedelta(
+                    days=1
+                )
+                active_end = min(window_end, effective_end)
+                if active_start > active_end:
+                    continue
             bill_input = _version_to_input(version)
             if bill_input.is_active:
                 inputs.append(

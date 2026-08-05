@@ -40,9 +40,32 @@ def _make_annual_bill(db) -> Bill:
     return bill
 
 
+def _make_annual_bill_via_api(client: TestClient) -> None:
+    """Create the bill through the real endpoint, which always writes a
+    ``BillVersion`` row (see ``create_bill``). Bills built by directly
+    inserting a ``Bill`` row (``_make_annual_bill``) skip that and take a
+    different, unversioned code path in ``bill_inputs_for_window`` - no real
+    bill in the app is ever unversioned, so tests should exercise this path.
+    """
+    resp = client.post(
+        "/bills",
+        json={
+            "name": "Insurance",
+            "amount": "1200.00",
+            "recurrence": "annual",
+            "due_date": "2025-03-01",
+            "grace_period_days": 0,
+            "category": "insurance",
+            "is_variable": False,
+            "sinking_fund_enabled": True,
+        },
+    )
+    assert resp.status_code == 201
+
+
 def test_sinking_fund_reduces_safe_to_spend(client: TestClient, db) -> None:
     _make_schedule(db)
-    _make_annual_bill(db)
+    _make_annual_bill_via_api(client)
 
     resp = client.get("/schedule?from=2025-01-03&to=2025-01-16")
 
@@ -61,7 +84,7 @@ def test_due_occurrence_uses_reserved_balance_and_shows_shortfall(
     client: TestClient, db
 ) -> None:
     _make_schedule(db)
-    _make_annual_bill(db)
+    _make_annual_bill_via_api(client)
 
     resp = client.get("/schedule?from=2025-01-03&to=2025-03-13")
 
@@ -75,7 +98,7 @@ def test_due_occurrence_uses_reserved_balance_and_shows_shortfall(
 
 def test_monthly_summary_includes_sinking_fund_reserves(client: TestClient, db) -> None:
     _make_schedule(db)
-    _make_annual_bill(db)
+    _make_annual_bill_via_api(client)
 
     resp = client.get("/schedule/monthly-summary?from=2025-01&to=2025-01")
 
@@ -87,6 +110,28 @@ def test_monthly_summary_includes_sinking_fund_reserves(client: TestClient, db) 
         - float(month["total_bills"])
         - float(month["total_sinking_funds"])
     )
+
+
+def test_default_schedule_query_still_contributes_for_api_created_bill(
+    client: TestClient, db
+) -> None:
+    """Regression test: bill_inputs_for_window used to clamp a bill's only
+    (current) version's active_end to the projection window, so the
+    sinking-fund lookahead (370 days past that window) could never see a
+    future due date and contributions were silently zero - but only for bills
+    with a real BillVersion row, i.e. every bill actually created through the
+    app. Uses the default (unbounded from/to) /schedule query, matching how
+    the dashboard calls it.
+    """
+    _make_schedule(db)
+    _make_annual_bill_via_api(client)
+
+    resp = client.get("/schedule")
+
+    assert resp.status_code == 200
+    period = resp.json()["periods"][0]
+    assert float(period["total_sinking_funds"]) > 0
+    assert period["sinking_fund_contributions"][0]["name"] == "Insurance"
 
 
 def test_export_import_preserves_sinking_fund_flag(client: TestClient, db) -> None:
