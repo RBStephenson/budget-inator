@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date, datetime
+
 from fastapi.testclient import TestClient
 
 from app.models import Bill, BillInstance
@@ -177,14 +179,44 @@ class TestUpsertBillInstance:
         assert resp.status_code == 200
         assert resp.json()["paid_at"].startswith("2025-01-03")
 
-    def test_defaults_paid_at_to_now_when_omitted(self, client: TestClient, db):
+    def test_defaults_paid_at_to_today_when_omitted(self, client: TestClient, db):
         bill = _make_bill(db)
         resp = client.patch(
             f"/bill-instances/{bill.id}/2025-01-01",
             json={"status": "paid"},
         )
         assert resp.status_code == 200
-        assert resp.json()["paid_at"] is not None
+        paid_at = resp.json()["paid_at"]
+        assert paid_at is not None
+        assert datetime.fromisoformat(paid_at).date() == date.today()
+
+    def test_defaulted_paid_at_uses_local_date_not_utc(
+        self, client: TestClient, db, monkeypatch
+    ):
+        """BI-15: the fallback must not derive from utcnow()'s UTC date.
+
+        Simulates a user whose local evening has already rolled past
+        midnight UTC by making the local date and the UTC-derived date
+        disagree, then confirming the stored paid_at follows the local one.
+        """
+        import app.api.bill_instances as bill_instances_module
+
+        monkeypatch.setattr(
+            bill_instances_module, "_today_local", lambda: date(2026, 8, 4)
+        )
+        monkeypatch.setattr(
+            bill_instances_module,
+            "utcnow",
+            lambda: datetime(2026, 8, 5, 1, 0),
+        )
+
+        bill = _make_bill(db)
+        resp = client.patch(
+            f"/bill-instances/{bill.id}/2025-01-01",
+            json={"status": "paid"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["paid_at"] == "2026-08-04T00:00:00"
 
     def test_back_dates_paid_at_on_existing_instance(self, client: TestClient, db):
         bill = _make_bill(db)
