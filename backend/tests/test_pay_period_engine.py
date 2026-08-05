@@ -3,6 +3,7 @@
 No DB, no HTTP — pure logic only.
 """
 
+import time
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -888,3 +889,42 @@ class TestActualAmountAndSkipRollover:
         assert periods[1].opening_balance == (
             baseline_periods[1].opening_balance - Decimal("50.00")
         )
+
+
+# ---------------------------------------------------------------------------
+# rebalance_grace_period_bills — performance (BI-12)
+# ---------------------------------------------------------------------------
+
+
+class TestRebalancePerformance:
+    def test_rebalance_completes_quickly_at_160_periods(self) -> None:
+        """Reproduces BI-12's own benchmark scenario: 8 monthly grace-period
+        bills, weekly pay, salary too low to cover them so every period
+        stays in deficit and the rebalance pass keeps searching for moves.
+        Before the O(range) rewrite of the candidate-scoring loop, this took
+        ~110s at 160 periods; it should now complete in well under a second.
+        """
+        bills = [
+            _bill(
+                id=i,
+                name=f"Bill{i}",
+                amount="500.00",
+                due_day=((i * 3) % 28) + 1,
+                grace=10,
+            )
+            for i in range(1, 9)
+        ]
+
+        start = time.perf_counter()
+        periods = project(
+            first_paycheck_date=date(2024, 1, 1),
+            frequency=PayFrequency.weekly,
+            num_periods=160,
+            net_salary=Decimal("300.00"),
+            beginning_balance=ZERO,
+            bills=bills,
+        )
+        elapsed = time.perf_counter() - start
+
+        assert len(periods) == 160
+        assert elapsed < 5.0, f"rebalance took {elapsed:.2f}s, expected well under 5s"
