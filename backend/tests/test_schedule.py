@@ -588,6 +588,119 @@ def test_rebalance_apply_persists_manual_moves(client: TestClient, db):
     assert p0_bill["manual_pay_date"] == source_pay_date.isoformat()
 
 
+def test_rebalance_apply_rejects_due_date_not_generated_by_the_bill(
+    client: TestClient, db
+):
+    """BI-16 repro: a due_date the bill never actually generates must be
+    rejected, not written as a permanent phantom BillInstance.
+    """
+    _make_schedule(db, first_paycheck=date(2025, 1, 3))
+    bill = _make_monthly_bill(db, name="Rent", due_day=1)
+
+    resp = client.post(
+        "/schedule/rebalance-apply",
+        json={
+            "moves": [
+                {
+                    "bill_id": bill.id,
+                    "name": "Rent",
+                    "due_date": "2099-07-17",
+                    "amount": "100.00",
+                    "from_pay_date": "2025-01-03",
+                    "to_pay_date": "1999-01-01",
+                    "from_period_remaining_before": "0",
+                    "from_period_remaining_after": "0",
+                    "source_remaining_before": "0",
+                    "source_remaining_after": "0",
+                    "reason": "test",
+                }
+            ]
+        },
+    )
+    assert resp.status_code == 422
+    assert db.query(BillInstance).filter(BillInstance.bill_id == bill.id).count() == 0
+
+
+def test_rebalance_apply_rejects_to_pay_date_not_a_real_pay_date(
+    client: TestClient, db
+):
+    _make_schedule(db, first_paycheck=date(2025, 1, 3), frequency="biweekly")
+    bill = _make_monthly_bill(db, name="Rent", due_day=1)
+
+    resp = client.post(
+        "/schedule/rebalance-apply",
+        json={
+            "moves": [
+                {
+                    "bill_id": bill.id,
+                    "name": "Rent",
+                    "due_date": "2025-02-01",
+                    "amount": "100.00",
+                    "from_pay_date": "2025-01-03",
+                    "to_pay_date": "2025-01-05",
+                    "from_period_remaining_before": "0",
+                    "from_period_remaining_after": "0",
+                    "source_remaining_before": "0",
+                    "source_remaining_after": "0",
+                    "reason": "test",
+                }
+            ]
+        },
+    )
+    assert resp.status_code == 422
+    assert db.query(BillInstance).filter(BillInstance.bill_id == bill.id).count() == 0
+
+
+def test_rebalance_apply_rejects_whole_batch_if_any_move_is_invalid(
+    client: TestClient, db
+):
+    """One bad move in a batch must not leave the other, valid moves applied."""
+    _make_schedule(db, first_paycheck=date(2025, 1, 3), frequency="biweekly")
+    good_bill = _make_monthly_bill(db, name="Rent", due_day=1)
+    bad_bill = _make_monthly_bill(db, name="Internet", due_day=1)
+
+    resp = client.post(
+        "/schedule/rebalance-apply",
+        json={
+            "moves": [
+                {
+                    "bill_id": good_bill.id,
+                    "name": "Rent",
+                    "due_date": "2025-02-01",
+                    "amount": "100.00",
+                    "from_pay_date": "2025-01-17",
+                    "to_pay_date": "2025-01-03",
+                    "from_period_remaining_before": "0",
+                    "from_period_remaining_after": "0",
+                    "source_remaining_before": "0",
+                    "source_remaining_after": "0",
+                    "reason": "test",
+                },
+                {
+                    "bill_id": bad_bill.id,
+                    "name": "Internet",
+                    "due_date": "2099-07-17",
+                    "amount": "100.00",
+                    "from_pay_date": "2025-01-17",
+                    "to_pay_date": "2025-01-03",
+                    "from_period_remaining_before": "0",
+                    "from_period_remaining_after": "0",
+                    "source_remaining_before": "0",
+                    "source_remaining_after": "0",
+                    "reason": "test",
+                },
+            ]
+        },
+    )
+    assert resp.status_code == 422
+    assert (
+        db.query(BillInstance)
+        .filter(BillInstance.bill_id.in_([good_bill.id, bad_bill.id]))
+        .count()
+        == 0
+    )
+
+
 def test_no_instance_leaves_status_as_on_time(client: TestClient, db):
     _make_schedule(db, first_paycheck=date(2025, 1, 3))
     _make_monthly_bill(db, name="Rent", due_day=10)

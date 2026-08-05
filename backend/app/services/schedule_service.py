@@ -584,13 +584,56 @@ def build_rebalance_preview(
 
 def apply_rebalance_moves(db: Session, body: RebalanceApplyRequest) -> None:
     now = utcnow()
+
+    if not body.moves:
+        return
+
+    sched = db.query(PaySchedule).first()
+    if sched is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No pay schedule configured",
+        )
+    frequency = PayFrequency(sched.frequency)
+    first_paycheck = sched.first_paycheck_date
+
+    # Validate every move before applying any of them, so a bad move partway
+    # through a batch can't leave earlier ones half-applied (BI-16).
+    bills: dict[int, Bill] = {}
+    furthest = max(d for move in body.moves for d in (move.due_date, move.to_pay_date))
+    num_needed = _periods_needed(first_paycheck, furthest, frequency)
+    _ensure_projected_periods_allowed(num_needed)
+    valid_pay_dates = {
+        p.pay_date for p in build_periods(first_paycheck, frequency, num_needed)
+    }
+
     for move in body.moves:
-        bill = db.get(Bill, move.bill_id)
+        bill = bills.get(move.bill_id) or db.get(Bill, move.bill_id)
         if bill is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Bill {move.bill_id} not found",
             )
+        bills[move.bill_id] = bill
+
+        if move.to_pay_date not in valid_pay_dates:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"{move.to_pay_date.isoformat()} is not a generated pay date",
+            )
+
+        bill_terms = bill_input_for_due_date(db, bill, move.due_date)
+        if not due_dates_for_bill(bill_terms, move.due_date, move.due_date):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    f"{move.due_date.isoformat()} is not a due date for "
+                    f"bill {move.bill_id}"
+                ),
+            )
+
+    for move in body.moves:
+        bill = bills[move.bill_id]
 
         inst = (
             db.query(BillInstance)
