@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from app.models.enums import BillRecurrence, PayFrequency
 
@@ -735,7 +735,14 @@ def apply_sinking_funds(periods: list[PayPeriodResult], bills: list[BillInput]) 
 
             reserve = reserves[bill.id]
             needed = max(Decimal("0"), bill.amount - reserve)
-            contribution = needed / funding_period_count
+            # Quantize immediately: needed/funding_period_count can produce a
+            # repeating decimal, and every downstream field (saved_amount,
+            # shortfall_amount, surplus_amount, and every later period's
+            # reserve) is a +/- of this value, so leaving it unquantized would
+            # carry the imprecision through the whole projection.
+            contribution = (needed / funding_period_count).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
             reserves[bill.id] = reserve + contribution
             saved = reserves[bill.id]
             period.sinking_fund_contributions.append(
