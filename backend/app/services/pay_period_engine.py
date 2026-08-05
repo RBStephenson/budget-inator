@@ -46,7 +46,7 @@ class AssignedBill:
     skipped: bool = False
 
 
-def _assigned_bill_effective_amount(b: AssignedBill) -> Decimal:
+def assigned_bill_effective_amount(b: AssignedBill) -> Decimal:
     """Cash actually committed by *b*, matching schedule_service._to_period_out.
 
     A confirmed actual amount overrides the estimate; sinking-fund-covered
@@ -90,7 +90,7 @@ class PayPeriodResult:
     @property
     def remaining_balance(self) -> Decimal:
         bill_total = sum(
-            _assigned_bill_effective_amount(b)
+            assigned_bill_effective_amount(b)
             for b in self.assigned_bills
             if not b.skipped
         )
