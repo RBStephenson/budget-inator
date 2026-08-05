@@ -11,6 +11,7 @@ from app.database import get_db
 from app.models import Bill, BillInstance
 from app.models.enums import BillStatus
 from app.services.bill_versions import bill_input_for_due_date
+from app.services.upsert import upsert_or_update
 from app.utils import utcnow
 
 router = APIRouter(prefix="/bill-instances", tags=["bill-instances"])
@@ -79,18 +80,19 @@ def upsert_bill_instance(
             status_code=status.HTTP_404_NOT_FOUND, detail="Bill not found"
         )
 
-    inst = (
-        db.query(BillInstance)
-        .filter(BillInstance.bill_id == bill_id, BillInstance.due_date == due_date)
-        .first()
-    )
+    def lookup() -> BillInstance | None:
+        return (
+            db.query(BillInstance)
+            .filter(BillInstance.bill_id == bill_id, BillInstance.due_date == due_date)
+            .first()
+        )
 
     now = utcnow()
     paid_at = _resolve_paid_at(body)
     bill_terms = bill_input_for_due_date(db, bill, due_date)
 
-    if inst is None:
-        inst = BillInstance(
+    def build() -> BillInstance:
+        return BillInstance(
             bill_id=bill_id,
             due_date=due_date,
             estimated_amount=bill_terms.amount,
@@ -101,17 +103,19 @@ def upsert_bill_instance(
             created_at=now,
             updated_at=now,
         )
-        db.add(inst)
-    else:
-        inst.status = body.status
+
+    def apply_update(existing: BillInstance) -> None:
+        existing.status = body.status
         # Only update actual_amount when the field was sent: omitting it
         # preserves the stored value, an explicit null clears it.
         if "actual_amount" in body.model_fields_set:
-            inst.actual_amount = body.actual_amount
+            existing.actual_amount = body.actual_amount
         if "manual_pay_date" in body.model_fields_set:
-            inst.manual_pay_date = body.manual_pay_date
-        inst.paid_at = paid_at
-        inst.updated_at = now
+            existing.manual_pay_date = body.manual_pay_date
+        existing.paid_at = paid_at
+        existing.updated_at = now
+
+    inst = upsert_or_update(db, lookup, build, apply_update)
 
     db.commit()
     db.refresh(inst)

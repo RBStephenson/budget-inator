@@ -47,6 +47,7 @@ from app.services.pay_period_engine import (
     due_dates_for_bill,
     project,
 )
+from app.services.upsert import upsert_or_update
 from app.utils import utcnow
 
 # Keyed by (bill_id, due_date)
@@ -635,23 +636,29 @@ def apply_rebalance_moves(db: Session, body: RebalanceApplyRequest) -> None:
     for move in body.moves:
         bill = bills[move.bill_id]
 
-        inst = (
-            db.query(BillInstance)
-            .filter(
-                BillInstance.bill_id == move.bill_id,
-                BillInstance.due_date == move.due_date,
+        def lookup(move: RebalanceMove = move) -> BillInstance | None:
+            return (
+                db.query(BillInstance)
+                .filter(
+                    BillInstance.bill_id == move.bill_id,
+                    BillInstance.due_date == move.due_date,
+                )
+                .first()
             )
-            .first()
-        )
-        if inst is not None and inst.status in (BillStatus.paid, BillStatus.skipped):
+
+        existing = lookup()
+        if existing is not None and existing.status in (
+            BillStatus.paid,
+            BillStatus.skipped,
+        ):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="paid or skipped bills cannot be manually rebalanced",
             )
 
-        if inst is None:
+        def build(move: RebalanceMove = move, bill: Bill = bill) -> BillInstance:
             bill_terms = bill_input_for_due_date(db, bill, move.due_date)
-            inst = BillInstance(
+            return BillInstance(
                 bill_id=move.bill_id,
                 due_date=move.due_date,
                 estimated_amount=bill_terms.amount,
@@ -660,12 +667,16 @@ def apply_rebalance_moves(db: Session, body: RebalanceApplyRequest) -> None:
                 created_at=now,
                 updated_at=now,
             )
-            db.add(inst)
-        else:
+
+        def apply_update(inst: BillInstance, move: RebalanceMove = move) -> None:
             inst.manual_pay_date = move.to_pay_date
             inst.updated_at = now
 
-    db.commit()
+        upsert_or_update(db, lookup, build, apply_update)
+        # Committed per-move rather than once at the end: a losing insert's
+        # retry (BI-19) rolls back the whole transaction, which would
+        # otherwise discard earlier moves already applied in this batch.
+        db.commit()
 
 
 # ---------------------------------------------------------------------------

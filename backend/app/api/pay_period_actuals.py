@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.pay_period_actual import PayPeriodActual
+from app.services.upsert import upsert_or_update
 from app.utils import utcnow
 
 router = APIRouter(prefix="/pay-period-actuals", tags=["pay-period-actuals"])
@@ -54,21 +55,30 @@ def upsert_actual(
     body: PayPeriodActualWrite,
     db: Session = Depends(get_db),
 ) -> PayPeriodActual:
-    row = db.query(PayPeriodActual).filter(PayPeriodActual.pay_date == pay_date).first()
+    def lookup() -> PayPeriodActual | None:
+        return (
+            db.query(PayPeriodActual)
+            .filter(PayPeriodActual.pay_date == pay_date)
+            .first()
+        )
+
     now = utcnow()
-    if row is None:
-        row = PayPeriodActual(
+
+    def build() -> PayPeriodActual:
+        return PayPeriodActual(
             pay_date=pay_date,
             actual_net_pay=body.actual_net_pay,
             actual_balance=body.actual_balance,
             created_at=now,
             updated_at=now,
         )
-        db.add(row)
-    else:
-        row.actual_net_pay = body.actual_net_pay
-        row.actual_balance = body.actual_balance
-        row.updated_at = now
+
+    def apply_update(existing: PayPeriodActual) -> None:
+        existing.actual_net_pay = body.actual_net_pay
+        existing.actual_balance = body.actual_balance
+        existing.updated_at = now
+
+    row = upsert_or_update(db, lookup, build, apply_update)
 
     db.commit()
     db.refresh(row)
