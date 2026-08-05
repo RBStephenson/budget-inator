@@ -4,6 +4,8 @@ import { PeriodCard } from "./PeriodCard";
 
 interface Props {
   currentStart: string;
+  /** Refetches the current schedule — called alongside the past-window refetch so mutations here (mark paid, skip, move, etc.) also update the current period's balance. */
+  onRefetch?: () => void;
 }
 
 /**
@@ -11,9 +13,14 @@ interface Props {
  * and retroactively mark a missed payment. Collapsed by default; the data is
  * only fetched once expanded.
  */
-export function PastPeriods({ currentStart }: Props) {
+export function PastPeriods({ currentStart, onRefetch }: Props) {
   const [open, setOpen] = useState(false);
   const { data, status, refetch } = usePastPeriods(currentStart, open);
+
+  function refetchAll() {
+    refetch();
+    onRefetch?.();
+  }
 
   // Most recent first, so the immediately preceding period is at the top.
   const periods = data ? [...data.periods].reverse() : [];
@@ -50,7 +57,7 @@ export function PastPeriods({ currentStart }: Props) {
                 key={p.period_index}
                 period={p}
                 label="Past"
-                onRefetch={refetch}
+                onRefetch={refetchAll}
               />
             ))}
         </div>

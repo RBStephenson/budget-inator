@@ -69,4 +69,27 @@ describe("PastPeriods", () => {
       expect(screen.getByText(/could not load past periods/i)).toBeInTheDocument(),
     );
   });
+
+  it("refetches both the past window and the current schedule when a past-period action succeeds (BI-21)", async () => {
+    const fetchSpy = mockFetch(makeSchedule([makePeriod()]));
+    const onRefetch = vi.fn();
+    renderWithToast(<PastPeriods currentStart="2025-01-17" onRefetch={onRefetch} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /past periods/i }));
+    await waitFor(() => expect(screen.getByText("Past")).toBeInTheDocument());
+    const callsBeforeAction = fetchSpy.mock.calls.length;
+
+    await userEvent.click(screen.getByRole("button", { name: /edit pay date/i }));
+    const input = screen.getByLabelText(/override pay date/i);
+    await userEvent.clear(input);
+    await userEvent.type(input, "2025-01-02");
+    await userEvent.click(screen.getByRole("button", { name: /confirm pay date/i }));
+
+    // The current-schedule refetch (Dashboard's useSchedule) was invoked...
+    await waitFor(() => expect(onRefetch).toHaveBeenCalledOnce());
+    // ...alongside the past window's own refetch, which issues a new GET.
+    await waitFor(() =>
+      expect(fetchSpy.mock.calls.length).toBeGreaterThan(callsBeforeAction + 1),
+    );
+  });
 });
