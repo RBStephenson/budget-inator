@@ -64,6 +64,72 @@ def test_patch_creates_effective_dated_version(client: TestClient, db) -> None:
     ]
 
 
+def test_patch_rejects_effective_date_earlier_than_latest_version(
+    client: TestClient, db
+) -> None:
+    # BI-17 repro: an out-of-order effective_date used to insert a version
+    # before an already-existing one while unconditionally overwriting the
+    # live Bill row anyway, leaving GET /bills permanently disagreeing with
+    # what the version timeline (and every schedule/summary) actually uses.
+    bill = _create_rent(client)
+
+    later = client.patch(
+        f"/bills/{bill['id']}",
+        json={"effective_date": "2026-03-01", "amount": "150.00"},
+    )
+    assert later.status_code == 200
+
+    earlier = client.patch(
+        f"/bills/{bill['id']}",
+        json={"effective_date": "2026-01-01", "amount": "200.00"},
+    )
+    assert earlier.status_code == 422
+    assert "effective_date" in earlier.json()["detail"]
+
+    # Rejected outright: no new version inserted, live row untouched.
+    versions = (
+        db.query(BillVersion)
+        .filter(BillVersion.bill_id == bill["id"])
+        .order_by(BillVersion.effective_date)
+        .all()
+    )
+    assert [(v.effective_date, str(v.estimated_amount)) for v in versions] == [
+        (date(1, 1, 1), "800.00"),
+        (date(2026, 3, 1), "150.00"),
+    ]
+    assert client.get(f"/bills/{bill['id']}").json()["amount"] == "150.00"
+
+
+def test_patch_allows_re_editing_the_latest_scheduled_version(
+    client: TestClient, db
+) -> None:
+    # Correcting a not-yet-live future version in place (same effective_date
+    # as the current latest) must still work - only strictly-earlier dates
+    # are rejected.
+    bill = _create_rent(client)
+
+    client.patch(
+        f"/bills/{bill['id']}",
+        json={"effective_date": "2026-03-01", "amount": "150.00"},
+    )
+    resp = client.patch(
+        f"/bills/{bill['id']}",
+        json={"effective_date": "2026-03-01", "amount": "175.00"},
+    )
+    assert resp.status_code == 200
+
+    versions = (
+        db.query(BillVersion)
+        .filter(BillVersion.bill_id == bill["id"])
+        .order_by(BillVersion.effective_date)
+        .all()
+    )
+    assert [(v.effective_date, str(v.estimated_amount)) for v in versions] == [
+        (date(1, 1, 1), "800.00"),
+        (date(2026, 3, 1), "175.00"),
+    ]
+
+
 def test_effective_dated_edit_does_not_rewrite_past_schedule(
     client: TestClient, db
 ) -> None:
