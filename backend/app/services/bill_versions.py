@@ -79,6 +79,16 @@ def ensure_initial_version(db: Session, bill: Bill) -> None:
         db.add(_copy_bill_terms(bill, effective_date=VERSION_START))
 
 
+def latest_version_effective_date(db: Session, bill_id: int) -> date | None:
+    version = (
+        db.query(BillVersion)
+        .filter(BillVersion.bill_id == bill_id)
+        .order_by(BillVersion.effective_date.desc())
+        .first()
+    )
+    return version.effective_date if version is not None else None
+
+
 def record_bill_version(db: Session, bill: Bill, effective_date: date) -> BillVersion:
     existing = (
         db.query(BillVersion)

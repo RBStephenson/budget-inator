@@ -7,7 +7,11 @@ from app.database import get_db
 from app.models import Bill
 from app.models.enums import BillCategory, BillRecurrence
 from app.schemas.bill import BillCreate, BillRead, BillUpdate
-from app.services.bill_versions import ensure_initial_version, record_bill_version
+from app.services.bill_versions import (
+    ensure_initial_version,
+    latest_version_effective_date,
+    record_bill_version,
+)
 
 router = APIRouter(prefix="/bills", tags=["bills"])
 
@@ -96,6 +100,17 @@ def get_bill(bill_id: int, db: Session = Depends(get_db)) -> Bill:
 def patch_bill(bill_id: int, body: BillUpdate, db: Session = Depends(get_db)) -> Bill:
     bill = _get_bill_or_404(bill_id, db)
     ensure_initial_version(db, bill)
+
+    if body.effective_date is not None:
+        latest = latest_version_effective_date(db, bill.id)
+        if latest is not None and body.effective_date < latest:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    "effective_date must be on or after the latest existing "
+                    f"version's effective date ({latest.isoformat()})"
+                ),
+            )
 
     if body.name is not None:
         bill.name = body.name
