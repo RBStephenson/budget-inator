@@ -3,13 +3,29 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import PaySchedule
+from app.models.enums import PayFrequency
 from app.schemas.pay_schedule import (
     PayScheduleCreate,
     PayScheduleRead,
     PayScheduleUpdate,
 )
+from app.services.pay_period_engine import is_valid_semimonthly_anchor
 
 router = APIRouter(prefix="/pay-schedule", tags=["pay-schedule"])
+
+
+def _validate_semimonthly_anchor(row: PaySchedule, db: Session) -> None:
+    if row.frequency == PayFrequency.semimonthly and not is_valid_semimonthly_anchor(
+        row.first_paycheck_date
+    ):
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "first_paycheck_date must fall on the 1st, 15th, or last day "
+                "of the month for semimonthly pay"
+            ),
+        )
 
 
 def _get_or_404(db: Session) -> PaySchedule:
@@ -43,6 +59,7 @@ def upsert_pay_schedule(
         frequency=body.frequency,
     )
     db.add(row)
+    _validate_semimonthly_anchor(row, db)
     db.commit()
     db.refresh(row)
     return row
@@ -63,6 +80,7 @@ def patch_pay_schedule(
     if body.frequency is not None:
         row.frequency = body.frequency
 
+    _validate_semimonthly_anchor(row, db)
     db.commit()
     db.refresh(row)
     return row
