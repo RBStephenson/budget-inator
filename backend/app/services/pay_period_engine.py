@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
+from typing import Protocol
 
 from app.models.enums import BillRecurrence, PayFrequency
 
@@ -46,7 +47,16 @@ class AssignedBill:
     skipped: bool = False
 
 
-def assigned_bill_effective_amount(b: AssignedBill) -> Decimal:
+class _EffectiveAmountBill(Protocol):
+    """Structural shape shared by AssignedBill and AssignedBillOut."""
+
+    actual_amount: Decimal | None
+    sinking_fund_applied: Decimal
+    sinking_fund_shortfall: Decimal
+    amount: Decimal
+
+
+def assigned_bill_effective_amount(b: _EffectiveAmountBill) -> Decimal:
     """Cash actually committed by *b*, matching schedule_service._to_period_out.
 
     A confirmed actual amount overrides the estimate; sinking-fund-covered
@@ -672,12 +682,6 @@ def rebalance_grace_period_bills(
 
     for period in periods:
         period.assigned_bills.sort(key=lambda bill: bill.due_date)
-
-
-def _effective_assigned_amount(bill: AssignedBill) -> Decimal:
-    if bill.sinking_fund_applied > 0 or bill.sinking_fund_shortfall > 0:
-        return bill.sinking_fund_shortfall
-    return bill.amount
 
 
 def apply_sinking_funds(periods: list[PayPeriodResult], bills: list[BillInput]) -> None:

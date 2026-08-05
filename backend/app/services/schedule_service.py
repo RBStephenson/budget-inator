@@ -227,19 +227,9 @@ def _to_period_out(
             )
         )
 
-    def _effective_amount(bo: AssignedBillOut) -> Decimal:
-        if bo.actual_amount is not None:
-            actual = Decimal(str(bo.actual_amount))
-            if bo.sinking_fund_applied > 0:
-                return max(Decimal("0"), actual - bo.sinking_fund_applied)
-            return actual
-        if bo.sinking_fund_applied > 0 or bo.sinking_fund_shortfall > 0:
-            return Decimal(str(bo.sinking_fund_shortfall))
-        return bo.amount
-
     total = sum(
         (
-            _effective_amount(bo)
+            assigned_bill_effective_amount(bo)
             for bo in bills_out
             if bo.status != BillStatus.skipped and not bo.is_carried_over
         ),
