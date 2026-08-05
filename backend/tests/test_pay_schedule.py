@@ -70,10 +70,42 @@ class TestPostPaySchedule:
 
     def test_accepts_all_valid_frequencies(self, client: TestClient) -> None:
         for freq in ("weekly", "biweekly", "semimonthly", "monthly"):
-            payload = {**VALID_PAYLOAD, "frequency": freq}
+            anchor = (
+                "2024-01-01"
+                if freq == "semimonthly"
+                else VALID_PAYLOAD["first_paycheck_date"]
+            )
+            payload = {
+                **VALID_PAYLOAD,
+                "frequency": freq,
+                "first_paycheck_date": anchor,
+            }
             r = client.post("/pay-schedule", json=payload)
             assert r.status_code == 201, f"frequency={freq} should be accepted"
             assert r.json()["frequency"] == freq
+
+    def test_rejects_semimonthly_anchor_not_on_recognized_day(
+        self, client: TestClient
+    ) -> None:
+        # BI-18 repro: an anchor day outside {1, 15, month-end} silently
+        # collapsed a pay period boundary instead of being rejected.
+        payload = {
+            **VALID_PAYLOAD,
+            "frequency": "semimonthly",
+            "first_paycheck_date": "2025-01-16",
+        }
+        r = client.post("/pay-schedule", json=payload)
+        assert r.status_code == 422
+        assert "first_paycheck_date" in r.json()["detail"]
+
+    def test_accepts_semimonthly_month_end_anchor(self, client: TestClient) -> None:
+        payload = {
+            **VALID_PAYLOAD,
+            "frequency": "semimonthly",
+            "first_paycheck_date": "2024-02-29",
+        }
+        r = client.post("/pay-schedule", json=payload)
+        assert r.status_code == 201
 
 
 class TestPatchPaySchedule:
@@ -109,3 +141,28 @@ class TestPatchPaySchedule:
         r = client.patch("/pay-schedule", json={})
         assert r.status_code == 200
         assert r.json()["net_salary"] == "2500.00"
+
+    def test_rejects_switching_frequency_to_semimonthly_with_bad_anchor(
+        self, client: TestClient
+    ) -> None:
+        # VALID_PAYLOAD's anchor (day 5) is fine for biweekly but not
+        # semimonthly.
+        client.post("/pay-schedule", json=VALID_PAYLOAD)
+        r = client.patch("/pay-schedule", json={"frequency": "semimonthly"})
+        assert r.status_code == 422
+        assert client.get("/pay-schedule").json()["frequency"] == "biweekly"
+
+    def test_rejects_patching_anchor_off_recognized_day_while_semimonthly(
+        self, client: TestClient
+    ) -> None:
+        client.post(
+            "/pay-schedule",
+            json={
+                **VALID_PAYLOAD,
+                "frequency": "semimonthly",
+                "first_paycheck_date": "2024-01-01",
+            },
+        )
+        r = client.patch("/pay-schedule", json={"first_paycheck_date": "2024-01-10"})
+        assert r.status_code == 422
+        assert client.get("/pay-schedule").json()["first_paycheck_date"] == "2024-01-01"

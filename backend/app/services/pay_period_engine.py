@@ -142,6 +142,16 @@ def _add_months(d: date, months: int) -> date:
     return date(year, month, day)
 
 
+def is_valid_semimonthly_anchor(d: date) -> bool:
+    """True if *d* falls on a day _next_pay_date knows how to cadence from.
+
+    Semimonthly pay is generated as a fixed two-day-per-month pattern (1st/
+    15th, or 15th/month-end) rather than a generalized cadence, so any other
+    anchor day would silently collapse a period boundary (BI-18).
+    """
+    return d.day in (1, 15) or d.day == _days_in_month(d.year, d.month)
+
+
 def _next_pay_date(
     current: date,
     frequency: PayFrequency,
