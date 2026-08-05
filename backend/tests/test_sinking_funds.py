@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
@@ -132,6 +133,34 @@ def test_default_schedule_query_still_contributes_for_api_created_bill(
     period = resp.json()["periods"][0]
     assert float(period["total_sinking_funds"]) > 0
     assert period["sinking_fund_contributions"][0]["name"] == "Insurance"
+
+
+def test_monthly_summary_does_not_double_count_sinking_fund_due_month(
+    client: TestClient, db
+) -> None:
+    """Regression test: the monthly-summary view used to charge a
+    sinking-fund bill's full amount in its due month AND its accumulated
+    contributions in every prior month, double-counting the same bill. The
+    pay-period view already nets this correctly (effective amount is the
+    shortfall left after the reserve, 0 when fully funded) via
+    assigned_bill_effective_amount - the monthly view must charge the same
+    occurrence the same way.
+    """
+    _make_schedule(db)
+    _make_annual_bill_via_api(client)
+
+    summary = client.get("/schedule/monthly-summary?from=2025-01&to=2025-04").json()
+    march = next(m for m in summary["months"] if m["month"] == "2025-03")
+
+    schedule = client.get("/schedule?from=2025-01-03&to=2025-03-13").json()
+    bills = [b for p in schedule["periods"] for b in p["assigned_bills"]]
+    insurance = next(b for b in bills if b["name"] == "Insurance")
+    expected_charge = Decimal(insurance["sinking_fund_shortfall"])
+
+    # Not the full $1200 - it must already be reduced by the sinking-fund
+    # reserve, matching the pay-period view for the same occurrence.
+    assert Decimal(march["total_bills"]) == expected_charge
+    assert expected_charge < Decimal("1200.00")
 
 
 def test_export_import_preserves_sinking_fund_flag(client: TestClient, db) -> None:

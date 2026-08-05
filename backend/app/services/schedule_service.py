@@ -39,8 +39,10 @@ from app.schemas.schedule import (
 from app.services.bill_versions import bill_input_for_due_date, bill_inputs_for_window
 from app.services.pay_period_engine import (
     ActualAnchor,
+    AssignedBill,
     BillInput,
     PayPeriodResult,
+    assigned_bill_effective_amount,
     build_periods,
     due_dates_for_bill,
     project,
@@ -770,6 +772,16 @@ def build_monthly_summary(
                 Decimal("0"),
             )
 
+    # Reserve-applied/shortfall info per occurrence, so a sinking-fund bill's
+    # due-month charge nets against its contributions the same way the
+    # pay-period view does (see assigned_bill_effective_amount) instead of
+    # double-counting: contributions already reduced `available` above via
+    # sinking_by_month, so the due-month charge must be the shortfall, not
+    # the full amount.
+    assigned_by_key: dict[tuple[int, date], AssignedBill] = {
+        (b.bill_id, b.due_date): b for p in projected_periods for b in p.assigned_bills
+    }
+
     # Bills per month: find all due dates in the window
     bills_by_month: dict[tuple[int, int], list[tuple[BillInput, date]]] = defaultdict(
         list
@@ -810,9 +822,18 @@ def build_monthly_summary(
         )
 
     def _effective_amount(item: MonthlyBillItem) -> Decimal:
-        """Skipped bills count as 0; paid bills use actual when recorded."""
+        """Skipped bills count as 0; paid bills use actual when recorded.
+
+        A sinking-fund-covered occurrence nets against its reserve (see
+        assigned_by_key above) instead of charging its full amount, matching
+        the pay-period view - otherwise the due month double-counts the bill
+        on top of the contributions already subtracted via sinking_by_month.
+        """
         if item.status == BillStatus.skipped:
             return Decimal("0")
+        assigned = assigned_by_key.get((item.bill_id, item.due_date))
+        if assigned is not None:
+            return assigned_bill_effective_amount(assigned)
         if item.actual_amount is not None:
             return Decimal(str(item.actual_amount))
         return item.amount
