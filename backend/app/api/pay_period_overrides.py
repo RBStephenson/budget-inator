@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.pay_period_override import PayPeriodOverride
+from app.services.upsert import upsert_or_update
 from app.utils import utcnow
 
 router = APIRouter(prefix="/pay-period-overrides", tags=["pay-period-overrides"])
@@ -36,23 +37,28 @@ def upsert_override(
             detail="override_date must differ from original_date",
         )
 
-    row = (
-        db.query(PayPeriodOverride)
-        .filter(PayPeriodOverride.original_pay_date == original_date)
-        .first()
-    )
+    def lookup() -> PayPeriodOverride | None:
+        return (
+            db.query(PayPeriodOverride)
+            .filter(PayPeriodOverride.original_pay_date == original_date)
+            .first()
+        )
+
     now = utcnow()
-    if row is None:
-        row = PayPeriodOverride(
+
+    def build() -> PayPeriodOverride:
+        return PayPeriodOverride(
             original_pay_date=original_date,
             overridden_pay_date=body.override_date,
             created_at=now,
             updated_at=now,
         )
-        db.add(row)
-    else:
-        row.overridden_pay_date = body.override_date
-        row.updated_at = now
+
+    def apply_update(existing: PayPeriodOverride) -> None:
+        existing.overridden_pay_date = body.override_date
+        existing.updated_at = now
+
+    row = upsert_or_update(db, lookup, build, apply_update)
 
     db.commit()
     db.refresh(row)
