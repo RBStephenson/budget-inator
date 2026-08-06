@@ -1,4 +1,4 @@
-import { useSchedule } from "../hooks/useSchedule";
+import { useSchedule } from "../context/ScheduleContext";
 import { useDarkMode } from "../hooks/useDarkMode";
 import { Link } from "./Link";
 

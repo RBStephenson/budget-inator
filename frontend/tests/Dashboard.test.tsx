@@ -3,13 +3,16 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Dashboard } from "../src/components/Dashboard";
 import { ToastContainer } from "../src/components/ToastContainer";
+import { ScheduleProvider } from "../src/context/ScheduleContext";
 import { ToastProvider } from "../src/context/ToastContext";
 import { makeBill, makeApiBill, makePeriod, makeSchedule, makeMonthlySummary } from "./fixtures";
 
 function renderWithToast(ui: React.ReactElement) {
   return render(
     <ToastProvider>
-      {ui}
+      <ScheduleProvider>
+        {ui}
+      </ScheduleProvider>
       <ToastContainer />
     </ToastProvider>,
   );

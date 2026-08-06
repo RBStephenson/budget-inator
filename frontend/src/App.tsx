@@ -7,6 +7,7 @@ import { NotFound } from "./components/NotFound";
 import { SettingsPage } from "./components/SettingsPage";
 import { Sidebar } from "./components/Sidebar";
 import { ToastContainer } from "./components/ToastContainer";
+import { ScheduleProvider } from "./context/ScheduleContext";
 import { ToastProvider } from "./context/ToastContext";
 import "./App.css";
 
@@ -33,6 +34,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <ToastProvider>
+      <ScheduleProvider>
       <div className="app-shell">
         <Sidebar page={page} />
         <div className="app">
@@ -52,6 +54,7 @@ export default function App() {
           <ToastContainer />
         </div>
       </div>
+      </ScheduleProvider>
       </ToastProvider>
     </ErrorBoundary>
   );

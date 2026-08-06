@@ -2,6 +2,15 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Sidebar } from "../src/components/Sidebar";
+import { ScheduleProvider } from "../src/context/ScheduleContext";
+
+function renderSidebar(page: Parameters<typeof Sidebar>[0]["page"]) {
+  return render(
+    <ScheduleProvider>
+      <Sidebar page={page} />
+    </ScheduleProvider>,
+  );
+}
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -25,7 +34,7 @@ afterEach(() => {
 
 describe("Sidebar", () => {
   it("renders all four nav links", () => {
-    render(<Sidebar page="dashboard" />);
+    renderSidebar("dashboard");
     expect(screen.getByRole("link", { name: /dashboard/i })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: /bills/i })).toHaveAttribute("href", "/bills");
     expect(screen.getByRole("link", { name: /settings/i })).toHaveAttribute("href", "/settings");
@@ -33,14 +42,14 @@ describe("Sidebar", () => {
   });
 
   it("marks the current page's link as active", () => {
-    render(<Sidebar page="bills" />);
+    renderSidebar("bills");
     expect(screen.getByRole("link", { name: /bills/i })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: /dashboard/i })).not.toHaveAttribute("aria-current");
   });
 
   it("toggles dark mode and persists the preference", async () => {
     const user = userEvent.setup();
-    render(<Sidebar page="dashboard" />);
+    renderSidebar("dashboard");
 
     const toggle = screen.getByRole("button", { name: /dark mode/i });
     await user.click(toggle);
@@ -50,7 +59,7 @@ describe("Sidebar", () => {
   });
 
   it("shows the next payday stat once schedule data loads", async () => {
-    render(<Sidebar page="dashboard" />);
+    renderSidebar("dashboard");
     expect(await screen.findByText(/next payday/i)).toBeInTheDocument();
     expect(await screen.findByText(/jul 24/i)).toBeInTheDocument();
   });
