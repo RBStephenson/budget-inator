@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useSchedule } from "../hooks/useSchedule";
+import { useSchedule } from "../context/ScheduleContext";
 import { useMonthlySchedule } from "../hooks/useMonthlySchedule";
 import { getBill } from "../api/bills";
 import { downloadBudgetPdf } from "../api/reports";

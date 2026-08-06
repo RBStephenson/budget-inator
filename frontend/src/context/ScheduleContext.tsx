@@ -1,10 +1,25 @@
-import { useCallback, useEffect, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import { ApiError, get } from "../api/client";
 import type { ScheduleResponse } from "../types/schedule";
 
 export type ScheduleStatus = "loading" | "error" | "no-schedule" | "empty" | "ok";
 
-export function useSchedule() {
+interface ScheduleContextValue {
+  data: ScheduleResponse | null;
+  status: ScheduleStatus;
+  refetch: () => void;
+}
+
+const ScheduleContext = createContext<ScheduleContextValue | null>(null);
+
+export function ScheduleProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<ScheduleResponse | null>(null);
   const [status, setStatus] = useState<ScheduleStatus>("loading");
   const [tick, setTick] = useState(0);
@@ -35,5 +50,15 @@ export function useSchedule() {
     setTick((t) => t + 1);
   }, []);
 
-  return { data, status, refetch };
+  return (
+    <ScheduleContext.Provider value={{ data, status, refetch }}>
+      {children}
+    </ScheduleContext.Provider>
+  );
+}
+
+export function useSchedule(): ScheduleContextValue {
+  const ctx = useContext(ScheduleContext);
+  if (!ctx) throw new Error("useSchedule must be used inside <ScheduleProvider>");
+  return ctx;
 }
