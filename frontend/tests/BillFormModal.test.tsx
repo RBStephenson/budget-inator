@@ -165,8 +165,7 @@ describe("BillFormModal — edit mode", () => {
   it("pre-fills the effective date using local time, not UTC (BI-24)", () => {
     // 7:30pm Central on Aug 4 is already Aug 5 in UTC — the default must
     // stay on the local day or the edit silently misses today's period.
-    const originalTz = process.env.TZ;
-    process.env.TZ = "America/Chicago";
+    vi.stubEnv("TZ", "America/Chicago");
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-05T01:30:00Z"));
     try {
@@ -176,7 +175,7 @@ describe("BillFormModal — edit mode", () => {
       expect(screen.getByLabelText(/effective date/i)).toHaveValue("2026-08-04");
     } finally {
       vi.useRealTimers();
-      process.env.TZ = originalTz;
+      vi.unstubAllEnvs();
     }
   });
 
