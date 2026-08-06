@@ -445,6 +445,7 @@ describe("SettingsPage — data management", () => {
     // handleImport can read the upload.
     Object.defineProperty(file, "text", { value: () => Promise.resolve(backup) });
     await userEvent.upload(screen.getByLabelText(/import backup file/i), file);
+    await userEvent.click(screen.getByRole("button", { name: /import and overwrite/i }));
 
     await waitFor(() =>
       expect((screen.getByLabelText(/net salary/i) as HTMLInputElement).value).toBe("4242"),
@@ -488,11 +489,58 @@ describe("SettingsPage — data management", () => {
     const file = new File([backup], "empty-backup.json", { type: "application/json" });
     Object.defineProperty(file, "text", { value: () => Promise.resolve(backup) });
     await userEvent.upload(screen.getByLabelText(/import backup file/i), file);
+    await userEvent.click(screen.getByRole("button", { name: /import and overwrite/i }));
 
     await waitFor(() => expect(screen.getByText(/imported/i)).toBeInTheDocument());
     expect(
       screen.getByRole("button", { name: /save and go to dashboard/i }),
     ).toBeInTheDocument();
     expect(screen.queryByText(/not found/i)).not.toBeInTheDocument();
+  });
+
+  it("shows a confirm dialog naming the file before importing (BI-25)", async () => {
+    mockFetch404();
+    renderWithToast(<SettingsPage />);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /save and go to dashboard/i }),
+      ).toBeInTheDocument(),
+    );
+
+    const backup = JSON.stringify({ version: 1 });
+    const file = new File([backup], "backup.json", { type: "application/json" });
+    Object.defineProperty(file, "text", { value: () => Promise.resolve(backup) });
+    await userEvent.upload(screen.getByLabelText(/import backup file/i), file);
+
+    expect(screen.getByText(/import backup\?/i)).toBeInTheDocument();
+    expect(screen.getByText(/backup\.json/i)).toBeInTheDocument();
+    const importCalls = vi
+      .mocked(globalThis.fetch)
+      .mock.calls.filter(([url]) => String(url).includes("/import"));
+    expect(importCalls).toHaveLength(0);
+  });
+
+  it("does not import and clears the file input when the confirm dialog is cancelled (BI-25)", async () => {
+    mockFetch404();
+    renderWithToast(<SettingsPage />);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /save and go to dashboard/i }),
+      ).toBeInTheDocument(),
+    );
+
+    const backup = JSON.stringify({ version: 1 });
+    const file = new File([backup], "backup.json", { type: "application/json" });
+    Object.defineProperty(file, "text", { value: () => Promise.resolve(backup) });
+    const fileInput = screen.getByLabelText(/import backup file/i) as HTMLInputElement;
+    await userEvent.upload(fileInput, file);
+    await userEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+
+    expect(screen.queryByText(/import backup\?/i)).not.toBeInTheDocument();
+    expect(fileInput.value).toBe("");
+    const importCalls = vi
+      .mocked(globalThis.fetch)
+      .mock.calls.filter(([url]) => String(url).includes("/import"));
+    expect(importCalls).toHaveLength(0);
   });
 });

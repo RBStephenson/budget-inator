@@ -46,6 +46,7 @@ export function SettingsPage() {
   const [importStatus, setImportStatus] = useState<DataStatus>("idle");
   const [deleteStatus, setDeleteStatus] = useState<DataStatus>("idle");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
   const { addToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -145,6 +146,18 @@ export function SettingsPage() {
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  }
+
+  function handleImportCancelled() {
+    setPendingImportFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function handleImportConfirmed() {
+    if (!pendingImportFile) return;
+    const file = pendingImportFile;
+    setPendingImportFile(null);
+    await handleImport(file);
   }
 
   async function handleDeleteConfirmed() {
@@ -355,7 +368,7 @@ export function SettingsPage() {
                   disabled={importStatus === "busy"}
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) handleImport(file);
+                    if (file) setPendingImportFile(file);
                   }}
                 />
               </label>
@@ -384,6 +397,16 @@ export function SettingsPage() {
           </div>
         </div>
       </div>
+
+      {pendingImportFile && (
+        <ConfirmDialog
+          title="Import backup?"
+          message={`This overwrites all current data with the contents of "${pendingImportFile.name}".`}
+          confirmLabel="Import and overwrite"
+          onConfirm={handleImportConfirmed}
+          onCancel={handleImportCancelled}
+        />
+      )}
 
       {showDeleteConfirm && (
         <ConfirmDialog
