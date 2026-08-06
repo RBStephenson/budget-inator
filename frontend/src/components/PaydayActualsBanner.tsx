@@ -57,11 +57,24 @@ export function PaydayActualsBanner({ period, onRecorded }: Props) {
   const recorded = Array.isArray(actuals) && actuals.some((a) => a.pay_date === payDate);
   if (recorded) return null;
 
-  const canSave = netPay.trim() !== "" || balance.trim() !== "";
+  function isValidAmount(raw: string): boolean {
+    if (raw.trim() === "") return true;
+    const parsed = parseFloat(raw);
+    return !isNaN(parsed) && parsed >= 0;
+  }
+
+  const canSave =
+    (netPay.trim() !== "" || balance.trim() !== "") &&
+    isValidAmount(netPay) &&
+    isValidAmount(balance);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSave) return;
+    if (netPay.trim() === "" && balance.trim() === "") return;
+    if (!isValidAmount(netPay) || !isValidAmount(balance)) {
+      addToast("Enter a net pay and balance of 0 or more.", "error");
+      return;
+    }
     setSaving(true);
     try {
       await putPayPeriodActual(payDate, {

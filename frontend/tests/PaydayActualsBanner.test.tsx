@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { PaydayActualsBanner } from "../src/components/PaydayActualsBanner";
@@ -128,5 +128,45 @@ describe("PaydayActualsBanner", () => {
     await waitFor(() => screen.getByRole("button", { name: /^confirm$/i }));
     await userEvent.click(screen.getByRole("button", { name: /^confirm$/i }));
     expect(screen.getByRole("button", { name: /^save$/i })).toBeDisabled();
+  });
+
+  it("disables Save when the balance is negative (BI-26)", async () => {
+    mockApi({ actuals: [] });
+    renderWithToast(
+      <PaydayActualsBanner
+        period={makePeriod({ original_pay_date: "2025-01-03" })}
+        onRecorded={vi.fn()}
+      />,
+    );
+    await waitFor(() => screen.getByRole("button", { name: /^confirm$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^confirm$/i }));
+    await userEvent.type(screen.getByLabelText(/current balance/i), "-100");
+    expect(screen.getByRole("button", { name: /^save$/i })).toBeDisabled();
+  });
+
+  it("blocks submit and shows a toast for a negative balance even if Save is triggered directly (BI-26)", async () => {
+    const onRecorded = vi.fn();
+    const spy = mockApi({ actuals: [] });
+    renderWithToast(
+      <PaydayActualsBanner
+        period={makePeriod({ original_pay_date: "2025-01-03" })}
+        onRecorded={onRecorded}
+      />,
+    );
+    await waitFor(() => screen.getByRole("button", { name: /^confirm$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^confirm$/i }));
+    await userEvent.type(screen.getByLabelText(/current balance/i), "-100");
+
+    const form = screen.getByRole("region", { name: /confirm payday actuals/i })
+      .querySelector("form")!;
+    fireEvent.submit(form);
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(/0 or more/i),
+    );
+    expect(onRecorded).not.toHaveBeenCalled();
+    expect(spy.mock.calls.some((c) => (c[1] as RequestInit | undefined)?.method === "PUT")).toBe(
+      false,
+    );
   });
 });
