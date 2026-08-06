@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 from fastapi.testclient import TestClient
 
 VALID_PAYLOAD = {
@@ -107,6 +109,28 @@ class TestPostPaySchedule:
         r = client.post("/pay-schedule", json=payload)
         assert r.status_code == 201
 
+    def test_rejects_implausibly_old_first_paycheck_date(
+        self, client: TestClient
+    ) -> None:
+        # BI-28 repro: a typo'd year (e.g. 1900) was silently accepted.
+        payload = {**VALID_PAYLOAD, "first_paycheck_date": "1900-01-03"}
+        r = client.post("/pay-schedule", json=payload)
+        assert r.status_code == 422
+
+    def test_rejects_implausibly_future_first_paycheck_date(
+        self, client: TestClient
+    ) -> None:
+        far_future = (date.today() + timedelta(days=3650)).isoformat()
+        payload = {**VALID_PAYLOAD, "first_paycheck_date": far_future}
+        r = client.post("/pay-schedule", json=payload)
+        assert r.status_code == 422
+
+    def test_accepts_first_paycheck_date_near_today(self, client: TestClient) -> None:
+        near_today = (date.today() + timedelta(days=30)).isoformat()
+        payload = {**VALID_PAYLOAD, "first_paycheck_date": near_today}
+        r = client.post("/pay-schedule", json=payload)
+        assert r.status_code == 201
+
 
 class TestPatchPaySchedule:
     def test_returns_404_when_none_configured(self, client: TestClient) -> None:
@@ -166,3 +190,11 @@ class TestPatchPaySchedule:
         r = client.patch("/pay-schedule", json={"first_paycheck_date": "2024-01-10"})
         assert r.status_code == 422
         assert client.get("/pay-schedule").json()["first_paycheck_date"] == "2024-01-01"
+
+    def test_rejects_patching_to_an_implausibly_old_date(
+        self, client: TestClient
+    ) -> None:
+        client.post("/pay-schedule", json=VALID_PAYLOAD)
+        r = client.patch("/pay-schedule", json={"first_paycheck_date": "1900-01-03"})
+        assert r.status_code == 422
+        assert client.get("/pay-schedule").json()["first_paycheck_date"] == "2024-01-05"
