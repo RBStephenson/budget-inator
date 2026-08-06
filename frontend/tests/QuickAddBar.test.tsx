@@ -31,6 +31,15 @@ describe("QuickAddBar", () => {
     expect(screen.getByRole("button", { name: /^add$/i })).not.toBeDisabled();
   });
 
+  it("disables Add for a $0 amount (BI-27)", async () => {
+    const user = userEvent.setup();
+    renderWithToast(<QuickAddBar onAdded={vi.fn()} onOpenFullForm={vi.fn()} />);
+
+    await user.type(screen.getByLabelText(/bill name/i), "Gym");
+    await user.type(screen.getByLabelText(/amount/i), "0");
+    expect(screen.getByRole("button", { name: /^add$/i })).toBeDisabled();
+  });
+
   it("posts a monthly bill and calls onAdded, clearing the form", async () => {
     const user = userEvent.setup();
     const onAdded = vi.fn();

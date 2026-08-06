@@ -6,6 +6,7 @@ import {
   getPaySchedule,
   updatePaySchedule,
 } from "../api/paySchedule";
+import { saveBlob } from "../api/reports";
 import { useToast } from "../context/ToastContext";
 import { navigate } from "../router";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -106,12 +107,7 @@ export function SettingsPage() {
     setExportStatus("busy");
     try {
       const blob = await exportData();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `budget-inator-backup-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
+      saveBlob(blob, `budget-inator-backup-${new Date().toISOString().slice(0, 10)}.json`);
       setExportStatus("done");
       setTimeout(() => setExportStatus("idle"), 3000);
     } catch {

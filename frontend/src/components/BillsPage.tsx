@@ -102,6 +102,7 @@ export function BillsPage() {
           title={`Deactivate "${deactivateTarget.name}"?`}
           message="It will be hidden from the schedule."
           confirmLabel={deactivating ? "Deactivating…" : "Deactivate"}
+          confirmDisabled={deactivating}
           onConfirm={handleDeactivateConfirm}
           onCancel={() => setDeactivateTarget(null)}
         />

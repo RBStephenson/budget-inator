@@ -125,6 +125,37 @@ describe("BillsPage", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
+  it("disables the confirm button while deactivating to prevent a double-PATCH (BI-27)", async () => {
+    let resolvePatch!: (value: Response) => void;
+    vi.spyOn(globalThis, "fetch").mockImplementation((_url, init) => {
+      if (init?.method === "PATCH") {
+        return new Promise((resolve) => {
+          resolvePatch = resolve;
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: async () => [makeApiBill({ name: "Rent" })],
+      } as Response);
+    });
+    render(<BillsPage />);
+    await waitFor(() => expect(screen.getByText("Rent")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /deactivate rent/i }));
+    const confirmButton = screen.getByRole("button", { name: "Deactivate" });
+    await userEvent.click(confirmButton);
+
+    expect(screen.getByRole("button", { name: /deactivating/i })).toBeDisabled();
+
+    resolvePatch({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: async () => makeApiBill({ name: "Rent", is_active: false }),
+    } as Response);
+  });
+
   it("renders the back-to-dashboard link", async () => {
     mockListBills([]);
     render(<BillsPage />);
