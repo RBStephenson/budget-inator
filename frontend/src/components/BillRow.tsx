@@ -95,7 +95,11 @@ export function BillRow({ bill, payOnDate, onRefetch, onEdit }: Props) {
 
   async function saveActual() {
     const trimmed = actualInput.trim();
-    if (!trimmed || isNaN(parseFloat(trimmed))) return;
+    const parsed = parseFloat(trimmed);
+    if (trimmed === "" || isNaN(parsed) || parsed < 0) {
+      addToast("Enter an actual amount of 0 or more.", "error");
+      return;
+    }
     setSaving(true);
     try {
       await patchBillInstance(bill.bill_id, bill.due_date, "pending", trimmed);

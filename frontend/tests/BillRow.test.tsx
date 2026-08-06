@@ -330,6 +330,31 @@ describe("BillRow — variable bill", () => {
     expect(screen.getByRole("spinbutton", { name: /actual amount/i })).toHaveValue(95.5);
   });
 
+  it("shows an error toast and does not submit when confirming an empty actual (BI-23)", async () => {
+    mockPatch();
+    render(<BillRow bill={makeBill({ is_variable: true })} payOnDate="2025-01-03" />);
+    await userEvent.click(screen.getByRole("button", { name: /enter actual/i }));
+    await userEvent.click(screen.getByRole("button", { name: /confirm actual/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/enter an actual amount of 0 or more/i)).toBeInTheDocument(),
+    );
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    // Editor stays open on rejection
+    expect(screen.getByRole("spinbutton", { name: /actual amount/i })).toBeInTheDocument();
+  });
+
+  it("shows an error toast and does not submit a negative actual amount (BI-23)", async () => {
+    mockPatch();
+    render(<BillRow bill={makeBill({ is_variable: true })} payOnDate="2025-01-03" />);
+    await userEvent.click(screen.getByRole("button", { name: /enter actual/i }));
+    await userEvent.type(screen.getByRole("spinbutton", { name: /actual amount/i }), "-25");
+    await userEvent.click(screen.getByRole("button", { name: /confirm actual/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/enter an actual amount of 0 or more/i)).toBeInTheDocument(),
+    );
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
   it("hides input after cancel", async () => {
     render(<BillRow bill={makeBill({ is_variable: true })} payOnDate="2025-01-03" />);
     await userEvent.click(screen.getByRole("button", { name: /enter actual/i }));
