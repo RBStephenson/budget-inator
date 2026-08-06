@@ -162,6 +162,23 @@ describe("BillFormModal — edit mode", () => {
     expect(screen.getByText(/correct one occurrence/i)).toBeInTheDocument();
   });
 
+  it("pre-fills the effective date using local time, not UTC (BI-24)", () => {
+    // 7:30pm Central on Aug 4 is already Aug 5 in UTC — the default must
+    // stay on the local day or the edit silently misses today's period.
+    vi.stubEnv("TZ", "America/Chicago");
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-05T01:30:00Z"));
+    try {
+      renderWithToast(
+        <BillFormModal bill={makeApiBill()} onSave={vi.fn()} onClose={vi.fn()} />,
+      );
+      expect(screen.getByLabelText(/effective date/i)).toHaveValue("2026-08-04");
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("sends the selected effective date when editing", async () => {
     mockFetch(true);
     const onSave = vi.fn();
