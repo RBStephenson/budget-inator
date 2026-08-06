@@ -40,6 +40,7 @@ export function QuickAddBar({ onAdded, onOpenFullForm, showScheduleFields = fals
     name.trim() !== "" &&
     amount.trim() !== "" &&
     !isNaN(parseFloat(amount)) &&
+    parseFloat(amount) > 0 &&
     (!showScheduleFields || (isMonthly ? dueDay.trim() !== "" : dueDate.trim() !== ""));
 
   async function handleSubmit(e: React.FormEvent) {
