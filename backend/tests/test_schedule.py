@@ -747,9 +747,7 @@ def test_smoothing_preview_picks_best_fit_next_period_subset(client: TestClient,
         assert move["to_pay_date"] == source_pay_date.isoformat()
 
 
-def test_smoothing_preview_empty_when_current_not_ahead_of_next(
-    client: TestClient, db
-):
+def test_smoothing_preview_empty_when_current_not_ahead_of_next(client: TestClient, db):
     source_pay_date = date.today()
     _make_schedule(db, first_paycheck=source_pay_date, net_salary="1000.00")
 
