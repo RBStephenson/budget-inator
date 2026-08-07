@@ -5,6 +5,7 @@ import { BillRow } from "./BillRow";
 import { listPayPeriodActuals, putPayPeriodActual } from "../api/payPeriodActuals";
 import { putPayPeriodOverride, deletePayPeriodOverride } from "../api/payPeriodOverrides";
 import { applyRebalance, previewRebalance } from "../api/rebalance";
+import { previewSmoothing } from "../api/smoothing";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { useToast } from "../context/ToastContext";
 import { fmtCurrency } from "../utils/currency";
@@ -55,6 +56,8 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
   const [savingOpeningBalance, setSavingOpeningBalance] = useState(false);
   const [rebalancePreview, setRebalancePreview] = useState<RebalancePreview | null>(null);
   const [rebalanceLoading, setRebalanceLoading] = useState(false);
+  const [smoothingPreview, setSmoothingPreview] = useState<RebalancePreview | null>(null);
+  const [smoothingLoading, setSmoothingLoading] = useState(false);
   const { addToast } = useToast();
 
   const color = balanceColor(period.remaining_balance, period.opening_balance);
@@ -172,6 +175,35 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
       addToast("Could not apply rebalance moves. Please try again.", "error");
     } finally {
       setRebalanceLoading(false);
+    }
+  }
+
+  async function openSmoothingPreview() {
+    setSmoothingLoading(true);
+    try {
+      const preview = await previewSmoothing(period.original_pay_date);
+      setSmoothingPreview(preview);
+    } catch {
+      addToast("Could not preview smoothing moves. Please try again.", "error");
+    } finally {
+      setSmoothingLoading(false);
+    }
+  }
+
+  async function confirmSmoothing() {
+    if (!smoothingPreview || smoothingPreview.moves.length === 0) {
+      setSmoothingPreview(null);
+      return;
+    }
+    setSmoothingLoading(true);
+    try {
+      await applyRebalance(smoothingPreview.moves);
+      setSmoothingPreview(null);
+      onRefetch?.();
+    } catch {
+      addToast("Could not apply smoothing moves. Please try again.", "error");
+    } finally {
+      setSmoothingLoading(false);
     }
   }
 
@@ -390,6 +422,13 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
           >
             {rebalanceLoading ? "Checking..." : "Rebalance available funds"}
           </button>
+          <button
+            className="btn btn--secondary"
+            onClick={openSmoothingPreview}
+            disabled={smoothingLoading}
+          >
+            {smoothingLoading ? "Checking..." : "Smooth with next period"}
+          </button>
         </div>
       )}
 
@@ -469,6 +508,39 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
           {rebalancePreview.moves.length > 0 && (
             <ul className="rebalance-dialog__moves">
               {rebalancePreview.moves.map((move) => (
+                <li key={`${move.bill_id}-${move.due_date}`}>
+                  <span className="rebalance-dialog__move-icon" aria-hidden="true">↔</span>
+                  <strong>{move.name}</strong>
+                  <span>
+                    {fmtDateShort(move.from_pay_date)} to{" "}
+                    {fmtDateShort(move.to_pay_date)} · {fmtCurrency(move.amount)}
+                  </span>
+                  <small>{move.reason}</small>
+                </li>
+              ))}
+            </ul>
+          )}
+        </ConfirmDialog>
+      )}
+
+      {smoothingPreview && (
+        <ConfirmDialog
+          title="Smooth with next period"
+          message={
+            smoothingPreview.moves.length === 0
+              ? "No eligible next-period bills can even out these two periods right now."
+              : `Available changes from ${fmtCurrency(
+                  smoothingPreview.source_remaining_before,
+                )} to ${fmtCurrency(smoothingPreview.source_remaining_after)}.`
+          }
+          confirmLabel={smoothingPreview.moves.length === 0 ? "Done" : "Apply moves"}
+          onConfirm={confirmSmoothing}
+          onCancel={() => setSmoothingPreview(null)}
+          confirmDisabled={smoothingLoading}
+        >
+          {smoothingPreview.moves.length > 0 && (
+            <ul className="rebalance-dialog__moves">
+              {smoothingPreview.moves.map((move) => (
                 <li key={`${move.bill_id}-${move.due_date}`}>
                   <span className="rebalance-dialog__move-icon" aria-hidden="true">↔</span>
                   <strong>{move.name}</strong>

@@ -55,7 +55,14 @@ def _make_monthly_bill(
     return bill
 
 
-def _make_one_time_bill(db, name: str, amount: str, due_date: date, grace: int = 0):
+def _make_one_time_bill(
+    db,
+    name: str,
+    amount: str,
+    due_date: date,
+    grace: int = 0,
+    sinking_fund_enabled: bool = False,
+):
     bill = Bill(
         name=name,
         estimated_amount=amount,
@@ -66,6 +73,7 @@ def _make_one_time_bill(db, name: str, amount: str, due_date: date, grace: int =
         category="other",
         is_variable=False,
         is_active=True,
+        sinking_fund_enabled=sinking_fund_enabled,
     )
     db.add(bill)
     db.commit()
@@ -699,6 +707,143 @@ def test_rebalance_apply_rejects_whole_batch_if_any_move_is_invalid(
         .count()
         == 0
     )
+
+
+def test_smoothing_preview_picks_best_fit_next_period_subset(client: TestClient, db):
+    """BI-29: exact subset-sum, not greedy — 500+200 beats 1500 alone or 500 alone."""
+    source_pay_date = date.today()
+    next_pay_date = source_pay_date + timedelta(days=14)
+    _make_schedule(
+        db,
+        first_paycheck=source_pay_date,
+        net_salary="200.00",
+        frequency="biweekly",
+    )
+    db.query(PaySchedule).first().beginning_balance = "2000.00"
+    db.commit()
+
+    _make_one_time_bill(
+        db, name="Big", amount="1500.00", due_date=next_pay_date + timedelta(days=1)
+    )
+    _make_one_time_bill(
+        db, name="Medium", amount="500.00", due_date=next_pay_date + timedelta(days=2)
+    )
+    _make_one_time_bill(
+        db, name="Small", amount="200.00", due_date=next_pay_date + timedelta(days=3)
+    )
+
+    resp = client.post(
+        "/schedule/smoothing-preview",
+        json={"source_pay_date": source_pay_date.isoformat()},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["source_remaining_before"] == "2200.00"
+    assert body["source_remaining_after"] == "1500.00"
+    names = {move["name"] for move in body["moves"]}
+    assert names == {"Medium", "Small"}
+    for move in body["moves"]:
+        assert move["from_pay_date"] == next_pay_date.isoformat()
+        assert move["to_pay_date"] == source_pay_date.isoformat()
+
+
+def test_smoothing_preview_empty_when_current_not_ahead_of_next(client: TestClient, db):
+    source_pay_date = date.today()
+    _make_schedule(db, first_paycheck=source_pay_date, net_salary="1000.00")
+
+    resp = client.post(
+        "/schedule/smoothing-preview",
+        json={"source_pay_date": source_pay_date.isoformat()},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["moves"] == []
+    assert body["source_remaining_before"] == body["source_remaining_after"]
+
+
+def test_smoothing_preview_excludes_sinking_fund_bills(client: TestClient, db):
+    source_pay_date = date.today()
+    next_pay_date = source_pay_date + timedelta(days=14)
+    _make_schedule(
+        db,
+        first_paycheck=source_pay_date,
+        net_salary="200.00",
+        frequency="biweekly",
+    )
+    db.query(PaySchedule).first().beginning_balance = "2000.00"
+    db.commit()
+
+    _make_one_time_bill(
+        db, name="Big", amount="1500.00", due_date=next_pay_date + timedelta(days=1)
+    )
+    _make_one_time_bill(
+        db,
+        name="SinkingFundBill",
+        amount="700.00",
+        due_date=next_pay_date + timedelta(days=2),
+        sinking_fund_enabled=True,
+    )
+
+    resp = client.post(
+        "/schedule/smoothing-preview",
+        json={"source_pay_date": source_pay_date.isoformat()},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    # The 700.00 sinking-fund bill would otherwise be the perfect fit
+    # (cap is 1000.00: (2200 - 200) / 2) — it must be skipped, leaving
+    # nothing else eligible under the cap since 1500.00 alone overshoots.
+    assert body["moves"] == []
+
+
+def test_smoothing_apply_persists_manual_move_and_survives_grace_rebalance(
+    client: TestClient, db
+):
+    """Applying a smoothing move must not get undone by the automatic
+    grace-period rebalance pass (BI-29's design risk vs. BI-12)."""
+    source_pay_date = date.today()
+    next_pay_date = source_pay_date + timedelta(days=14)
+    _make_schedule(
+        db,
+        first_paycheck=source_pay_date,
+        net_salary="200.00",
+        frequency="biweekly",
+    )
+    db.query(PaySchedule).first().beginning_balance = "2000.00"
+    db.commit()
+
+    _make_one_time_bill(
+        db, name="Big", amount="1500.00", due_date=next_pay_date + timedelta(days=1)
+    )
+    movable = _make_one_time_bill(
+        db,
+        name="Medium",
+        amount="500.00",
+        due_date=next_pay_date + timedelta(days=2),
+        grace=10,
+    )
+    _make_one_time_bill(
+        db, name="Small", amount="200.00", due_date=next_pay_date + timedelta(days=3)
+    )
+
+    preview = client.post(
+        "/schedule/smoothing-preview",
+        json={"source_pay_date": source_pay_date.isoformat()},
+    ).json()
+    resp = client.post("/schedule/rebalance-apply", json={"moves": preview["moves"]})
+    assert resp.status_code == 204
+
+    to_date = next_pay_date + timedelta(days=13)
+    schedule = client.get(
+        f"/schedule?from={source_pay_date.isoformat()}&to={to_date.isoformat()}"
+    ).json()
+    p0_bill = next(
+        b
+        for b in schedule["periods"][0]["assigned_bills"]
+        if b["bill_id"] == movable.id
+    )
+    assert p0_bill["placement_source"] == "manual"
+    assert p0_bill["manual_pay_date"] == source_pay_date.isoformat()
 
 
 def test_no_instance_leaves_status_as_on_time(client: TestClient, db):

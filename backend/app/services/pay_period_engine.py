@@ -834,6 +834,53 @@ def apply_sinking_funds(periods: list[PayPeriodResult], bills: list[BillInput]) 
 
 
 # ---------------------------------------------------------------------------
+# Bounded subset-sum (pay-period balance smoothing, BI-29)
+# ---------------------------------------------------------------------------
+
+
+def find_best_subset_sum(amounts: list[Decimal], cap: Decimal) -> list[int]:
+    """Indices of the subset of *amounts* summing closest to *cap* without exceeding it.
+
+    Exact 0/1 knapsack via bitset DP over integer cents: bit *k* of ``reachable``
+    is set once some subset of the items processed so far sums to *k* cents.
+    Capped search is safe here because callers bound the candidate list to a
+    single pay period's eligible bills (small, per BI-29's own assumption).
+    Ties (multiple subsets hitting the same best sum) resolve to whichever the
+    DP finds first, which favors earlier items in *amounts* — arbitrary but
+    deterministic.
+    """
+    cap_cents = int((cap * 100).to_integral_value(rounding=ROUND_HALF_UP))
+    if cap_cents <= 0 or not amounts:
+        return []
+
+    cents = [int((a * 100).to_integral_value(rounding=ROUND_HALF_UP)) for a in amounts]
+    mask = (1 << (cap_cents + 1)) - 1  # keep only sums within the cap
+
+    reachable = 1  # bit 0 (the empty subset) is always reachable
+    history: list[int] = [reachable]
+    for c in cents:
+        if c > 0:
+            reachable = (reachable | (reachable << c)) & mask
+        history.append(reachable)
+
+    best_sum = reachable.bit_length() - 1  # highest set bit <= cap_cents
+    if best_sum <= 0:
+        return []
+
+    chosen: list[int] = []
+    target = best_sum
+    for i in range(len(cents), 0, -1):
+        if target == 0:
+            break
+        if not (history[i - 1] >> target) & 1:
+            # target wasn't reachable without item i-1, so item i-1 was used
+            chosen.append(i - 1)
+            target -= cents[i - 1]
+    chosen.reverse()
+    return chosen
+
+
+# ---------------------------------------------------------------------------
 # Top-level projection
 # ---------------------------------------------------------------------------
 
