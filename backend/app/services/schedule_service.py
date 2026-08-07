@@ -45,6 +45,7 @@ from app.services.pay_period_engine import (
     assigned_bill_effective_amount,
     build_periods,
     due_dates_for_bill,
+    find_best_subset_sum,
     project,
 )
 from app.services.upsert import upsert_or_update
@@ -579,6 +580,130 @@ def build_rebalance_preview(
         source_pay_date=source_period.original_pay_date,
         source_remaining_before=source_start,
         source_remaining_after=source_remaining,
+        moves=moves,
+    )
+
+
+def build_smoothing_preview(
+    db: Session,
+    source_pay_date: date,
+) -> RebalancePreviewResponse:
+    """Preview pulling next-period bills forward to smooth balance between the two.
+
+    Implements BI-29: an exact subset-sum search over the next period's
+    eligible bills (on-time, not already paid/manually placed, not
+    sinking-fund-enabled), choosing the combination that gets
+    ``current_balance - next_balance`` as close to zero as possible without
+    flipping which period is lower. Reuses the RebalanceMove/apply machinery
+    from the manual "Rebalance available funds" feature (see
+    ``build_rebalance_preview`` / ``apply_rebalance_moves``) — applying a
+    smoothing suggestion is mechanically identical to applying a rebalance
+    move, and ``rebalance_grace_period_bills`` already skips any bill with a
+    ``manual_pay_date`` set, so an applied smoothing move can't be undone by
+    the automatic deficit-rebalance pass.
+    """
+    schedule = build_schedule(db, default_count=8)
+    source_index = next(
+        (
+            index
+            for index, period in enumerate(schedule.periods)
+            if period.original_pay_date == source_pay_date
+            or period.pay_date == source_pay_date
+        ),
+        None,
+    )
+    if source_index is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="source pay period not found in the current schedule window",
+        )
+
+    source_period = schedule.periods[source_index]
+    current_remaining = Decimal(str(source_period.remaining_balance))
+
+    def _empty(after: Decimal = current_remaining) -> RebalancePreviewResponse:
+        return RebalancePreviewResponse(
+            source_pay_date=source_period.original_pay_date,
+            source_remaining_before=current_remaining,
+            source_remaining_after=after,
+            moves=[],
+        )
+
+    if source_index + 1 >= len(schedule.periods):
+        return _empty()
+
+    next_period = schedule.periods[source_index + 1]
+    next_remaining = Decimal(str(next_period.remaining_balance))
+
+    if current_remaining <= next_remaining:
+        return _empty()
+
+    candidates = [
+        bill
+        for bill in next_period.assigned_bills
+        if bill.status == "on_time" and bill.placement_source == "inferred"
+    ]
+    if candidates:
+        sinking_enabled_ids = {
+            row.id
+            for row in db.query(Bill.id)
+            .filter(
+                Bill.id.in_({bill.bill_id for bill in candidates}),
+                Bill.sinking_fund_enabled.is_(True),
+            )
+            .all()
+        }
+        candidates = [
+            bill for bill in candidates if bill.bill_id not in sinking_enabled_ids
+        ]
+    if not candidates:
+        return _empty()
+
+    amounts = [
+        (
+            Decimal(str(bill.actual_amount))
+            if bill.actual_amount is not None
+            else Decimal(str(bill.amount))
+        )
+        for bill in candidates
+    ]
+    cap = (current_remaining - next_remaining) / 2
+    chosen_indexes = find_best_subset_sum(amounts, cap)
+
+    moves: list[RebalanceMove] = []
+    running_source = current_remaining
+    running_next = next_remaining
+    for i in chosen_indexes:
+        bill = candidates[i]
+        amount = amounts[i]
+        before_source = running_source
+        before_next = running_next
+        running_source -= amount
+        running_next += amount
+        moves.append(
+            RebalanceMove(
+                bill_id=bill.bill_id,
+                name=bill.name,
+                due_date=bill.due_date,
+                amount=amount,
+                from_pay_date=next_period.original_pay_date,
+                to_pay_date=source_period.original_pay_date,
+                from_period_remaining_before=before_next,
+                from_period_remaining_after=running_next,
+                source_remaining_before=before_source,
+                source_remaining_after=running_source,
+                reason=(
+                    f"{bill.name} is due {bill.due_date.isoformat()} and can be "
+                    f"pulled into the {source_period.pay_date.isoformat()} "
+                    "paycheck to even out the two periods' balances."
+                ),
+            )
+        )
+
+    return RebalancePreviewResponse(
+        source_pay_date=source_period.original_pay_date,
+        source_remaining_before=current_remaining,
+        source_remaining_after=running_source,
         moves=moves,
     )
 

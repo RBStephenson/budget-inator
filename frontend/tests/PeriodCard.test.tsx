@@ -363,6 +363,113 @@ describe("PeriodCard - explicit rebalance", () => {
   });
 });
 
+describe("PeriodCard - smoothing", () => {
+  it("shows a smoothing button when the period has available funds", () => {
+    render(<PeriodCard period={makePeriod({ remaining_balance: "300.00" })} />);
+    expect(
+      screen.getByRole("button", { name: /smooth with next period/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not show a smoothing button when the period is overspent", () => {
+    render(<PeriodCard period={makePeriod({ remaining_balance: "-10.00" })} />);
+    expect(
+      screen.queryByRole("button", { name: /smooth with next period/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("previews and applies smoothing moves", async () => {
+    const onRefetch = vi.fn();
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: async () => ({
+          source_pay_date: "2025-01-03",
+          source_remaining_before: "2200.00",
+          source_remaining_after: "1500.00",
+          moves: [
+            {
+              bill_id: 2,
+              name: "Internet",
+              due_date: "2025-01-20",
+              amount: "700.00",
+              from_pay_date: "2025-01-17",
+              to_pay_date: "2025-01-03",
+              from_period_remaining_before: "200.00",
+              from_period_remaining_after: "900.00",
+              source_remaining_before: "2200.00",
+              source_remaining_after: "1500.00",
+              reason: "Internet is due 2025-01-20 and can be pulled forward.",
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 204,
+        statusText: "No Content",
+        json: async () => ({}),
+      } as Response);
+
+    render(
+      <PeriodCard
+        period={makePeriod({
+          original_pay_date: "2025-01-03",
+          remaining_balance: "2200.00",
+        })}
+        onRefetch={onRefetch}
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: /smooth with next period/i }),
+    );
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    expect(screen.getByText("Internet")).toBeInTheDocument();
+    expect(
+      screen.getByText(/available changes from \$2,200.00 to \$1,500.00/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /smooth with next period/i }),
+    ).toBeInTheDocument();
+    expect(document.querySelector(".confirm-dialog")).not.toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: /apply moves/i }));
+    await waitFor(() => expect(onRefetch).toHaveBeenCalledOnce());
+
+    expect(fetchSpy.mock.calls[0][0]).toContain("/schedule/smoothing-preview");
+    expect(fetchSpy.mock.calls[1][0]).toContain("/schedule/rebalance-apply");
+  });
+
+  it("shows an empty preview when no next-period bills are eligible", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: async () => ({
+        source_pay_date: "2025-01-03",
+        source_remaining_before: "300.00",
+        source_remaining_after: "300.00",
+        moves: [],
+      }),
+    } as Response);
+
+    render(<PeriodCard period={makePeriod({ remaining_balance: "300.00" })} />);
+    await userEvent.click(
+      screen.getByRole("button", { name: /smooth with next period/i }),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/no eligible next-period bills/i),
+      ).toBeInTheDocument(),
+    );
+  });
+});
+
 describe("PeriodCard — category grouping", () => {
   it("renders a category heading for each category present", () => {
     const period = makePeriod({

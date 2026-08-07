@@ -12,12 +12,14 @@ from app.schemas.schedule import (
     RebalancePreviewRequest,
     RebalancePreviewResponse,
     ScheduleResponse,
+    SmoothingPreviewRequest,
 )
 from app.services.schedule_service import (
     apply_rebalance_moves,
     build_monthly_summary,
     build_rebalance_preview,
     build_schedule,
+    build_smoothing_preview,
 )
 
 router = APIRouter(prefix="/schedule", tags=["schedule"])
@@ -55,3 +57,11 @@ def apply_rebalance(
     db: Session = Depends(get_db),
 ) -> None:
     apply_rebalance_moves(db, body)
+
+
+@router.post("/smoothing-preview", response_model=RebalancePreviewResponse)
+def preview_smoothing(
+    body: SmoothingPreviewRequest,
+    db: Session = Depends(get_db),
+) -> RebalancePreviewResponse:
+    return build_smoothing_preview(db, body.source_pay_date)

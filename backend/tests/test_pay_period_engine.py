@@ -15,6 +15,7 @@ from app.services.pay_period_engine import (
     assign_bills,
     build_periods,
     due_dates_for_bill,
+    find_best_subset_sum,
     project,
 )
 
@@ -928,3 +929,56 @@ class TestRebalancePerformance:
 
         assert len(periods) == 160
         assert elapsed < 5.0, f"rebalance took {elapsed:.2f}s, expected well under 5s"
+
+
+class TestFindBestSubsetSum:
+    """BI-29's bounded subset-sum solver, tested in isolation from the schedule."""
+
+    def test_exact_fit_is_found(self) -> None:
+        amounts = [Decimal("100.00"), Decimal("50.00"), Decimal("25.00")]
+        chosen = find_best_subset_sum(amounts, Decimal("75.00"))
+        assert sorted(chosen) == [1, 2]
+
+    def test_best_fit_without_overshoot(self) -> None:
+        # No combination hits 90.00 exactly; 50+25=75 is the closest without
+        # exceeding the cap (100.00 alone would overshoot).
+        amounts = [Decimal("100.00"), Decimal("50.00"), Decimal("25.00")]
+        chosen = find_best_subset_sum(amounts, Decimal("90.00"))
+        assert sorted(chosen) == [1, 2]
+
+    def test_empty_when_cap_is_zero_or_negative(self) -> None:
+        amounts = [Decimal("100.00"), Decimal("50.00")]
+        assert find_best_subset_sum(amounts, Decimal("0")) == []
+        assert find_best_subset_sum(amounts, Decimal("-10.00")) == []
+
+    def test_empty_when_no_candidates(self) -> None:
+        assert find_best_subset_sum([], Decimal("100.00")) == []
+
+    def test_never_exceeds_cap(self) -> None:
+        amounts = [
+            Decimal("33.33"),
+            Decimal("41.17"),
+            Decimal("19.99"),
+            Decimal("7.51"),
+        ]
+        cap = Decimal("50.00")
+        chosen = find_best_subset_sum(amounts, cap)
+        total = sum((amounts[i] for i in chosen), Decimal("0"))
+        assert total <= cap
+
+    def test_skips_a_bill_that_alone_would_overshoot(self) -> None:
+        # 200.00 alone exceeds the 150.00 cap, so the best available fit is
+        # the much smaller 1.00 bill, not an empty result.
+        amounts = [Decimal("200.00"), Decimal("1.00")]
+        chosen = find_best_subset_sum(amounts, Decimal("150.00"))
+        assert chosen == [1]
+
+    def test_picks_single_bill_when_it_exactly_fits(self) -> None:
+        amounts = [Decimal("200.00"), Decimal("1.00")]
+        chosen = find_best_subset_sum(amounts, Decimal("200.00"))
+        assert chosen == [0]
+
+    def test_zero_amount_candidates_are_never_selected(self) -> None:
+        amounts = [Decimal("0.00"), Decimal("30.00")]
+        chosen = find_best_subset_sum(amounts, Decimal("30.00"))
+        assert chosen == [1]

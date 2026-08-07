@@ -959,6 +959,7 @@ body {
 .period-card__rebalance-row {
   display: flex;
   justify-content: flex-end;
+  gap: 0.5rem;
   padding: 0.55rem 1.25rem;
   border-top: 1px solid #f3f4f6;
   background: #ffffff;

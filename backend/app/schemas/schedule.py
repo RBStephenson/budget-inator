@@ -92,3 +92,7 @@ class RebalancePreviewResponse(BaseModel):
 
 class RebalanceApplyRequest(BaseModel):
     moves: list[RebalanceMove]
+
+
+class SmoothingPreviewRequest(BaseModel):
+    source_pay_date: date
