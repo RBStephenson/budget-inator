@@ -706,3 +706,135 @@ describe("PeriodCard — pay date override", () => {
     expect(onRefetch).not.toHaveBeenCalled();
   });
 });
+
+describe("PeriodCard - mark all paid", () => {
+  it("shows a Mark all paid button when unpaid bills exist", () => {
+    render(
+      <PeriodCard
+        period={makePeriod({ assigned_bills: [makeBill({ status: "on_time" })] })}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /mark all paid/i })).toBeInTheDocument();
+  });
+
+  it("hides the Mark all paid button when every bill is already paid or skipped", () => {
+    render(
+      <PeriodCard
+        period={makePeriod({
+          assigned_bills: [
+            makeBill({ bill_id: 1, status: "paid" }),
+            makeBill({ bill_id: 2, status: "skipped" }),
+          ],
+        })}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: /mark all paid/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the Mark all paid button when the period has no bills", () => {
+    render(<PeriodCard period={makePeriod({ assigned_bills: [] })} />);
+    expect(
+      screen.queryByRole("button", { name: /mark all paid/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("confirms before marking bills paid, naming the unpaid count", async () => {
+    render(
+      <PeriodCard
+        period={makePeriod({
+          assigned_bills: [
+            makeBill({ bill_id: 1, status: "on_time" }),
+            makeBill({ bill_id: 2, status: "late_flagged" }),
+            makeBill({ bill_id: 3, status: "paid" }),
+          ],
+        })}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /mark all paid/i }));
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    expect(screen.getByText(/mark all 2 unpaid bills/i)).toBeInTheDocument();
+  });
+
+  it("PATCHes every unpaid bill with today's date and refetches once on confirm", async () => {
+    mockFetch();
+    const onRefetch = vi.fn();
+    render(
+      <PeriodCard
+        period={makePeriod({
+          assigned_bills: [
+            makeBill({ bill_id: 1, due_date: "2025-01-05", status: "on_time" }),
+            makeBill({ bill_id: 2, due_date: "2025-01-10", status: "late_flagged" }),
+            makeBill({ bill_id: 3, due_date: "2025-01-01", status: "paid" }),
+          ],
+        })}
+        onRefetch={onRefetch}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /mark all paid/i }));
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    await userEvent.click(
+      (() => {
+        const buttons = screen.getAllByRole("button", { name: /mark all paid/i });
+        return buttons[buttons.length - 1];
+      })(),
+    );
+
+    await waitFor(() => expect(onRefetch).toHaveBeenCalledOnce());
+    const fetchMock = vi.mocked(globalThis.fetch);
+    const patchedUrls = fetchMock.mock.calls.map((call) => call[0] as string);
+    expect(patchedUrls).toContain("/api/bill-instances/1/2025-01-05");
+    expect(patchedUrls).toContain("/api/bill-instances/2/2025-01-10");
+    expect(patchedUrls).not.toContain("/api/bill-instances/3/2025-01-01");
+    const today = new Date().toLocaleDateString("en-CA");
+    for (const call of fetchMock.mock.calls) {
+      const body = JSON.parse((call[1]?.body as string) ?? "{}");
+      expect(body.status).toBe("paid");
+      expect(body.paid_at).toBe(today);
+    }
+  });
+
+  it("shows a partial-failure toast but still refetches when some patches fail", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 204,
+        statusText: "No Content",
+        json: async () => ({}),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+        json: async () => ({}),
+      } as Response);
+    const onRefetch = vi.fn();
+    render(
+      <PeriodCard
+        period={makePeriod({
+          assigned_bills: [
+            makeBill({ bill_id: 1, due_date: "2025-01-05", status: "on_time" }),
+            makeBill({ bill_id: 2, due_date: "2025-01-10", status: "on_time" }),
+          ],
+        })}
+        onRefetch={onRefetch}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /mark all paid/i }));
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    await userEvent.click(
+      (() => {
+        const buttons = screen.getAllByRole("button", { name: /mark all paid/i });
+        return buttons[buttons.length - 1];
+      })(),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText(/1 of 2 bills could not be marked paid/i)).toBeInTheDocument(),
+    );
+    expect(onRefetch).toHaveBeenCalledOnce();
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+});
