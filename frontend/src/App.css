@@ -860,6 +860,19 @@ body {
   min-width: 0;
 }
 
+.period-card__balance-row--breakdown {
+  font-size: 0.75rem;
+}
+
+.period-card__balance-row--breakdown .period-card__balance-label {
+  padding-left: 0.75rem;
+}
+
+.period-card__balance-row--breakdown .period-card__balance-value {
+  font-weight: 500;
+  min-width: 0;
+}
+
 .period-card__progress-wrap {
   height: 5px;
   background: #e5e7eb;
