@@ -864,13 +864,8 @@ body {
   font-size: 0.75rem;
 }
 
-.period-card__balance-row--breakdown .period-card__balance-label {
-  padding-left: 0.75rem;
-}
-
 .period-card__balance-row--breakdown .period-card__balance-value {
   font-weight: 500;
-  min-width: 0;
 }
 
 .period-card__progress-wrap {
