@@ -43,6 +43,8 @@ class PayPeriodOut(BaseModel):
     period_end: date
     opening_balance: Decimal
     total_bills: Decimal
+    total_paid: Decimal = Decimal("0")
+    total_unpaid: Decimal = Decimal("0")
     total_sinking_funds: Decimal = Decimal("0")
     remaining_balance: Decimal
     period_result: Decimal

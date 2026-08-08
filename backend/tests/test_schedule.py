@@ -407,6 +407,57 @@ def test_paid_with_actual_amount_uses_actual_in_total(client: TestClient, db):
     assert float(electric["actual_amount"]) == pytest.approx(75.0)
 
 
+def test_total_paid_and_unpaid_split_when_nothing_paid(client: TestClient, db):
+    _make_schedule(db, first_paycheck=date(2025, 1, 3), net_salary="1000.00")
+    _make_monthly_bill(db, name="Rent", amount="800.00", due_day=10)
+
+    resp = client.get("/schedule?from=2025-01-03&to=2025-01-16")
+    assert resp.status_code == 200
+    period = resp.json()["periods"][0]
+    assert float(period["total_paid"]) == pytest.approx(0.0)
+    assert float(period["total_unpaid"]) == pytest.approx(800.0)
+    assert float(period["total_bills"]) == pytest.approx(800.0)
+
+
+def test_total_paid_and_unpaid_split_after_marking_paid(client: TestClient, db):
+    # BI-43: marking a bill paid must not change Available (total_bills /
+    # remaining_balance stay put), but must move it from unpaid into paid.
+    _make_schedule(db, first_paycheck=date(2025, 1, 3), net_salary="1000.00")
+    rent = _make_monthly_bill(db, name="Rent", amount="800.00", due_day=10)
+    _make_monthly_bill(db, name="Electric", amount="100.00", due_day=12)
+
+    before = client.get("/schedule?from=2025-01-03&to=2025-01-16").json()["periods"][0]
+    assert float(before["remaining_balance"]) == pytest.approx(600.0)
+
+    client.patch(
+        f"/bill-instances/{rent.id}/2025-01-10",
+        json={"status": "paid"},
+    )
+
+    after = client.get("/schedule?from=2025-01-03&to=2025-01-16").json()["periods"][0]
+    assert float(after["total_paid"]) == pytest.approx(800.0)
+    assert float(after["total_unpaid"]) == pytest.approx(100.0)
+    assert float(after["total_bills"]) == pytest.approx(900.0)
+    # Available is unaffected by payment status - it already accounted for
+    # both bills at assignment time.
+    assert float(after["remaining_balance"]) == pytest.approx(600.0)
+
+
+def test_skipped_bill_excluded_from_paid_and_unpaid_totals(client: TestClient, db):
+    _make_schedule(db, first_paycheck=date(2025, 1, 3), net_salary="1000.00")
+    bill = _make_monthly_bill(db, name="Rent", amount="800.00", due_day=10)
+
+    client.patch(
+        f"/bill-instances/{bill.id}/2025-01-10",
+        json={"status": "skipped"},
+    )
+
+    resp = client.get("/schedule?from=2025-01-03&to=2025-01-16")
+    period = resp.json()["periods"][0]
+    assert float(period["total_paid"]) == pytest.approx(0.0)
+    assert float(period["total_unpaid"]) == pytest.approx(0.0)
+
+
 def test_paid_past_due_bill_pulled_into_period_shows_paid(client: TestClient, db):
     """Regression: a bill due before the schedule's first period even starts,
     rescued into period 0 by its grace window, keeps its raw (earlier) due

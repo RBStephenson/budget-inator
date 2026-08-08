@@ -246,6 +246,22 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
               −{fmtCurrency(period.total_bills)}
             </span>
           </div>
+          {parseFloat(period.total_bills) > 0 && (
+            <>
+              <div className="period-card__balance-row period-card__balance-row--breakdown">
+                <span className="period-card__balance-label">Paid so far</span>
+                <span className="period-card__balance-value">
+                  {fmtCurrency(period.total_paid)}
+                </span>
+              </div>
+              <div className="period-card__balance-row period-card__balance-row--breakdown">
+                <span className="period-card__balance-label">Still to pay</span>
+                <span className="period-card__balance-value">
+                  {fmtCurrency(period.total_unpaid)}
+                </span>
+              </div>
+            </>
+          )}
           {parseFloat(period.total_sinking_funds) > 0 && (
             <div className="period-card__balance-row">
               <span className="period-card__balance-label">Sinking funds</span>

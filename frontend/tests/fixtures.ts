@@ -33,6 +33,8 @@ export function makePeriod(overrides: Partial<PayPeriod> = {}): PayPeriod {
     period_end: "2025-01-16",
     opening_balance: "1500.00",
     total_bills: "1200.00",
+    total_paid: "0.00",
+    total_unpaid: "1200.00",
     total_sinking_funds: "0.00",
     remaining_balance: "300.00",
     period_result: "300.00",

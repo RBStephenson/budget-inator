@@ -229,14 +229,28 @@ def _to_period_out(
             )
         )
 
-    total = sum(
+    countable_bills = [
+        bo
+        for bo in bills_out
+        if bo.status != BillStatus.skipped and not bo.is_carried_over
+    ]
+    total_paid = sum(
         (
             assigned_bill_effective_amount(bo)
-            for bo in bills_out
-            if bo.status != BillStatus.skipped and not bo.is_carried_over
+            for bo in countable_bills
+            if bo.status == BillStatus.paid
         ),
         Decimal("0"),
     )
+    total_unpaid = sum(
+        (
+            assigned_bill_effective_amount(bo)
+            for bo in countable_bills
+            if bo.status != BillStatus.paid
+        ),
+        Decimal("0"),
+    )
+    total = total_paid + total_unpaid
     total_sinking_funds = sum(
         (c.contribution_amount for c in p.sinking_fund_contributions),
         Decimal("0"),
@@ -253,6 +267,8 @@ def _to_period_out(
         period_end=p.period_end,
         opening_balance=p.opening_balance,
         total_bills=total,
+        total_paid=total_paid,
+        total_unpaid=total_unpaid,
         total_sinking_funds=total_sinking_funds,
         remaining_balance=remaining,
         period_result=p.period_result,

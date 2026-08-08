@@ -35,6 +35,8 @@ export interface PayPeriod {
   period_end: string;
   opening_balance: string;
   total_bills: string;
+  total_paid: string;
+  total_unpaid: string;
   total_sinking_funds: string;
   remaining_balance: string;
   period_result: string;

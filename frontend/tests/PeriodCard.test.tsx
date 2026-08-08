@@ -69,6 +69,34 @@ describe("PeriodCard", () => {
     expect(screen.getByText("+$300.00")).toBeInTheDocument();
   });
 
+  it("shows the paid/unpaid breakdown for a period with bills", () => {
+    render(
+      <PeriodCard
+        period={makePeriod({
+          total_bills: "900.00",
+          total_paid: "800.00",
+          total_unpaid: "100.00",
+        })}
+        isHero
+      />,
+    );
+    expect(screen.getByText("Paid so far")).toBeInTheDocument();
+    expect(screen.getByText("Still to pay")).toBeInTheDocument();
+    expect(screen.getByText("$800.00")).toBeInTheDocument();
+    expect(screen.getByText("$100.00")).toBeInTheDocument();
+  });
+
+  it("omits the paid/unpaid breakdown when the period has no bills", () => {
+    render(
+      <PeriodCard
+        period={makePeriod({ total_bills: "0.00", total_paid: "0.00", total_unpaid: "0.00" })}
+        isHero
+      />,
+    );
+    expect(screen.queryByText("Paid so far")).not.toBeInTheDocument();
+    expect(screen.queryByText("Still to pay")).not.toBeInTheDocument();
+  });
+
   it("marks a negative period result as overspent styling, not the carried balance", () => {
     const { container } = render(
       <PeriodCard
@@ -213,6 +241,8 @@ describe("PeriodCard", () => {
         period={makePeriod({
           opening_balance: "2000.00",
           total_bills: "800.00",
+          total_paid: "0.00",
+          total_unpaid: "800.00",
           remaining_balance: "1200.00",
         })}
       />,
