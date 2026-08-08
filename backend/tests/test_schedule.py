@@ -1018,6 +1018,46 @@ def test_category_reflects_bill_category(client: TestClient, db):
     assert netflix["category"] == "subscriptions"
 
 
+# ---------------------------------------------------------------------------
+# Notes propagation tests (BI-40)
+# ---------------------------------------------------------------------------
+
+
+def test_notes_present_in_assigned_bill_when_set(client: TestClient, db):
+    _make_schedule(db, first_paycheck=date(2025, 1, 3))
+    bill = Bill(
+        name="Rent",
+        estimated_amount="800.00",
+        recurrence="monthly",
+        due_day=10,
+        first_due_date=None,
+        grace_period_days=0,
+        category="housing",
+        is_variable=False,
+        is_active=True,
+        notes="Landlord accepts checks only",
+    )
+    db.add(bill)
+    db.commit()
+
+    resp = client.get("/schedule?from=2025-01-03&to=2025-01-16")
+    assert resp.status_code == 200
+    bills = resp.json()["periods"][0]["assigned_bills"]
+    rent = next(b for b in bills if b["name"] == "Rent")
+    assert rent["notes"] == "Landlord accepts checks only"
+
+
+def test_notes_null_in_assigned_bill_when_not_set(client: TestClient, db):
+    _make_schedule(db, first_paycheck=date(2025, 1, 3))
+    _make_monthly_bill(db, name="Rent", due_day=10)
+
+    resp = client.get("/schedule?from=2025-01-03&to=2025-01-16")
+    assert resp.status_code == 200
+    bills = resp.json()["periods"][0]["assigned_bills"]
+    rent = next(b for b in bills if b["name"] == "Rent")
+    assert rent["notes"] is None
+
+
 def test_actual_balance_reanchors_schedule_opening(client: TestClient, db):
     """#55: a confirmed actual balance overrides the computed opening balance."""
     # begin 500 + salary 1000 → computed opening would be 1500

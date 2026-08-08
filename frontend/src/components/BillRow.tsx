@@ -181,6 +181,18 @@ export function BillRow({ bill, payOnDate, onRefetch, onEdit }: Props) {
             Unpaid from previous period
           </span>
         )}
+        {bill.notes && (
+          <span
+            className="bill-row__notes-indicator"
+            tabIndex={0}
+            aria-label={`Note: ${bill.notes}`}
+          >
+            📝
+            <span className="bill-row__notes-tooltip" role="tooltip">
+              {bill.notes}
+            </span>
+          </span>
+        )}
         <span className="bill-row__status-word">
           {isPaid
             ? "PAID"

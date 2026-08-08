@@ -19,6 +19,7 @@ export function makeBill(overrides: Partial<AssignedBill> = {}): AssignedBill {
     is_carried_over: false,
     sinking_fund_applied: "0.00",
     sinking_fund_shortfall: "0.00",
+    notes: null,
     ...overrides,
   };
 }
