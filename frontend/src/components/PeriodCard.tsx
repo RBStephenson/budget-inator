@@ -6,10 +6,15 @@ import { listPayPeriodActuals, putPayPeriodActual } from "../api/payPeriodActual
 import { putPayPeriodOverride, deletePayPeriodOverride } from "../api/payPeriodOverrides";
 import { applyRebalance, previewRebalance } from "../api/rebalance";
 import { previewSmoothing } from "../api/smoothing";
+import { patchBillInstance } from "../api/billInstances";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { useToast } from "../context/ToastContext";
 import { fmtCurrency } from "../utils/currency";
 import type { RebalancePreview } from "../types/schedule";
+
+function todayISO(): string {
+  return new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local time
+}
 
 interface Props {
   period: PayPeriod;
@@ -58,6 +63,8 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
   const [rebalanceLoading, setRebalanceLoading] = useState(false);
   const [smoothingPreview, setSmoothingPreview] = useState<RebalancePreview | null>(null);
   const [smoothingLoading, setSmoothingLoading] = useState(false);
+  const [confirmingMarkAllPaid, setConfirmingMarkAllPaid] = useState(false);
+  const [markingAllPaid, setMarkingAllPaid] = useState(false);
   const { addToast } = useToast();
 
   const color = balanceColor(period.remaining_balance, period.opening_balance);
@@ -67,6 +74,9 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
     (bill) => bill.placement_source === "manual",
   ).length;
   const hasManualMoves = manualMoveCount > 0;
+  const unpaidBills = period.assigned_bills.filter(
+    (bill) => bill.status !== "paid" && bill.status !== "skipped",
+  );
 
   const cardClass = [
     "period-card",
@@ -210,6 +220,29 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
   function cancelPayDateEdit() {
     setEditingPayDate(false);
     setPayDateInput("");
+  }
+
+  async function confirmMarkAllPaid() {
+    const paidToday = todayISO();
+    setMarkingAllPaid(true);
+    try {
+      const results = await Promise.allSettled(
+        unpaidBills.map((bill) =>
+          patchBillInstance(bill.bill_id, bill.due_date, "paid", undefined, paidToday),
+        ),
+      );
+      const failedCount = results.filter((r) => r.status === "rejected").length;
+      if (failedCount > 0) {
+        addToast(
+          `${failedCount} of ${unpaidBills.length} bills could not be marked paid. Please try again.`,
+          "error",
+        );
+      }
+      setConfirmingMarkAllPaid(false);
+      onRefetch?.();
+    } finally {
+      setMarkingAllPaid(false);
+    }
   }
 
   return (
@@ -459,6 +492,18 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
         </div>
       )}
 
+      {unpaidBills.length > 0 && (
+        <div className="period-card__rebalance-row">
+          <button
+            className="btn btn--secondary"
+            onClick={() => setConfirmingMarkAllPaid(true)}
+            disabled={markingAllPaid}
+          >
+            Mark all paid
+          </button>
+        </div>
+      )}
+
       {expanded && (
         <div className="period-card__body">
           {period.assigned_bills.length === 0 ? (
@@ -581,6 +626,19 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
             </ul>
           )}
         </ConfirmDialog>
+      )}
+
+      {confirmingMarkAllPaid && (
+        <ConfirmDialog
+          title="Mark all paid"
+          message={`Mark all ${unpaidBills.length} unpaid bill${
+            unpaidBills.length === 1 ? "" : "s"
+          } in this period as paid today? You can undo any of them individually afterward.`}
+          confirmLabel="Mark all paid"
+          onConfirm={confirmMarkAllPaid}
+          onCancel={() => setConfirmingMarkAllPaid(false)}
+          confirmDisabled={markingAllPaid}
+        />
       )}
     </div>
   );
