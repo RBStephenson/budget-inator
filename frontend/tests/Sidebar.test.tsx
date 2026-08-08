@@ -64,3 +64,50 @@ describe("Sidebar", () => {
     expect(await screen.findByText(/jul 24/i)).toBeInTheDocument();
   });
 });
+
+describe("Sidebar - flagged bill badge", () => {
+  function mockFlagged(totalFlaggedBills: number) {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        periods: [{ pay_date: "2026-07-24" }],
+        summary: {
+          from_date: "",
+          to_date: "",
+          period_count: 1,
+          total_flagged_bills: totalFlaggedBills,
+        },
+      }),
+    } as Response);
+  }
+
+  it("shows no badge when there are no flagged bills", async () => {
+    mockFlagged(0);
+    renderSidebar("dashboard");
+    await screen.findByText(/next payday/i);
+    expect(screen.queryByLabelText(/cannot be paid on time/i)).not.toBeInTheDocument();
+  });
+
+  it("shows a badge with the flagged count on the Dashboard link", async () => {
+    mockFlagged(3);
+    renderSidebar("dashboard");
+    const badge = await screen.findByLabelText(/3 bills cannot be paid on time/i);
+    expect(badge).toBeInTheDocument();
+    expect(badge.textContent).toBe("3");
+  });
+
+  it("uses singular wording for a count of 1", async () => {
+    mockFlagged(1);
+    renderSidebar("dashboard");
+    expect(await screen.findByLabelText(/1 bill cannot be paid on time/i)).toBeInTheDocument();
+  });
+
+  it("does not show a badge on the other nav links", async () => {
+    mockFlagged(2);
+    renderSidebar("dashboard");
+    await screen.findByLabelText(/2 bills cannot be paid on time/i);
+    const billsLink = screen.getByRole("link", { name: /^bills$/i });
+    expect(billsLink.querySelector(".sidebar__nav-badge")).not.toBeInTheDocument();
+  });
+});

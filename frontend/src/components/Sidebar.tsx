@@ -24,6 +24,7 @@ export function Sidebar({ page }: Props) {
   const { dark, toggle } = useDarkMode();
   const { data } = useSchedule();
   const nextPayDate = data?.periods?.[0]?.pay_date;
+  const flaggedCount = data?.summary.total_flagged_bills ?? 0;
 
   return (
     <aside className="sidebar">
@@ -43,6 +44,14 @@ export function Sidebar({ page }: Props) {
             aria-current={item.page === page ? "page" : undefined}
           >
             <span aria-hidden="true">{item.icon}</span> {item.label}
+            {item.page === "dashboard" && flaggedCount > 0 && (
+              <span
+                className="sidebar__nav-badge"
+                aria-label={`${flaggedCount} bill${flaggedCount === 1 ? "" : "s"} cannot be paid on time`}
+              >
+                {flaggedCount}
+              </span>
+            )}
           </Link>
         ))}
       </nav>
