@@ -127,6 +127,19 @@ body {
   font-weight: 700;
 }
 
+.sidebar__nav-badge {
+  margin-left: auto;
+  min-width: 1.25rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #1c1917;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.4;
+}
+
 .sidebar__footer {
   margin-top: auto;
   display: flex;
