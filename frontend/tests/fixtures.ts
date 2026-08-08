@@ -35,6 +35,7 @@ export function makePeriod(overrides: Partial<PayPeriod> = {}): PayPeriod {
     total_bills: "1200.00",
     total_sinking_funds: "0.00",
     remaining_balance: "300.00",
+    period_result: "300.00",
     flagged_bill_count: 0,
     assigned_bills: [],
     sinking_fund_contributions: [],
@@ -78,6 +79,7 @@ export function makePaySchedule(overrides: Partial<PaySchedule> = {}): PaySchedu
 
 export function makeSchedule(
   periods: PayPeriod[] = [makePeriod()],
+  summaryOverrides: Partial<ScheduleResponse["summary"]> = {},
 ): ScheduleResponse {
   return {
     periods,
@@ -86,6 +88,8 @@ export function makeSchedule(
       to_date: periods[periods.length - 1]?.period_end ?? "2025-01-16",
       period_count: periods.length,
       total_flagged_bills: periods.reduce((n, p) => n + p.flagged_bill_count, 0),
+      buffer_balance: "0.00",
+      ...summaryOverrides,
     },
   };
 }

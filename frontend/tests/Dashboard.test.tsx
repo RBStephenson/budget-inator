@@ -434,6 +434,18 @@ describe("Dashboard — PDF download", () => {
     expect(within(statCards).getByText("1/2")).toBeInTheDocument();
   });
 
+  it("shows the buffer stat card from the schedule summary", async () => {
+    mockFetch(
+      makeSchedule([makePeriod()], { buffer_balance: "1700.00" }),
+    );
+    const { container } = renderWithToast(<Dashboard />);
+
+    await waitFor(() => expect(container.querySelector(".stat-cards")).not.toBeNull());
+    const statCards = container.querySelector(".stat-cards") as HTMLElement;
+    expect(within(statCards).getByText("Buffer")).toBeInTheDocument();
+    expect(within(statCards).getByText("$1,700.00")).toBeInTheDocument();
+  });
+
   it("adds a bill via the quick-add bar and refetches the schedule", async () => {
     const user = userEvent.setup();
     const schedule = makeSchedule([makePeriod()]);

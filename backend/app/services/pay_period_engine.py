@@ -92,22 +92,44 @@ class PayPeriodResult:
     period_start: date
     period_end: date
     opening_balance: Decimal
+    income: Decimal = Decimal("0")
     assigned_bills: list[AssignedBill] = field(default_factory=list)
     sinking_fund_contributions: list[SinkingFundContribution] = field(
         default_factory=list
     )
 
     @property
+    def _bill_total(self) -> Decimal:
+        return sum(
+            (
+                assigned_bill_effective_amount(b)
+                for b in self.assigned_bills
+                if not b.skipped
+            ),
+            Decimal("0"),
+        )
+
+    @property
+    def _contribution_total(self) -> Decimal:
+        return sum(
+            (c.contribution_amount for c in self.sinking_fund_contributions),
+            Decimal("0"),
+        )
+
+    @property
     def remaining_balance(self) -> Decimal:
-        bill_total = sum(
-            assigned_bill_effective_amount(b)
-            for b in self.assigned_bills
-            if not b.skipped
-        )
-        contribution_total = sum(
-            c.contribution_amount for c in self.sinking_fund_contributions
-        )
-        return self.opening_balance - bill_total - contribution_total
+        return self.opening_balance - self._bill_total - self._contribution_total
+
+    @property
+    def period_result(self) -> Decimal:
+        """This period's own surplus (+) or overspend (-), ignoring carried balance.
+
+        Unlike ``remaining_balance`` (which rolls prior periods' leftovers
+        forward), this is scoped to what *this period's* income alone could
+        cover (BI-42) — the figure that feeds the pay-period-independence
+        buffer.
+        """
+        return self.income - self._bill_total - self._contribution_total
 
 
 @dataclass
@@ -248,14 +270,15 @@ def apply_rolling_balances(
     actuals = actuals or {}
     for i, p in enumerate(periods):
         anchor = actuals.get(p.pay_date)
-        if anchor is not None and anchor.actual_balance is not None:
-            p.opening_balance = anchor.actual_balance
-            continue
         income = (
             anchor.actual_net_pay
             if anchor is not None and anchor.actual_net_pay is not None
             else net_salary
         )
+        p.income = income
+        if anchor is not None and anchor.actual_balance is not None:
+            p.opening_balance = anchor.actual_balance
+            continue
         if i == 0:
             p.opening_balance = beginning_balance + income
         else:

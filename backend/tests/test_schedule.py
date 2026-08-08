@@ -251,6 +251,37 @@ def test_rolling_balance_carries_over(client: TestClient, db):
     assert float(periods[1]["opening_balance"]) == pytest.approx(2500.0)
 
 
+def test_period_result_ignores_beginning_balance(client: TestClient, db):
+    # beginning_balance inflates opening_balance/remaining_balance but must
+    # not leak into period_result (BI-42).
+    _make_schedule(db, first_paycheck=date(2025, 1, 3), net_salary="1000.00")
+    resp = client.get("/schedule?from=2025-01-03&to=2025-01-16")
+    assert resp.status_code == 200
+    period = resp.json()["periods"][0]
+    assert float(period["opening_balance"]) == pytest.approx(1500.0)
+    assert float(period["period_result"]) == pytest.approx(1000.0)
+
+
+def test_buffer_balance_sums_only_closed_periods(client: TestClient, db):
+    # biweekly, 30 days before today -> today lands in the 3rd period
+    # (index 2), so periods 0 and 1 are closed and feed the buffer.
+    first_paycheck = date.today() - timedelta(days=30)
+    _make_schedule(db, first_paycheck=first_paycheck, net_salary="1000.00")
+    _make_one_time_bill(
+        db, "One-off", "300.00", due_date=first_paycheck + timedelta(days=1)
+    )
+
+    resp = client.get("/schedule")
+    assert resp.status_code == 200
+    body = resp.json()
+    periods = body["periods"]
+    assert periods[0]["period_index"] == 2  # window starts at today's period
+
+    # period 0 (closed): 1000 income - 300 bill = 700
+    # period 1 (closed): 1000 income, no bills = 1000
+    assert float(body["summary"]["buffer_balance"]) == pytest.approx(1700.0)
+
+
 def test_late_flagged_bill_in_summary(client: TestClient, db):
     _make_schedule(db, first_paycheck=date(2025, 1, 3))
     # one-time bill due 90 days before our window — should be late_flagged

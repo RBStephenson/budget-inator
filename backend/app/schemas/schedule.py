@@ -45,6 +45,7 @@ class PayPeriodOut(BaseModel):
     total_bills: Decimal
     total_sinking_funds: Decimal = Decimal("0")
     remaining_balance: Decimal
+    period_result: Decimal
     flagged_bill_count: int
     assigned_bills: list[AssignedBillOut]
     sinking_fund_contributions: list[SinkingFundContributionOut] = Field(
@@ -57,6 +58,7 @@ class ScheduleSummary(BaseModel):
     to_date: date
     period_count: int
     total_flagged_bills: int
+    buffer_balance: Decimal = Decimal("0")
 
 
 class ScheduleResponse(BaseModel):

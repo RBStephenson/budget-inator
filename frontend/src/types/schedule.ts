@@ -37,6 +37,7 @@ export interface PayPeriod {
   total_bills: string;
   total_sinking_funds: string;
   remaining_balance: string;
+  period_result: string;
   flagged_bill_count: number;
   assigned_bills: AssignedBill[];
   sinking_fund_contributions: SinkingFundContribution[];
@@ -47,6 +48,7 @@ export interface ScheduleSummary {
   to_date: string;
   period_count: number;
   total_flagged_bills: number;
+  buffer_balance: string;
 }
 
 export interface ScheduleResponse {

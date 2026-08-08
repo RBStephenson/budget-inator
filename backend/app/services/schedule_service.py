@@ -255,6 +255,7 @@ def _to_period_out(
         total_bills=total,
         total_sinking_funds=total_sinking_funds,
         remaining_balance=remaining,
+        period_result=p.period_result,
         flagged_bill_count=flagged,
         assigned_bills=bills_out,
         sinking_fund_contributions=[
@@ -472,6 +473,15 @@ def build_schedule(
     effective_from = window[0].period_start if window else today
     effective_to = window[-1].period_end if window else today
 
+    # BI-42: buffer is the running sum of each *closed* period's own result
+    # (income minus that period's bills, ignoring carried balance) — a period
+    # closes implicitly once the next payday arrives, i.e. once today is past
+    # its period_end.
+    buffer_balance = sum(
+        (p.period_result for p in all_periods if p.period_end < today),
+        Decimal("0"),
+    )
+
     return ScheduleResponse(
         periods=period_outs,
         summary=ScheduleSummary(
@@ -479,6 +489,7 @@ def build_schedule(
             to_date=effective_to,
             period_count=len(window),
             total_flagged_bills=total_flagged,
+            buffer_balance=buffer_balance,
         ),
     )
 
