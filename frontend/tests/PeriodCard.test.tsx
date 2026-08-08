@@ -58,6 +58,31 @@ describe("PeriodCard", () => {
     expect(container.querySelector(".period-card__today-badge")).not.toBeInTheDocument();
   });
 
+  it("shows this period's own result separately from the carried balance", () => {
+    render(
+      <PeriodCard
+        period={makePeriod({ remaining_balance: "1500.00", period_result: "300.00" })}
+        isHero
+      />,
+    );
+    expect(screen.getByText("This period's result")).toBeInTheDocument();
+    expect(screen.getByText("+$300.00")).toBeInTheDocument();
+  });
+
+  it("marks a negative period result as overspent styling, not the carried balance", () => {
+    const { container } = render(
+      <PeriodCard
+        period={makePeriod({ remaining_balance: "1500.00", period_result: "-50.00" })}
+        isHero
+      />,
+    );
+    const mutedRow = container.querySelector(".period-card__balance-row--muted");
+    expect(mutedRow?.textContent).toContain("$50.00");
+    expect(
+      mutedRow?.querySelector(".period-card__balance-value--overspent"),
+    ).toBeInTheDocument();
+  });
+
   it("renders progress bar on hero card", () => {
     const { container } = render(<PeriodCard period={makePeriod()} isHero />);
     expect(container.querySelector(".period-card__progress-wrap")).toBeInTheDocument();

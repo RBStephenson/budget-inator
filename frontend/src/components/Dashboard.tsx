@@ -166,6 +166,12 @@ export function Dashboard() {
                       {paidCount}/{current.assigned_bills.length}
                     </span>
                   </div>
+                  <div className="stat-card">
+                    <span className="stat-card__label">Buffer</span>
+                    <span className="stat-card__value">
+                      {fmtCurrency(data.summary.buffer_balance)}
+                    </span>
+                  </div>
                 </div>
                 <QuickAddBar onAdded={refetch} onOpenFullForm={() => setShowAddForm(true)} />
                 <PaydayActualsBanner period={current} onRecorded={refetch} />

@@ -191,6 +191,60 @@ class TestRollingBalance:
         assert periods[1].opening_balance == Decimal("2000.00")
 
 
+class TestPeriodResult:
+    """BI-42: period_result is scoped to that period's own income, ignoring
+    whatever carried over from prior periods — unlike remaining_balance."""
+
+    def test_period_result_ignores_beginning_balance(self) -> None:
+        # A nonzero beginning_balance inflates opening_balance/remaining_balance
+        # but must not leak into period_result.
+        periods = project(
+            date(2024, 1, 5), PayFrequency.biweekly, 1, SALARY, Decimal("500.00"), []
+        )
+        assert periods[0].remaining_balance == Decimal("3000.00")
+        assert periods[0].period_result == SALARY
+
+    def test_period_result_matches_remaining_balance_with_zero_beginning(self) -> None:
+        bill = _bill(amount="1000.00", due_day=10)
+        periods = project(
+            date(2024, 1, 5), PayFrequency.biweekly, 1, SALARY, ZERO, [bill]
+        )
+        assert periods[0].period_result == periods[0].remaining_balance
+
+    def test_period_result_negative_does_not_compound_across_periods(self) -> None:
+        # Period 0 overspends by 500; period 1's carried opening_balance
+        # reflects that, but period 1's own period_result is untouched by it.
+        bill = _bill(amount="3000.00", due_day=10)  # only due in period 0
+        periods = project(
+            date(2024, 1, 5), PayFrequency.biweekly, 2, SALARY, ZERO, [bill]
+        )
+        assert periods[0].period_result == Decimal("-500.00")
+        assert periods[1].opening_balance == Decimal("2000.00")  # carries the deficit
+        assert periods[1].period_result == SALARY  # unaffected, no bill this period
+
+    def test_period_result_uses_actual_net_pay(self) -> None:
+        actuals = {date(2024, 1, 5): ActualAnchor(actual_net_pay=Decimal("100.00"))}
+        periods = project(
+            date(2024, 1, 5), PayFrequency.biweekly, 1, SALARY, ZERO, [], actuals
+        )
+        assert periods[0].period_result == Decimal("100.00")
+
+    def test_period_result_uses_income_even_when_actual_balance_reanchors(self) -> None:
+        # actual_balance re-anchors opening_balance directly (bypassing the
+        # income add), but income/period_result must still reflect what was
+        # actually earned that period, not silently default to zero.
+        actuals = {
+            date(2024, 1, 5): ActualAnchor(
+                actual_net_pay=Decimal("2400.00"), actual_balance=Decimal("9000.00")
+            )
+        }
+        periods = project(
+            date(2024, 1, 5), PayFrequency.biweekly, 1, SALARY, ZERO, [], actuals
+        )
+        assert periods[0].opening_balance == Decimal("9000.00")
+        assert periods[0].period_result == Decimal("2400.00")
+
+
 class TestActualsReanchor:
     """#55: confirmed payday actuals override the computed projection."""
 

@@ -262,6 +262,17 @@ export function PeriodCard({ period, isHero = false, onRefetch, onEditBill, labe
               {fmtCurrency(period.remaining_balance)}
             </span>
           </div>
+          <div className="period-card__balance-row period-card__balance-row--muted">
+            <span className="period-card__balance-label">This period's result</span>
+            <span
+              className={`period-card__balance-value period-card__balance-value--${
+                parseFloat(period.period_result) < 0 ? "overspent" : "green"
+              }`}
+            >
+              {parseFloat(period.period_result) >= 0 ? "+" : ""}
+              {fmtCurrency(period.period_result)}
+            </span>
+          </div>
         </div>
 
         {hasFlagged && (
