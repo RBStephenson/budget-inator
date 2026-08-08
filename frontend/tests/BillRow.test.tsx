@@ -222,6 +222,22 @@ describe("BillRow", () => {
     expect(body.manual_pay_date).toBeNull();
   });
 
+  it("opens the paid-date confirm UI when P is pressed on the focused row (BI-41)", () => {
+    const { container } = render(
+      <BillRow bill={makeBill({ status: "on_time" })} payOnDate="2025-01-03" />,
+    );
+    const row = container.querySelector(".bill-row") as HTMLElement;
+    fireEvent.keyDown(row, { key: "p" });
+    expect(screen.getByLabelText("Paid date")).toBeInTheDocument();
+  });
+
+  it("does not open the paid-date confirm UI when P is pressed inside an input in the row (BI-41)", async () => {
+    render(<BillRow bill={makeBill({ is_variable: true, status: "on_time" })} payOnDate="2025-01-03" />);
+    await userEvent.click(screen.getByRole("button", { name: /enter actual/i }));
+    fireEvent.keyDown(screen.getByRole("spinbutton", { name: /actual amount/i }), { key: "p" });
+    expect(screen.queryByLabelText("Paid date")).not.toBeInTheDocument();
+  });
+
   it("shows an error toast and skips refetch when marking paid fails", async () => {
     mockPatch(false);
     const onRefetch = vi.fn();

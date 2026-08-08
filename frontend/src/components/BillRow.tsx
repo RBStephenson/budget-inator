@@ -53,6 +53,18 @@ export function BillRow({ bill, payOnDate, onRefetch, onEdit }: Props) {
     }
   }
 
+  function openPaid() {
+    setPaidDate(todayISO());
+    setPayingPaid(true);
+  }
+
+  function handleRowKeyDown(e: React.KeyboardEvent<HTMLLIElement>) {
+    if (e.target !== e.currentTarget) return;
+    if (e.key !== "p" && e.key !== "P") return;
+    if (isPaid || isSkipped || payingPaid || movingBill || editingActual) return;
+    openPaid();
+  }
+
   async function saveManualMove() {
     if (!manualPayDate) return;
     setSaving(true);
@@ -142,6 +154,8 @@ export function BillRow({ bill, payOnDate, onRefetch, onEdit }: Props) {
       ]
         .filter(Boolean)
         .join(" ")}
+      tabIndex={0}
+      onKeyDown={handleRowKeyDown}
     >
       <span className="bill-row__name">
         {isLate && (
@@ -230,10 +244,7 @@ export function BillRow({ bill, payOnDate, onRefetch, onEdit }: Props) {
             <button
               className="btn-action btn-action--paid"
               disabled={saving}
-              onClick={() => {
-                setPaidDate(todayISO());
-                setPayingPaid(true);
-              }}
+              onClick={openPaid}
             >
               Paid
             </button>
