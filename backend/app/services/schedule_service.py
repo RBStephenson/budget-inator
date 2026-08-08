@@ -203,6 +203,7 @@ def _to_period_out(
     p: PayPeriodResult,
     instances: _InstanceMap,
     override_map: _OverrideMap,
+    notes_by_id: dict[int, str | None],
 ) -> PayPeriodOut:
     bills_out: list[AssignedBillOut] = []
     for b in p.assigned_bills:
@@ -226,6 +227,7 @@ def _to_period_out(
                 manual_pay_date=b.manual_pay_date,
                 sinking_fund_applied=b.sinking_fund_applied,
                 sinking_fund_shortfall=b.sinking_fund_shortfall,
+                notes=notes_by_id.get(b.bill_id),
             )
         )
 
@@ -473,8 +475,10 @@ def build_schedule(
             for p in all_periods
             if p.period_end >= carry_start and p.period_start <= window[-1].period_end
         ]
+        notes_by_id = {b.id: b.notes for b in bill_rows}
         carry_period_outs = [
-            _to_period_out(p, instances, override_map) for p in carry_periods
+            _to_period_out(p, instances, override_map, notes_by_id)
+            for p in carry_periods
         ]
         carry_target_index = _find_current_index(all_periods, today)
         _add_carried_unpaid_bills(carry_period_outs, carry_target_index)

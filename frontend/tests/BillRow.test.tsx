@@ -238,6 +238,21 @@ describe("BillRow", () => {
     expect(screen.queryByLabelText("Paid date")).not.toBeInTheDocument();
   });
 
+  it("does not show a notes indicator when the bill has no notes (BI-40)", () => {
+    render(<BillRow bill={makeBill({ notes: null })} payOnDate="2025-01-03" />);
+    expect(screen.queryByLabelText(/^note:/i)).not.toBeInTheDocument();
+  });
+
+  it("shows a notes indicator with the note text when the bill has notes (BI-40)", () => {
+    render(
+      <BillRow bill={makeBill({ notes: "Landlord accepts checks only" })} payOnDate="2025-01-03" />,
+    );
+    const indicator = screen.getByLabelText("Note: Landlord accepts checks only");
+    expect(indicator).toBeInTheDocument();
+    expect(indicator).toHaveAttribute("tabIndex", "0");
+    expect(screen.getByText("Landlord accepts checks only")).toBeInTheDocument();
+  });
+
   it("shows an error toast and skips refetch when marking paid fails", async () => {
     mockPatch(false);
     const onRefetch = vi.fn();

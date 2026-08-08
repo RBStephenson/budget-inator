@@ -1272,6 +1272,35 @@ body {
   font-size: 0.85rem;
 }
 
+.bill-row__notes-indicator {
+  position: relative;
+  display: inline-flex;
+  font-size: 0.85rem;
+  cursor: default;
+}
+
+.bill-row__notes-tooltip {
+  display: none;
+  position: absolute;
+  bottom: 125%;
+  left: 0;
+  z-index: 10;
+  max-width: 16rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-sm);
+  background: #111827;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 400;
+  white-space: normal;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.bill-row__notes-indicator:hover .bill-row__notes-tooltip,
+.bill-row__notes-indicator:focus .bill-row__notes-tooltip {
+  display: block;
+}
+
 .bill-row__meta {
   display: inline-flex;
   align-items: center;

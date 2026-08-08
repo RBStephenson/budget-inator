@@ -13,6 +13,7 @@ export interface AssignedBill {
   is_carried_over: boolean;
   sinking_fund_applied: string;
   sinking_fund_shortfall: string;
+  notes: string | null;
 }
 
 export interface SinkingFundContribution {
