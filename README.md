@@ -20,13 +20,17 @@ A personal budget management application that helps you track bills against your
 - Toggle between **By Pay Period** and **By Month** views
 - Current pay period shown as a hero card; upcoming periods listed below
 - Stat cards for available cash, bills due, late flags, and paid progress
+- **Buffer balance** stat — running total carried from every already-closed pay period, tracked independently of the live current-period balance
 - Quick Add for fast monthly bills, with a link to the full bill form
 - Bills grouped by category within each period, with per-category subtotals
 - Running balance showing the **available-to-spend** amount (green ≥ 20%, amber < 20%, red = overspent)
+- **Paid so far / Still to pay** breakdown on each period card
 - Sticky **flagged bills banner** when any bill cannot be paid on time
+- **Late-bill count badge** on the sidebar Dashboard link, so flagged bills are visible without opening the dashboard
 - **Pay date override** — adjust the pay date on any individual period
 - **Bill move/reset** — move one unpaid bill occurrence to another pay date, then reset it when needed
-- **Mark bills paid, skipped, or pending** inline on the dashboard
+- **Mark bills paid, skipped, or pending** inline on the dashboard, individually or **all at once** with the period's "Mark all paid" button
+- **Keyboard shortcut** — press "P" on a focused bill row to mark it paid
 - **Variable bill actuals** — enter the real amount for variable bills directly on the period card
 - **Payday actuals** — save the actual deposit or current balance after payday to re-anchor projections
 - **Starting balance edits** directly on period cards
@@ -43,7 +47,7 @@ A personal budget management application that helps you track bills against your
 - Categories: Housing, Utilities, Subscriptions, Insurance, Debt, Savings, Other
 - Optional **grace period** — how many days after the due date you can still pay without being late
 - **Variable flag** — marks bills whose amount changes each cycle
-- Optional bill notes are saved with the bill and included in backups
+- Optional bill notes are saved with the bill and included in backups, with a hover/focus tooltip on the dashboard row
 
 **Reports & exports**
 - **Annual cost breakdown** — modal showing per-payment and annual cost for every active bill, grouped by category with subtotals

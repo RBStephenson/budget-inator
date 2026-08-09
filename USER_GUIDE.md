@@ -84,8 +84,13 @@ Save, then add your first bill with **+ Add Bill**.
 The **Dashboard** is your home screen. The current pay period shows as a
 hero card: opening balance, bills grouped by category with due dates and
 statuses, and an **available-to-spend** figure color-coded green (healthy),
-amber (under 20% left), or red (overspent). A sticky banner appears if any
-bill can't be paid on time.
+amber (under 20% left), or red (overspent). A **Buffer** stat card tracks
+the running total carried from every already-closed pay period, separate
+from the live current-period balance, and a **Paid so far / Still to pay**
+breakdown shows how much of the period is already handled. A sticky banner
+appears if any bill can't be paid on time, and the sidebar's Dashboard link
+carries a badge with the current late-bill count so you can see it without
+opening the page.
 
 Switch to **By Month** for a calendar-level view — total income, total
 bills, and net remaining per month, with red highlighting where bills
@@ -113,9 +118,15 @@ toward it ahead of time, instead of it hitting your balance as one lump sum.
 
 On each bill's dashboard row: **✓ Paid**, **— Skip**, or **↺ Pending**.
 These only affect that occurrence — not the bill's ongoing configuration.
+With a bill row focused, pressing **P** marks it paid without reaching for
+the mouse. To clear a whole period in one go, use **Mark all paid** on the
+period card — it pays every remaining unpaid/late bill in that period at
+once (skipped bills are left alone, since skipping is a deliberate choice).
 
 - **Variable bill?** Click the (~)-prefixed amount to enter the real
   charge for that cycle; the period balance updates immediately.
+- **Bill has notes?** A small indicator appears on its row — hover or
+  focus it to read the note without opening the edit form.
 - **Paycheck landed on a different date** (holiday, early deposit)? Use the
   pencil icon next to the pay date to override it for that period.
 - Left something unpaid from a past period? It carries into the current

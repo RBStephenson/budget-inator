@@ -51,6 +51,15 @@ The default view. Each pay period is shown as a card.
   - Green — 20 % or more of the opening balance remaining
   - Amber — less than 20 % remaining
   - Red — overspent (bills exceed balance)
+- **Paid so far / Still to pay** — a running dollar breakdown of the period's bills by status
+- **Starting balance** — editable directly on the period card if you need to correct it
+- **Rebalance available funds** — if the period has money left over, preview and apply moves that pull eligible future bills into that paycheck; a moved bill can be reset back to its computed schedule
+- **Past periods** — expand a completed period to review it or retroactively mark a missed payment
+
+A **Buffer** stat card above the hero card shows the running total carried
+from every already-closed pay period (income minus that period's bills),
+tracked independently of the live current-period balance — a cushion figure
+separate from what any single upcoming period shows as available.
 
 **Upcoming periods** — listed below the hero card, collapsed by default. Click any card to expand it and see the same detail.
 
@@ -67,6 +76,8 @@ Months where bills exceed income are highlighted in red.
 ### Flagged bills banner
 
 If any bill cannot be paid before its due date — because the pay date falls after the due date and no grace period covers the gap — a sticky red banner appears at the top of the dashboard listing the affected bills. Resolve these by adjusting the bill's grace period, the pay schedule, or by manually overriding the pay date for that period.
+
+The same flagged-bill count shows as a badge on the **Dashboard** link in the sidebar, so it's visible from any page without opening the dashboard.
 
 ---
 
@@ -93,7 +104,7 @@ Click **+ Add Bill** to open the bill form.
 | **Sinking fund** | Check this for large quarterly, semi-annual, annual, or one-time bills. The schedule reserves part of each paycheck before the next due date so that money is not shown as available to spend |
 | **Grace period** | Number of days after the due date you can still pay without being considered late. Useful for bills where the due date is advisory |
 | **Variable amount** | Check this if the actual charge varies each cycle (e.g. utilities, credit cards). The amount field becomes the estimate. You can enter the real amount directly on the dashboard each period |
-| **Notes** | Optional free-text reminder shown when editing the bill |
+| **Notes** | Optional free-text reminder shown when editing the bill. Bills with notes also show a small indicator on their dashboard row — hover or focus it to read the note without opening the edit form |
 
 **Recurrence options**
 
@@ -118,6 +129,10 @@ Each bill row on the period card has three action buttons:
 - **↺ Pending** — resets the status back to pending (the default)
 
 Status changes apply only to that bill's occurrence in that specific period. They don't affect other periods or the bill's configuration.
+
+With a bill row focused, pressing **P** marks it paid — the same action as clicking **✓ Paid**, without a mouse. The shortcut is ignored while focus is inside a text input, so typing in a nearby field never triggers it.
+
+To pay off an entire period in one step, use **Mark all paid** on the period card. It marks every bill still `pending`/`late_flagged` as paid with today's date in a single confirmed action; already-skipped or already-paid bills are left untouched, since skipping is a deliberate decision the bulk action shouldn't override.
 
 When a pay period becomes past, any bills left unpaid from that period appear in the current period card with an **Unpaid from previous period** badge. These carried rows keep the original due date and are visual reminders only; the bill is not added to the current period's total a second time.
 
