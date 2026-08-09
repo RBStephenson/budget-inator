@@ -12,6 +12,7 @@ interface Props {
   bills: Bill[];
   onEdit: (bill: Bill) => void;
   onDeactivate: (bill: Bill) => void;
+  onDuplicate: (bill: Bill) => void;
 }
 
 type SortKey = "name" | "annual_cost";
@@ -27,7 +28,7 @@ function fmtDue(bill: Bill): string {
   });
 }
 
-export function BillTable({ bills, onEdit, onDeactivate }: Props) {
+export function BillTable({ bills, onEdit, onDeactivate, onDuplicate }: Props) {
   const [sort, setSort] = useState<SortKey>("name");
   const [showInactive, setShowInactive] = useState(false);
   const [search, setSearch] = useState("");
@@ -177,6 +178,13 @@ export function BillTable({ bills, onEdit, onDeactivate }: Props) {
                     aria-label={`Edit ${bill.name}`}
                   >
                     Edit
+                  </button>
+                  <button
+                    className="btn-action"
+                    onClick={() => onDuplicate(bill)}
+                    aria-label={`Duplicate ${bill.name}`}
+                  >
+                    Duplicate
                   </button>
                   <button
                     className="btn-action btn-action--danger"

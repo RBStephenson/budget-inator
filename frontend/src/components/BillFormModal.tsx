@@ -6,6 +6,7 @@ import { CATEGORY_LABELS, RECURRENCE_LABELS } from "../types/bill";
 
 interface Props {
   bill?: Bill;
+  duplicateFrom?: Bill;
   onSave: () => void;
   onClose: () => void;
 }
@@ -29,28 +30,29 @@ function todayIso(): string {
   return new Date().toLocaleDateString("en-CA");
 }
 
-function initialState(bill?: Bill): FormState {
+function initialState(bill?: Bill, duplicateFrom?: Bill): FormState {
+  const source = bill ?? duplicateFrom;
   return {
     effective_date: bill ? todayIso() : "",
-    name: bill?.name ?? "",
-    amount: bill ? String(parseFloat(bill.amount)) : "",
-    recurrence: bill?.recurrence ?? "monthly",
-    due_day: bill?.due_day != null ? String(bill.due_day) : "",
-    due_day_is_month_end: bill?.due_day_is_month_end ?? false,
-    due_date: bill?.due_date ?? "",
-    grace_period_days: bill ? String(bill.grace_period_days) : "",
-    category: bill?.category ?? "",
-    is_variable: bill?.is_variable ?? false,
-    sinking_fund_enabled: bill?.sinking_fund_enabled ?? false,
-    notes: bill?.notes ?? "",
+    name: duplicateFrom ? `Copy of ${duplicateFrom.name}` : (bill?.name ?? ""),
+    amount: source ? String(parseFloat(source.amount)) : "",
+    recurrence: source?.recurrence ?? "monthly",
+    due_day: source?.due_day != null ? String(source.due_day) : "",
+    due_day_is_month_end: source?.due_day_is_month_end ?? false,
+    due_date: source?.due_date ?? "",
+    grace_period_days: source ? String(source.grace_period_days) : "",
+    category: source?.category ?? "",
+    is_variable: source?.is_variable ?? false,
+    sinking_fund_enabled: source?.sinking_fund_enabled ?? false,
+    notes: source?.notes ?? "",
   };
 }
 
 const RECURRENCES = Object.keys(RECURRENCE_LABELS) as BillRecurrence[];
 const CATEGORIES = Object.keys(CATEGORY_LABELS) as BillCategory[];
 
-export function BillFormModal({ bill, onSave, onClose }: Props) {
-  const [form, setForm] = useState<FormState>(() => initialState(bill));
+export function BillFormModal({ bill, duplicateFrom, onSave, onClose }: Props) {
+  const [form, setForm] = useState<FormState>(() => initialState(bill, duplicateFrom));
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
   const [submitting, setSubmitting] = useState(false);
   const { addToast } = useToast();

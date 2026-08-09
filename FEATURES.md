@@ -37,8 +37,8 @@ A condensed tour of what Budget-inator does. For the full walkthrough see
 
 ## Bill management
 
-- Add via Quick Add or the full bill form; edit and deactivate existing
-  bills
+- Add via Quick Add or the full bill form; edit, duplicate, and deactivate
+  existing bills
 - **Effective-dated edits** — editing a bill preserves historical name,
   amount, category, and due rule for past periods
 - Search, category filter, sort by name or annual cost, optional

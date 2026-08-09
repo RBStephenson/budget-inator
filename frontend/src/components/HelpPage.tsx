@@ -103,10 +103,17 @@ export function HelpPage() {
           <h3 className="help-section__title">Managing bills</h3>
           <p>
             Go to <strong>Bills</strong> (via the <em>+ Add Bill</em> button or the
-            Bills link). Use the edit button to modify a bill or deactivate it.
-            Deactivated bills are hidden from the schedule but not permanently deleted.
-            Edits use an effective date, so past schedule, monthly summary, and PDF
-            history keep the bill terms that applied at the time.
+            Bills link). Use <strong>Edit</strong> to modify a bill,{" "}
+            <strong>Duplicate</strong> to clone it, or <strong>Deactivate</strong> to
+            hide it. Deactivated bills are hidden from the schedule but not
+            permanently deleted. Edits use an effective date, so past schedule,
+            monthly summary, and PDF history keep the bill terms that applied at
+            the time.
+          </p>
+          <p>
+            <strong>Duplicate</strong> opens the Add Bill form pre-filled with the
+            source bill&apos;s values (name prefixed &quot;Copy of ...&quot;). Saving
+            creates a brand-new bill; the original is never modified.
           </p>
           <p>
             Use Quick Add for common bills, or open the full form for effective dates,

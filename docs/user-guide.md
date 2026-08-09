@@ -85,7 +85,9 @@ The same flagged-bill count shows as a badge on the **Dashboard** link in the si
 
 Go to **Bills** (the **+ Add Bill** button on the dashboard takes you there, or navigate to `/bills`).
 
-The bills table shows all your active bills. Use the pencil icon to edit a bill or the bin icon to deactivate it. Deactivated bills are hidden from future schedule windows but not deleted.
+The bills table shows all your active bills. Use **Edit** to modify a bill, **Duplicate** to clone it, or **Deactivate** to hide it. Deactivated bills are hidden from future schedule windows but not deleted.
+
+**Duplicate** opens the Add Bill form pre-filled with the source bill's values (name prefixed "Copy of ..."). Saving creates a brand-new bill — the original is never modified. Useful for near-identical recurring charges, like a second streaming subscription with the same billing cycle.
 
 Bill edits are effective-dated. When you change a bill's name, amount, category, recurrence, due rule, grace period, variable flag, or active status, the app keeps the old terms for earlier occurrences and uses the new terms from the effective date forward. To correct one specific occurrence instead, use the paid/skipped/pending and actual amount controls on that bill row.
 

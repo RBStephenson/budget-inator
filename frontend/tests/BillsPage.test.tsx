@@ -76,6 +76,15 @@ describe("BillsPage", () => {
     expect(screen.getByText("Edit bill")).toBeInTheDocument();
   });
 
+  it("opens the add modal pre-filled when Duplicate is clicked", async () => {
+    mockListBills([makeApiBill({ name: "Netflix" })]);
+    render(<BillsPage />);
+    await waitFor(() => expect(screen.getByText("Netflix")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /duplicate netflix/i }));
+    expect(screen.getByRole("heading", { name: "Add bill" })).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Copy of Netflix")).toBeInTheDocument();
+  });
+
   it("shows the confirm dialog when Deactivate is clicked", async () => {
     mockListBills([makeApiBill({ name: "Rent" })]);
     render(<BillsPage />);

@@ -110,6 +110,11 @@ forward use your edit. To fix a single occurrence instead (this month's
 amount, this month's status), use the controls on that bill's row on the
 dashboard, not the bill form.
 
+Need a similar bill (another streaming subscription, a second insurance
+policy)? Click **Duplicate** on the Bills page to open the form pre-filled
+with that bill's values (named "Copy of ..."). Saving creates a new,
+independent bill — the original is untouched.
+
 Check **Sinking fund** on a large infrequent bill (insurance, annual
 subscription) to have Budget-inator reserve a slice of every paycheck
 toward it ahead of time, instead of it hitting your balance as one lump sum.
