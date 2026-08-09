@@ -66,11 +66,6 @@ test.describe.serial("settings data management: export, delete, import", () => {
     await page.getByRole("link", { name: "← Dashboard" }).click();
     await expect(page).toHaveURL(/\/$/);
 
-    // Known bug (BI-57, same failure class as BI-54): handleDeleteConfirmed
-    // never calls ScheduleContext's refetch(), so the Dashboard keeps
-    // rendering the deleted schedule/bills here. Reload to pick up the real
-    // state until BI-57 fixes it — remove this reload once it does.
-    await page.reload();
     await expect(
       page.getByRole("heading", { name: "Welcome to Budget-inator" })
     ).toBeVisible();

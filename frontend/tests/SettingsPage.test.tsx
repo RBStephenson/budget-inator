@@ -409,6 +409,10 @@ describe("SettingsPage — data management", () => {
       ).toBeInTheDocument(),
     );
     expect(screen.getByText(/enter your pay details/i)).toBeInTheDocument();
+    // BI-57: same class of bug as BI-54 — deleting must also refetch the
+    // shared ScheduleContext or the Dashboard shows stale data after a
+    // client-side nav.
+    expect(refetchScheduleMock).toHaveBeenCalled();
   });
 
   it("renders the danger zone as visually distinct from the other data rows", async () => {
@@ -469,6 +473,8 @@ describe("SettingsPage — data management", () => {
     );
     // Re-fetched schedule means the page is now in edit mode.
     expect(screen.getByRole("button", { name: /save changes/i })).toBeInTheDocument();
+    // BI-57: import also replaces all data and must refetch ScheduleContext.
+    expect(refetchScheduleMock).toHaveBeenCalled();
   });
 
   it("treats an imported backup without a schedule as successful", async () => {
