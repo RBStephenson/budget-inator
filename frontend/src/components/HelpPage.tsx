@@ -53,6 +53,11 @@ export function HelpPage() {
           </p>
           <ul>
             <li>Stat cards for available cash, bills due, late flags, and paid progress</li>
+            <li>
+              A <strong>Buffer</strong> stat card showing the running total carried from
+              every already-closed pay period, tracked independently of the live
+              current-period balance
+            </li>
             <li>Quick Add for fast monthly bills, with a link to the full bill form</li>
             <li>Bills grouped by category with per-category subtotals</li>
             <li>
@@ -60,6 +65,7 @@ export function HelpPage() {
               paid bills. Colour coded: green (&ge;20&nbsp;% of opening balance remaining),
               amber (&lt;20&nbsp;%), red (overspent)
             </li>
+            <li>A <strong>Paid so far / Still to pay</strong> dollar breakdown per period</li>
           </ul>
 
           <p>
@@ -88,7 +94,8 @@ export function HelpPage() {
             A red banner appears at the top when any bill cannot be paid on time — i.e.
             the pay date falls after the due date and no grace period covers the gap.
             Resolve these by adjusting the bill&apos;s grace period or overriding the
-            pay date for that period.
+            pay date for that period. The same count also shows as a badge on the{" "}
+            <strong>Dashboard</strong> link in the sidebar.
           </p>
         </section>
 
@@ -147,7 +154,14 @@ export function HelpPage() {
                   variable bills are applied against the reserve when entered.
                 </td>
               </tr>
-              <tr><td>Notes</td><td>Optional reminder text saved with the bill and included in backups</td></tr>
+              <tr>
+                <td>Notes</td>
+                <td>
+                  Optional reminder text saved with the bill and included in backups.
+                  Bills with notes show a small indicator on their dashboard row —
+                  hover or focus it to read the note
+                </td>
+              </tr>
             </tbody>
           </table>
         </section>
@@ -161,6 +175,18 @@ export function HelpPage() {
             <li><strong>↺ Pending</strong> — resets back to pending (the default)</li>
           </ul>
           <p>Status changes apply only to that bill in that specific period.</p>
+          <p>
+            With a bill row focused, press <strong>P</strong> to mark it paid — the
+            same action as clicking <strong>✓ Paid</strong>, without a mouse. The
+            shortcut is ignored while you&apos;re typing in a nearby input.
+          </p>
+          <p>
+            To clear an entire period at once, use <strong>Mark all paid</strong> on
+            the period card. It pays every remaining pending or late-flagged bill in
+            that period with today&apos;s date; already-skipped bills are left alone,
+            since skipping is a deliberate choice the bulk action shouldn&apos;t
+            override.
+          </p>
           <p>
             When a pay period becomes past, any bills left unpaid from that period
             appear in the current period card with an{" "}

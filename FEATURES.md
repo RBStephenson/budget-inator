@@ -8,15 +8,21 @@ A condensed tour of what Budget-inator does. For the full walkthrough see
 - Toggle between **By Pay Period** and **By Month** views
 - Current pay period as a hero card; upcoming periods listed below
 - Stat cards: available cash, bills due, late flags, paid progress
+- **Buffer balance** stat — running total carried from every already-closed
+  pay period, independent of the live current-period balance
 - **Quick Add** for fast monthly bills, with a link to the full bill form
 - Bills grouped by category within each period, with per-category subtotals
 - Running balance showing **available-to-spend** (green ≥ 20%, amber < 20%,
   red = overspent)
+- **Paid so far / Still to pay** breakdown on each period card
 - Sticky **flagged bills banner** when anything can't be paid on time
+- **Late-bill count badge** on the sidebar Dashboard link
 - **Pay date override** — adjust the pay date on any individual period
 - **Bill move/reset** — move one unpaid bill occurrence to another pay date,
   reset it when needed
-- Mark bills **paid / skipped / pending** inline
+- Mark bills **paid / skipped / pending** inline, individually or **all at
+  once** via "Mark all paid"
+- **Keyboard shortcut** — "P" on a focused bill row marks it paid
 - **Variable bill actuals** — enter the real amount for variable bills
   directly on the period card
 - **Payday actuals** — save the actual deposit or current balance after
@@ -44,7 +50,8 @@ A condensed tour of what Budget-inator does. For the full walkthrough see
   Other
 - Optional **grace period** (days after due date still countable as on-time)
 - **Variable flag** for bills whose amount changes each cycle
-- Optional notes, saved with the bill and included in backups
+- Optional notes, saved with the bill and included in backups, with a
+  hover/focus tooltip on the dashboard row
 
 ## Reports & exports
 
