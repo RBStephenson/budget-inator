@@ -140,6 +140,7 @@ export function SettingsPage() {
       setErrors({});
       setImportStatus("done");
       setTimeout(() => setImportStatus("idle"), 3000);
+      refetchSchedule();
     } catch (err) {
       setImportStatus("idle");
       addToast(err instanceof Error ? err.message : "Import failed.", "error");
@@ -173,6 +174,7 @@ export function SettingsPage() {
       setSaveStatus("idle");
       setDeleteStatus("done");
       setTimeout(() => setDeleteStatus("idle"), 3000);
+      refetchSchedule();
     } catch {
       setDeleteStatus("idle");
       addToast("Delete failed. Please try again.", "error");
