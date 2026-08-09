@@ -134,6 +134,70 @@ describe("BillFormModal — add mode", () => {
   });
 });
 
+describe("BillFormModal — duplicate mode", () => {
+  it("renders the add bill title, not edit", () => {
+    renderWithToast(
+      <BillFormModal
+        duplicateFrom={makeApiBill({ name: "Netflix" })}
+        onSave={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Add bill" })).toBeInTheDocument();
+  });
+
+  it("pre-fills the name with a Copy of prefix", () => {
+    renderWithToast(
+      <BillFormModal
+        duplicateFrom={makeApiBill({ name: "Netflix" })}
+        onSave={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.getByDisplayValue("Copy of Netflix")).toBeInTheDocument();
+  });
+
+  it("pre-fills amount, category, and recurrence from the source bill", () => {
+    renderWithToast(
+      <BillFormModal
+        duplicateFrom={makeApiBill({
+          amount: "15.99",
+          category: "subscriptions",
+          recurrence: "monthly",
+          due_day: 10,
+        })}
+        onSave={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.getByDisplayValue("15.99")).toBeInTheDocument();
+    expect((screen.getByLabelText(/category/i) as HTMLSelectElement).value).toBe(
+      "subscriptions",
+    );
+    expect(screen.getByLabelText(/due day/i)).toHaveValue(10);
+  });
+
+  it("saves as a new bill via POST, not a PATCH to the source bill", async () => {
+    mockFetch(true);
+    const onSave = vi.fn();
+    renderWithToast(
+      <BillFormModal
+        duplicateFrom={makeApiBill({ id: 42, name: "Netflix" })}
+        onSave={onSave}
+        onClose={vi.fn()}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /add bill/i }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+    const [url, init] = vi.mocked(globalThis.fetch).mock.calls[0];
+    expect(init).toMatchObject({ method: "POST" });
+    expect(String(url)).not.toContain("/42");
+    expect(JSON.parse((init as RequestInit).body as string)).toMatchObject({
+      name: "Copy of Netflix",
+    });
+  });
+});
+
 describe("BillFormModal — edit mode", () => {
   it("renders the edit bill title", () => {
     renderWithToast(

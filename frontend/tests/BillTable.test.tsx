@@ -11,6 +11,7 @@ describe("BillTable", () => {
         bills={[makeApiBill({ name: "Rent" }), makeApiBill({ id: 2, name: "Electric" })]}
         onEdit={vi.fn()}
         onDeactivate={vi.fn()}
+        onDuplicate={vi.fn()}
       />,
     );
     expect(screen.getByText("Rent")).toBeInTheDocument();
@@ -24,6 +25,7 @@ describe("BillTable", () => {
         bills={[makeApiBill({ amount: "1200.00", recurrence: "monthly" })]}
         onEdit={vi.fn()}
         onDeactivate={vi.fn()}
+        onDuplicate={vi.fn()}
       />,
     );
     expect(screen.getAllByText("$14,400.00").length).toBeGreaterThanOrEqual(1);
@@ -43,6 +45,7 @@ describe("BillTable", () => {
         ]}
         onEdit={vi.fn()}
         onDeactivate={vi.fn()}
+        onDuplicate={vi.fn()}
       />,
     );
     expect(screen.getByText("Day 31")).toBeInTheDocument();
@@ -56,6 +59,7 @@ describe("BillTable", () => {
         bills={[makeApiBill({ id: 1, amount: "100.00", recurrence: "biweekly", due_day: null, due_date: "2025-01-03" })]}
         onEdit={vi.fn()}
         onDeactivate={vi.fn()}
+        onDuplicate={vi.fn()}
       />,
     );
     expect(screen.getAllByText("$2,600.00").length).toBeGreaterThanOrEqual(1);
@@ -66,22 +70,34 @@ describe("BillTable", () => {
       makeApiBill({ id: 1, amount: "1000.00", recurrence: "monthly" }), // $12,000
       makeApiBill({ id: 2, name: "Internet", amount: "100.00", recurrence: "monthly" }), // $1,200
     ];
-    render(<BillTable bills={bills} onEdit={vi.fn()} onDeactivate={vi.fn()} />);
+    render(<BillTable bills={bills} onEdit={vi.fn()} onDeactivate={vi.fn()}
+        onDuplicate={vi.fn()} />);
     expect(screen.getByText("$13,200.00")).toBeInTheDocument();
   });
 
   it("calls onEdit with the correct bill", async () => {
     const onEdit = vi.fn();
     const bill = makeApiBill({ name: "Rent" });
-    render(<BillTable bills={[bill]} onEdit={onEdit} onDeactivate={vi.fn()} />);
+    render(<BillTable bills={[bill]} onEdit={onEdit} onDeactivate={vi.fn()}
+        onDuplicate={vi.fn()} />);
     await userEvent.click(screen.getByRole("button", { name: /edit rent/i }));
     expect(onEdit).toHaveBeenCalledWith(bill);
+  });
+
+  it("calls onDuplicate with the correct bill", async () => {
+    const onDuplicate = vi.fn();
+    const bill = makeApiBill({ name: "Rent" });
+    render(
+      <BillTable bills={[bill]} onEdit={vi.fn()} onDeactivate={vi.fn()} onDuplicate={onDuplicate} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /duplicate rent/i }));
+    expect(onDuplicate).toHaveBeenCalledWith(bill);
   });
 
   it("calls onDeactivate with the correct bill", async () => {
     const onDeactivate = vi.fn();
     const bill = makeApiBill({ name: "Rent" });
-    render(<BillTable bills={[bill]} onEdit={vi.fn()} onDeactivate={onDeactivate} />);
+    render(<BillTable bills={[bill]} onEdit={vi.fn()} onDeactivate={onDeactivate} onDuplicate={vi.fn()} />);
     await userEvent.click(screen.getByRole("button", { name: /deactivate rent/i }));
     expect(onDeactivate).toHaveBeenCalledWith(bill);
   });
@@ -92,6 +108,7 @@ describe("BillTable", () => {
         bills={[makeApiBill({ is_variable: true })]}
         onEdit={vi.fn()}
         onDeactivate={vi.fn()}
+        onDuplicate={vi.fn()}
       />,
     );
     expect(screen.getByText("est.")).toBeInTheDocument();
@@ -102,7 +119,8 @@ describe("BillTable", () => {
       makeApiBill({ id: 1, name: "Active Bill", is_active: true }),
       makeApiBill({ id: 2, name: "Inactive Bill", is_active: false }),
     ];
-    render(<BillTable bills={bills} onEdit={vi.fn()} onDeactivate={vi.fn()} />);
+    render(<BillTable bills={bills} onEdit={vi.fn()} onDeactivate={vi.fn()}
+        onDuplicate={vi.fn()} />);
     expect(screen.getByText("Active Bill")).toBeInTheDocument();
     // Inactive bill is hidden behind the toggle — should not be visible yet
     expect(screen.queryByText("Inactive Bill")).not.toBeInTheDocument();
@@ -113,7 +131,8 @@ describe("BillTable", () => {
       makeApiBill({ id: 1, name: "Active", is_active: true }),
       makeApiBill({ id: 2, name: "Inactive", is_active: false }),
     ];
-    render(<BillTable bills={bills} onEdit={vi.fn()} onDeactivate={vi.fn()} />);
+    render(<BillTable bills={bills} onEdit={vi.fn()} onDeactivate={vi.fn()}
+        onDuplicate={vi.fn()} />);
     await userEvent.click(screen.getByRole("button", { name: /inactive bills/i }));
     expect(screen.getByText("Inactive")).toBeInTheDocument();
   });
@@ -126,7 +145,8 @@ describe("BillTable", () => {
       makeApiBill({ id: 2, name: "Netflix" }),
       makeApiBill({ id: 3, name: "Internet" }),
     ];
-    render(<BillTable bills={bills} onEdit={vi.fn()} onDeactivate={vi.fn()} />);
+    render(<BillTable bills={bills} onEdit={vi.fn()} onDeactivate={vi.fn()}
+        onDuplicate={vi.fn()} />);
     await userEvent.type(screen.getByRole("searchbox", { name: /search bills/i }), "net");
     expect(screen.getByText("Netflix")).toBeInTheDocument();
     expect(screen.getByText("Internet")).toBeInTheDocument();
@@ -139,6 +159,7 @@ describe("BillTable", () => {
         bills={[makeApiBill({ name: "Rent" })]}
         onEdit={vi.fn()}
         onDeactivate={vi.fn()}
+        onDuplicate={vi.fn()}
       />,
     );
     await userEvent.type(screen.getByRole("searchbox", { name: /search bills/i }), "RENT");
@@ -151,6 +172,7 @@ describe("BillTable", () => {
         bills={[makeApiBill({ name: "Rent" })]}
         onEdit={vi.fn()}
         onDeactivate={vi.fn()}
+        onDuplicate={vi.fn()}
       />,
     );
     await userEvent.type(screen.getByRole("searchbox", { name: /search bills/i }), "zzz");
@@ -164,7 +186,8 @@ describe("BillTable", () => {
       makeApiBill({ id: 1, name: "Rent", category: "housing" }),
       makeApiBill({ id: 2, name: "Netflix", category: "subscriptions" }),
     ];
-    render(<BillTable bills={bills} onEdit={vi.fn()} onDeactivate={vi.fn()} />);
+    render(<BillTable bills={bills} onEdit={vi.fn()} onDeactivate={vi.fn()}
+        onDuplicate={vi.fn()} />);
     await userEvent.selectOptions(
       screen.getByRole("combobox", { name: /filter by category/i }),
       "housing",
@@ -179,7 +202,8 @@ describe("BillTable", () => {
       makeApiBill({ id: 2, name: "Rental storage", category: "other" }),
       makeApiBill({ id: 3, name: "Netflix", category: "subscriptions" }),
     ];
-    render(<BillTable bills={bills} onEdit={vi.fn()} onDeactivate={vi.fn()} />);
+    render(<BillTable bills={bills} onEdit={vi.fn()} onDeactivate={vi.fn()}
+        onDuplicate={vi.fn()} />);
     await userEvent.type(screen.getByRole("searchbox", { name: /search bills/i }), "rent");
     await userEvent.selectOptions(
       screen.getByRole("combobox", { name: /filter by category/i }),
@@ -196,6 +220,7 @@ describe("BillTable", () => {
         bills={[makeApiBill({ name: "Rent" })]}
         onEdit={vi.fn()}
         onDeactivate={vi.fn()}
+        onDuplicate={vi.fn()}
       />,
     );
     const searchBox = screen.getByRole("searchbox", { name: /search bills/i });
@@ -211,7 +236,8 @@ describe("BillTable", () => {
       makeApiBill({ id: 1, name: "Rent", amount: "1000.00", recurrence: "monthly", category: "housing" }),
       makeApiBill({ id: 2, name: "Netflix", amount: "20.00", recurrence: "monthly", category: "subscriptions" }),
     ];
-    render(<BillTable bills={bills} onEdit={vi.fn()} onDeactivate={vi.fn()} />);
+    render(<BillTable bills={bills} onEdit={vi.fn()} onDeactivate={vi.fn()}
+        onDuplicate={vi.fn()} />);
     await userEvent.selectOptions(
       screen.getByRole("combobox", { name: /filter by category/i }),
       "housing",
@@ -229,7 +255,8 @@ describe("BillTable", () => {
       makeApiBill({ id: 1, name: "Cheap", amount: "10.00", recurrence: "monthly" }),
       makeApiBill({ id: 2, name: "Expensive", amount: "500.00", recurrence: "monthly" }),
     ];
-    render(<BillTable bills={bills} onEdit={vi.fn()} onDeactivate={vi.fn()} />);
+    render(<BillTable bills={bills} onEdit={vi.fn()} onDeactivate={vi.fn()}
+        onDuplicate={vi.fn()} />);
     await userEvent.click(screen.getByRole("button", { name: /annual cost/i }));
     const rows = screen.getAllByRole("row");
     // First data row (index 1, skipping header) should be Expensive

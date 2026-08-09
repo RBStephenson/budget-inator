@@ -12,6 +12,7 @@ import { QuickAddBar } from "./QuickAddBar";
 export function BillsPage() {
   const { bills, status, refetch } = useBills();
   const [editBill, setEditBill] = useState<Bill | null>(null);
+  const [duplicateSource, setDuplicateSource] = useState<Bill | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [deactivateTarget, setDeactivateTarget] = useState<Bill | null>(null);
   const [deactivating, setDeactivating] = useState(false);
@@ -38,6 +39,7 @@ export function BillsPage() {
   function handleSave() {
     setAddOpen(false);
     setEditBill(null);
+    setDuplicateSource(null);
     refetch();
   }
 
@@ -86,14 +88,16 @@ export function BillsPage() {
           bills={bills}
           onEdit={setEditBill}
           onDeactivate={setDeactivateTarget}
+          onDuplicate={setDuplicateSource}
         />
       )}
 
-      {(addOpen || editBill) && (
+      {(addOpen || editBill || duplicateSource) && (
         <BillFormModal
           bill={editBill ?? undefined}
+          duplicateFrom={duplicateSource ?? undefined}
           onSave={handleSave}
-          onClose={() => { setAddOpen(false); setEditBill(null); }}
+          onClose={() => { setAddOpen(false); setEditBill(null); setDuplicateSource(null); }}
         />
       )}
 

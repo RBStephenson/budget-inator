@@ -39,7 +39,7 @@ A personal budget management application that helps you track bills against your
 - Unpaid bills from a previous period show in the current period only, with the original due date preserved and no duplicate total
 
 **Bill management**
-- Add bills with Quick Add or the full bill form; edit and deactivate existing bills
+- Add bills with Quick Add or the full bill form; edit, duplicate, and deactivate existing bills
 - Effective-dated edits preserve historical bill names, amounts, categories, and due rules
 - Search, category-filter, sort by name or annual cost, and optionally show inactive bills
 - Sinking funds reserve part of each paycheck for large future bills
