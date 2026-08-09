@@ -5,7 +5,12 @@ import { defineConfig } from "@playwright/test";
 // running this suite; it does not manage the stack's lifecycle.
 export default defineConfig({
   testDir: "./e2e",
-  fullyParallel: true,
+  // All specs share one persistent DB for the run (docker-compose.e2e.yml
+  // isn't reset between files) — run fully serial so state built up in one
+  // file (e.g. onboarding) can't race a test in another file that assumes
+  // a clean slate (e.g. dashboard.spec.ts's no-schedule check).
+  fullyParallel: false,
+  workers: 1,
   retries: 0,
   reporter: "list",
   use: {
