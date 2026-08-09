@@ -123,6 +123,14 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 
 The SQLite database is stored in `./data/budget.db` (created automatically).
 
+**E2E tests** (Playwright, isolated stack — never touches `./data/budget.db`):
+```bash
+docker compose -f docker-compose.yml -f docker-compose.e2e.yml -p budget-inator-e2e up -d
+npm run test:e2e --prefix frontend
+docker compose -p budget-inator-e2e down -v   # -v drops the throwaway DB volume
+```
+Runs on its own ports (8091/8002/5175) and its own Compose project, so it's safe to run alongside the stack above. See `docker-compose.e2e.yml` for details.
+
 ---
 
 ### Manual setup (without Docker)

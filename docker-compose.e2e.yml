@@ -1,0 +1,29 @@
+# Isolated stack for Playwright E2E tests — never touches live data.
+#
+# Runs alongside the live stack (different ports, different Compose project,
+# different DB) so `docker compose up` for normal dev use is unaffected.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.e2e.yml -p budget-inator-e2e up -d
+#   npm run test:e2e --prefix frontend
+#   docker compose -p budget-inator-e2e down -v   # -v drops the throwaway DB volume
+services:
+  backend:
+    ports: !override
+      - "127.0.0.1:8002:8000"
+    volumes: !override
+      - e2e_data:/data
+    environment:
+      - DATABASE_URL=sqlite:////data/e2e.db
+      - CORS_ORIGINS=["http://localhost:8091"]
+
+  frontend:
+    ports: !override
+      - "127.0.0.1:5175:5173"
+
+  proxy:
+    ports: !override
+      - "127.0.0.1:8091:80"
+
+volumes:
+  e2e_data:
