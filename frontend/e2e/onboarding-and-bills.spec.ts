@@ -25,11 +25,6 @@ test.describe.serial("new-user journey: onboarding, add bill, mark paid", () => 
     await page.getByRole("button", { name: "Save and go to dashboard" }).click();
     await expect(page).toHaveURL(/\/$/);
 
-    // Known bug (BI-54): the post-create nav is client-side only and the
-    // Dashboard's ScheduleContext isn't refetched, so it still renders its
-    // stale "no-schedule" Welcome screen here. Reload to pick up the real
-    // state until BI-54 fixes the refetch — remove this reload once it does.
-    await page.reload();
     await expect(
       page.getByRole("heading", { name: "Welcome to Budget-inator" })
     ).not.toBeVisible();
