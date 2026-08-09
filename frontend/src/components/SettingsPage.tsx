@@ -7,6 +7,7 @@ import {
   updatePaySchedule,
 } from "../api/paySchedule";
 import { saveBlob } from "../api/reports";
+import { useSchedule } from "../context/ScheduleContext";
 import { useToast } from "../context/ToastContext";
 import { navigate } from "../router";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -49,6 +50,7 @@ export function SettingsPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
   const { addToast } = useToast();
+  const { refetch: refetchSchedule } = useSchedule();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -91,11 +93,13 @@ export function SettingsPage() {
         setExisting(updated);
         setSaveStatus("saved");
         setTimeout(() => setSaveStatus("idle"), 3000);
+        refetchSchedule();
       } else {
         // First-time setup: create, then go to the dashboard (the button is
         // labelled "Save and go to dashboard"). Don't touch state afterward —
         // navigation unmounts this page.
         await createPaySchedule(payload);
+        refetchSchedule();
         navigate("/");
       }
     } catch {

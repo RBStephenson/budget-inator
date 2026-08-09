@@ -7,6 +7,15 @@ import { ToastProvider } from "../src/context/ToastContext";
 import * as router from "../src/router";
 import { makePaySchedule } from "./fixtures";
 
+// SettingsPage's contract with ScheduleContext is just "call refetch() after
+// a successful save" (BI-54) — stub the hook rather than rendering a real
+// ScheduleProvider, which would add its own fetch("/schedule") call and
+// throw off the mockResolvedValueOnce() sequencing the tests below rely on.
+const refetchScheduleMock = vi.fn();
+vi.mock("../src/context/ScheduleContext", () => ({
+  useSchedule: () => ({ data: null, status: "no-schedule", refetch: refetchScheduleMock }),
+}));
+
 function renderWithToast(ui: React.ReactElement) {
   return render(
     <ToastProvider>
@@ -43,7 +52,10 @@ function mockFetchError() {
   } as Response);
 }
 
-beforeEach(() => vi.restoreAllMocks());
+beforeEach(() => {
+  vi.restoreAllMocks();
+  refetchScheduleMock.mockClear();
+});
 afterEach(() => vi.restoreAllMocks());
 
 describe("SettingsPage", () => {
@@ -208,6 +220,10 @@ describe("SettingsPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /save and go to dashboard/i }));
 
     await waitFor(() => expect(navSpy).toHaveBeenCalledWith("/"));
+    // BI-54: navigate("/") is a client-side route change only — the
+    // Dashboard's ScheduleContext must be explicitly refetched or it keeps
+    // showing its stale pre-setup state.
+    expect(refetchScheduleMock).toHaveBeenCalled();
   });
 
   it("shows saved confirmation after a successful save", async () => {
@@ -234,6 +250,7 @@ describe("SettingsPage", () => {
     await waitFor(() =>
       expect(screen.getByText(/saved/i)).toBeInTheDocument(),
     );
+    expect(refetchScheduleMock).toHaveBeenCalled();
   });
 
   it("shows error feedback when save fails", async () => {
