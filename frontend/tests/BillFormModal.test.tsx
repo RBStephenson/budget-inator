@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { BillFormModal } from "../src/components/BillFormModal";
@@ -308,6 +308,88 @@ describe("BillFormModal — edit mode", () => {
     await userEvent.click(screen.getByRole("button", { name: /save changes/i }));
     await waitFor(() =>
       expect(screen.getByText(/failed to save bill/i)).toBeInTheDocument(),
+    );
+  });
+});
+
+function mockInstancesFetch(instances: unknown[], ok = true) {
+  vi.spyOn(globalThis, "fetch").mockResolvedValue({
+    ok,
+    status: ok ? 200 : 500,
+    statusText: ok ? "OK" : "Internal Server Error",
+    json: async () => instances,
+  } as Response);
+}
+
+describe("BillFormModal — payment history", () => {
+  it("does not show a payment history section in add mode", () => {
+    renderWithToast(<BillFormModal onSave={vi.fn()} onClose={vi.fn()} />);
+    expect(screen.queryByText(/payment history/i)).not.toBeInTheDocument();
+  });
+
+  it("does not show a payment history section in duplicate mode", () => {
+    renderWithToast(
+      <BillFormModal
+        duplicateFrom={makeApiBill({ name: "Netflix" })}
+        onSave={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText(/payment history/i)).not.toBeInTheDocument();
+  });
+
+  it("is collapsed by default in edit mode and does not fetch until expanded", () => {
+    mockInstancesFetch([]);
+    renderWithToast(
+      <BillFormModal bill={makeApiBill()} onSave={vi.fn()} onClose={vi.fn()} />,
+    );
+    expect(screen.getByText(/payment history/i)).toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("fetches and renders history rows when expanded", async () => {
+    mockInstancesFetch([
+      {
+        id: 1,
+        bill_id: 1,
+        due_date: "2025-02-01",
+        estimated_amount: "80.00",
+        actual_amount: "75.00",
+        status: "paid",
+        paid_at: "2025-02-02T00:00:00",
+        manual_pay_date: null,
+      },
+    ]);
+    renderWithToast(
+      <BillFormModal bill={makeApiBill()} onSave={vi.fn()} onClose={vi.fn()} />,
+    );
+    await userEvent.click(screen.getByText(/payment history/i));
+    await waitFor(() => screen.getByRole("table"));
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText("Paid")).toBeInTheDocument();
+    expect(table.getByText("$75.00")).toBeInTheDocument();
+  });
+
+  it("shows an empty state when a bill has no payment history", async () => {
+    mockInstancesFetch([]);
+    renderWithToast(
+      <BillFormModal bill={makeApiBill()} onSave={vi.fn()} onClose={vi.fn()} />,
+    );
+    await userEvent.click(screen.getByText(/payment history/i));
+    await waitFor(() =>
+      expect(screen.getByText(/no payment history yet/i)).toBeInTheDocument(),
+    );
+  });
+
+  it("shows an error state when the history fetch fails", async () => {
+    mockInstancesFetch([], false);
+    renderWithToast(
+      <BillFormModal bill={makeApiBill()} onSave={vi.fn()} onClose={vi.fn()} />,
+    );
+    await userEvent.click(screen.getByText(/payment history/i));
+    await waitFor(() =>
+      expect(screen.getByText(/could not load payment history/i)).toBeInTheDocument(),
     );
   });
 });

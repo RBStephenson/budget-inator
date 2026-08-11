@@ -121,6 +121,11 @@ export function HelpPage() {
             The bills table can be searched, filtered by category, sorted by name or
             annual cost, and expanded to show inactive bills.
           </p>
+          <p>
+            The edit form also has a collapsible <strong>Payment history</strong> section
+            (read-only) listing every past instance of the bill — due date, status,
+            estimated amount, actual amount, and paid date.
+          </p>
           <table className="help-table">
             <thead>
               <tr><th>Field</th><th>Notes</th></tr>

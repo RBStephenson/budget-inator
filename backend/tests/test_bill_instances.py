@@ -1,4 +1,4 @@
-"""Integration tests for PATCH /bill-instances/{bill_id}/{due_date}."""
+"""Integration tests for /bill-instances/{bill_id}[/{due_date}]."""
 
 from __future__ import annotations
 
@@ -254,3 +254,58 @@ class TestUpsertBillInstance:
             json={"status": "invalid"},
         )
         assert resp.status_code == 422
+
+
+class TestListBillInstances:
+    def test_returns_empty_list_for_a_bill_with_no_history(
+        self, client: TestClient, db
+    ):
+        bill = _make_bill(db)
+        resp = client.get(f"/bill-instances/{bill.id}")
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    def test_returns_404_for_unknown_bill(self, client: TestClient):
+        resp = client.get("/bill-instances/9999")
+        assert resp.status_code == 404
+
+    def test_orders_by_due_date_descending(self, client: TestClient, db):
+        bill = _make_bill(db)
+        for due_date in ("2025-01-01", "2025-03-01", "2025-02-01"):
+            client.patch(
+                f"/bill-instances/{bill.id}/{due_date}",
+                json={"status": "paid"},
+            )
+        resp = client.get(f"/bill-instances/{bill.id}")
+        assert resp.status_code == 200
+        assert [row["due_date"] for row in resp.json()] == [
+            "2025-03-01",
+            "2025-02-01",
+            "2025-01-01",
+        ]
+
+    def test_only_returns_instances_for_the_requested_bill(
+        self, client: TestClient, db
+    ):
+        bill_a = _make_bill(db, name="Rent")
+        bill_b = _make_bill(db, name="Electric")
+        client.patch(f"/bill-instances/{bill_a.id}/2025-01-01", json={"status": "paid"})
+        client.patch(f"/bill-instances/{bill_b.id}/2025-01-01", json={"status": "paid"})
+        resp = client.get(f"/bill-instances/{bill_a.id}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["bill_id"] == bill_a.id
+
+    def test_includes_actual_amount_and_paid_at(self, client: TestClient, db):
+        bill = _make_bill(db)
+        client.patch(
+            f"/bill-instances/{bill.id}/2025-01-01",
+            json={"status": "paid", "actual_amount": "750.00", "paid_at": "2025-01-03"},
+        )
+        resp = client.get(f"/bill-instances/{bill.id}")
+        assert resp.status_code == 200
+        data = resp.json()[0]
+        assert data["actual_amount"] == "750.00"
+        assert data["paid_at"].startswith("2025-01-03")
+        assert data["status"] == "paid"
