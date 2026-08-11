@@ -67,6 +67,24 @@ class BillInstanceOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+@router.get("/{bill_id}", response_model=list[BillInstanceOut])
+def list_bill_instances(
+    bill_id: int,
+    db: Session = Depends(get_db),
+) -> list[BillInstance]:
+    bill = db.get(Bill, bill_id)
+    if bill is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Bill not found"
+        )
+    return (
+        db.query(BillInstance)
+        .filter(BillInstance.bill_id == bill_id)
+        .order_by(BillInstance.due_date.desc())
+        .all()
+    )
+
+
 @router.patch("/{bill_id}/{due_date}", response_model=BillInstanceOut)
 def upsert_bill_instance(
     bill_id: int,

@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { createBill, updateBill } from "../api/bills";
+import { listBillInstances } from "../api/billInstances";
+import type { BillInstance } from "../api/billInstances";
 import { useToast } from "../context/ToastContext";
 import type { Bill, BillCategory, BillRecurrence } from "../types/bill";
 import { CATEGORY_LABELS, RECURRENCE_LABELS } from "../types/bill";
+import { fmtCurrency } from "../utils/currency";
 
 interface Props {
   bill?: Bill;
@@ -29,6 +32,20 @@ interface FormState {
 function todayIso(): string {
   return new Date().toLocaleDateString("en-CA");
 }
+
+function fmtDate(isoDate: string): string {
+  return new Date(isoDate.slice(0, 10) + "T00:00:00").toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+const INSTANCE_STATUS_LABELS: Record<BillInstance["status"], string> = {
+  paid: "Paid",
+  skipped: "Skipped",
+  pending: "Pending",
+};
 
 function initialState(bill?: Bill, duplicateFrom?: Bill): FormState {
   const source = bill ?? duplicateFrom;
@@ -57,6 +74,19 @@ export function BillFormModal({ bill, duplicateFrom, onSave, onClose }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const { addToast } = useToast();
   const nameRef = useRef<HTMLInputElement>(null);
+
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [history, setHistory] = useState<BillInstance[] | null>(null);
+  const [historyError, setHistoryError] = useState(false);
+
+  function toggleHistory() {
+    setHistoryOpen((open) => !open);
+    if (!historyOpen && history === null && bill) {
+      listBillInstances(bill.id)
+        .then(setHistory)
+        .catch(() => setHistoryError(true));
+    }
+  }
 
   useEffect(() => {
     nameRef.current?.focus();
@@ -338,6 +368,60 @@ export function BillFormModal({ bill, duplicateFrom, onSave, onClose }: Props) {
                 />
               </div>
             </section>
+
+            {bill && (
+              <section className="form-section">
+                <button
+                  type="button"
+                  className="form-section__title form-section__title--toggle"
+                  aria-expanded={historyOpen}
+                  onClick={toggleHistory}
+                >
+                  4 · Payment history {historyOpen ? "▾" : "▸"}
+                </button>
+
+                {historyOpen && (
+                  <div className="bill-history">
+                    {historyError ? (
+                      <p className="form-hint">Could not load payment history.</p>
+                    ) : history === null ? (
+                      <p className="form-hint">Loading…</p>
+                    ) : history.length === 0 ? (
+                      <p className="form-hint">No payment history yet.</p>
+                    ) : (
+                      <table className="bill-history__table">
+                        <thead>
+                          <tr>
+                            <th>Due</th>
+                            <th>Status</th>
+                            <th className="annual-cost__num">Estimated</th>
+                            <th className="annual-cost__num">Actual</th>
+                            <th>Paid on</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {history.map((inst) => (
+                            <tr key={inst.id}>
+                              <td>{fmtDate(inst.due_date)}</td>
+                              <td>{INSTANCE_STATUS_LABELS[inst.status]}</td>
+                              <td className="annual-cost__num">
+                                {fmtCurrency(parseFloat(inst.estimated_amount))}
+                              </td>
+                              <td className="annual-cost__num">
+                                {inst.actual_amount != null
+                                  ? fmtCurrency(parseFloat(inst.actual_amount))
+                                  : "—"}
+                              </td>
+                              <td>{inst.paid_at ? fmtDate(inst.paid_at) : "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                )}
+              </section>
+            )}
           </div>
 
           <div className="slideover__footer">

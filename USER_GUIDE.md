@@ -106,7 +106,10 @@ grace period, and — for bills whose amount changes each cycle — the
 
 Editing a bill is **effective-dated**: past periods keep the old name/
 amount/category/due rule, and only occurrences from the effective date
-forward use your edit. To fix a single occurrence instead (this month's
+forward use your edit. The edit form also has a collapsible **Payment
+history** section showing every past instance of the bill (due date,
+status, estimated/actual amount, paid date) — read-only, for reference.
+To fix a single occurrence instead (this month's
 amount, this month's status), use the controls on that bill's row on the
 dashboard, not the bill form.
 

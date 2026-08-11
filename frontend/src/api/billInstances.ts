@@ -1,6 +1,21 @@
-import { patch } from "./client";
+import { get, patch } from "./client";
 
 export type InstanceStatus = "paid" | "skipped" | "pending";
+
+export interface BillInstance {
+  id: number;
+  bill_id: number;
+  due_date: string;
+  estimated_amount: string;
+  actual_amount: string | null;
+  status: InstanceStatus;
+  paid_at: string | null;
+  manual_pay_date: string | null;
+}
+
+export function listBillInstances(billId: number): Promise<BillInstance[]> {
+  return get<BillInstance[]>(`/bill-instances/${billId}`);
+}
 
 export async function patchBillInstance(
   billId: number,

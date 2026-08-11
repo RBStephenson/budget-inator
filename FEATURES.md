@@ -41,6 +41,9 @@ A condensed tour of what Budget-inator does. For the full walkthrough see
   existing bills
 - **Effective-dated edits** — editing a bill preserves historical name,
   amount, category, and due rule for past periods
+- **Payment history** — the edit form has a collapsible, read-only section
+  listing every past instance of a bill: due date, status, estimated/actual
+  amount, and paid date
 - Search, category filter, sort by name or annual cost, optional
   show-inactive toggle
 - **Sinking funds** reserve part of each paycheck for a large future bill

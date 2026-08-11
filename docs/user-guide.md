@@ -91,6 +91,8 @@ The bills table shows all your active bills. Use **Edit** to modify a bill, **Du
 
 Bill edits are effective-dated. When you change a bill's name, amount, category, recurrence, due rule, grace period, variable flag, or active status, the app keeps the old terms for earlier occurrences and uses the new terms from the effective date forward. To correct one specific occurrence instead, use the paid/skipped/pending and actual amount controls on that bill row.
 
+The edit form also has a collapsible **Payment history** section (read-only) listing every past instance of the bill — due date, status, estimated amount, actual amount, and paid date.
+
 Click **+ Add Bill** to open the bill form.
 
 ### Bill fields explained

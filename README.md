@@ -41,6 +41,7 @@ A personal budget management application that helps you track bills against your
 **Bill management**
 - Add bills with Quick Add or the full bill form; edit, duplicate, and deactivate existing bills
 - Effective-dated edits preserve historical bill names, amounts, categories, and due rules
+- **Payment history** — the edit form has a collapsible section showing every past instance of a bill (due date, status, estimated/actual amount, paid date), read-only
 - Search, category-filter, sort by name or annual cost, and optionally show inactive bills
 - Sinking funds reserve part of each paycheck for large future bills
 - Recurrences: Monthly, Bi-weekly, Weekly, Quarterly, Semi-annual, Annual, One-time
