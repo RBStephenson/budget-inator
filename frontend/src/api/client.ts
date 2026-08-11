@@ -4,20 +4,41 @@ export class ApiError extends Error {
   constructor(
     public readonly status: number,
     message: string,
+    public readonly fieldErrors: string[] = [],
   ) {
     super(message);
     this.name = "ApiError";
   }
 }
 
+interface FastApiValidationError {
+  loc?: (string | number)[];
+  msg?: string;
+}
+
+function formatValidationErrors(errors: FastApiValidationError[]): string[] {
+  return errors.map((e) => {
+    // loc's first entry is always "body" for a JSON payload — drop it so the
+    // path reads e.g. "bills.0.amount" instead of "body.bills.0.amount".
+    const path = (e.loc ?? []).slice(1).join(".");
+    return path ? `${path}: ${e.msg ?? "invalid"}` : (e.msg ?? "invalid");
+  });
+}
+
 async function throwIfNotOk(res: Response): Promise<void> {
   if (res.ok) return;
   let message = `${res.status} ${res.statusText}`;
+  let fieldErrors: string[] = [];
   try {
     const body = await res.json();
-    if (typeof body?.detail === "string") message = body.detail;
+    if (typeof body?.detail === "string") {
+      message = body.detail;
+    } else if (Array.isArray(body?.detail)) {
+      fieldErrors = formatValidationErrors(body.detail);
+      if (fieldErrors.length > 0) message = fieldErrors.join("; ");
+    }
   } catch {} // eslint-disable-line no-empty
-  throw new ApiError(res.status, message);
+  throw new ApiError(res.status, message, fieldErrors);
 }
 
 export async function get<T>(path: string): Promise<T> {

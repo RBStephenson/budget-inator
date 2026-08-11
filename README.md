@@ -53,7 +53,7 @@ A personal budget management application that helps you track bills against your
 **Reports & exports**
 - **Annual cost breakdown** — modal showing per-payment and annual cost for every active bill, grouped by category with subtotals, plus a donut chart with a color/percentage legend
 - **PDF report** — downloadable budget report covering the pay period schedule and a monthly income/bills/sinking-fund/net summary
-- **JSON backup** — export and import your full data set, including effective-dated bill history, payment history, adjusted pay dates, and payday actuals; delete all data and start fresh
+- **JSON backup** — export and import your full data set, including effective-dated bill history, payment history, adjusted pay dates, and payday actuals; import previews the file's contents (or validation errors) before overwriting anything; delete all data and start fresh
 
 ## Tech Stack
 

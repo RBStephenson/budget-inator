@@ -4,6 +4,7 @@ interface Props {
   title?: string;
   message: string;
   confirmLabel?: string;
+  cancelLabel?: string;
   onConfirm: () => void;
   onCancel: () => void;
   /** Red top-border accent, ⚠ icon, and a type-DELETE-to-confirm gate. */
@@ -12,6 +13,9 @@ interface Props {
    *  for multi-item confirms (e.g. a rebalance move list). */
   children?: ReactNode;
   confirmDisabled?: boolean;
+  /** Renders only the Cancel button (as primary) — for dialogs that report a
+   *  problem rather than offer a real choice, e.g. a rejected import. */
+  hideConfirm?: boolean;
 }
 
 const DELETE_CONFIRM_WORD = "DELETE";
@@ -20,11 +24,13 @@ export function ConfirmDialog({
   title,
   message,
   confirmLabel = "Confirm",
+  cancelLabel = "Cancel",
   onConfirm,
   onCancel,
   destructive = false,
   children,
   confirmDisabled: confirmDisabledProp = false,
+  hideConfirm = false,
 }: Props) {
   const [typedConfirm, setTypedConfirm] = useState("");
   const confirmDisabled =
@@ -63,16 +69,21 @@ export function ConfirmDialog({
         )}
 
         <div className="confirm-dialog__actions">
-          <button className="btn btn--ghost" onClick={onCancel}>
-            Cancel
-          </button>
           <button
-            className={destructive ? "btn btn--danger" : "btn btn--primary"}
-            onClick={onConfirm}
-            disabled={confirmDisabled}
+            className={hideConfirm ? "btn btn--primary" : "btn btn--ghost"}
+            onClick={onCancel}
           >
-            {confirmLabel}
+            {cancelLabel}
           </button>
+          {!hideConfirm && (
+            <button
+              className={destructive ? "btn btn--danger" : "btn btn--primary"}
+              onClick={onConfirm}
+              disabled={confirmDisabled}
+            >
+              {confirmLabel}
+            </button>
+          )}
         </div>
       </div>
     </div>

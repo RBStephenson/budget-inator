@@ -438,6 +438,20 @@ describe("SettingsPage — data management", () => {
         statusText: "Not Found",
         json: async () => ({}),
       } as Response)
+      // POST /api/data/import/preview
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: async () => ({
+          pay_schedule: null,
+          bill_count: 0,
+          bill_instance_count: 0,
+          bill_version_count: 0,
+          pay_period_override_count: 0,
+          pay_period_actual_count: 0,
+        }),
+      } as Response)
       // POST /api/data/import
       .mockResolvedValueOnce({
         ok: true,
@@ -463,9 +477,14 @@ describe("SettingsPage — data management", () => {
     const backup = JSON.stringify({ version: 1 });
     const file = new File([backup], "backup.json", { type: "application/json" });
     // jsdom's File doesn't implement text(); browsers do. Provide it so
-    // handleImport can read the upload.
+    // handleFileSelected can read the upload.
     Object.defineProperty(file, "text", { value: () => Promise.resolve(backup) });
     await userEvent.upload(screen.getByLabelText(/import backup file/i), file);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /import and overwrite/i }),
+      ).toBeInTheDocument(),
+    );
     await userEvent.click(screen.getByRole("button", { name: /import and overwrite/i }));
 
     await waitFor(() =>
@@ -485,6 +504,20 @@ describe("SettingsPage — data management", () => {
         status: 404,
         statusText: "Not Found",
         json: async () => ({}),
+      } as Response)
+      // POST /api/data/import/preview
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: async () => ({
+          pay_schedule: null,
+          bill_count: 0,
+          bill_instance_count: 0,
+          bill_version_count: 0,
+          pay_period_override_count: 0,
+          pay_period_actual_count: 0,
+        }),
       } as Response)
       // POST /api/data/import
       .mockResolvedValueOnce({
@@ -512,6 +545,11 @@ describe("SettingsPage — data management", () => {
     const file = new File([backup], "empty-backup.json", { type: "application/json" });
     Object.defineProperty(file, "text", { value: () => Promise.resolve(backup) });
     await userEvent.upload(screen.getByLabelText(/import backup file/i), file);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /import and overwrite/i }),
+      ).toBeInTheDocument(),
+    );
     await userEvent.click(screen.getByRole("button", { name: /import and overwrite/i }));
 
     await waitFor(() => expect(screen.getByText(/imported/i)).toBeInTheDocument());
@@ -521,8 +559,33 @@ describe("SettingsPage — data management", () => {
     expect(screen.queryByText(/not found/i)).not.toBeInTheDocument();
   });
 
+  function mockFetch404ThenPreviewOk() {
+    vi.spyOn(globalThis, "fetch")
+      // initial load: no schedule yet
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+        json: async () => ({}),
+      } as Response)
+      // POST /api/data/import/preview
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: async () => ({
+          pay_schedule: null,
+          bill_count: 0,
+          bill_instance_count: 0,
+          bill_version_count: 0,
+          pay_period_override_count: 0,
+          pay_period_actual_count: 0,
+        }),
+      } as Response);
+  }
+
   it("shows a confirm dialog naming the file before importing (BI-25)", async () => {
-    mockFetch404();
+    mockFetch404ThenPreviewOk();
     renderWithToast(<SettingsPage />);
     await waitFor(() =>
       expect(
@@ -535,16 +598,18 @@ describe("SettingsPage — data management", () => {
     Object.defineProperty(file, "text", { value: () => Promise.resolve(backup) });
     await userEvent.upload(screen.getByLabelText(/import backup file/i), file);
 
-    expect(screen.getByText(/import backup\?/i)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByText(/import backup\?/i)).toBeInTheDocument(),
+    );
     expect(screen.getByText(/backup\.json/i)).toBeInTheDocument();
     const importCalls = vi
       .mocked(globalThis.fetch)
-      .mock.calls.filter(([url]) => String(url).includes("/import"));
+      .mock.calls.filter(([url]) => String(url).endsWith("/data/import"));
     expect(importCalls).toHaveLength(0);
   });
 
   it("does not import and clears the file input when the confirm dialog is cancelled (BI-25)", async () => {
-    mockFetch404();
+    mockFetch404ThenPreviewOk();
     renderWithToast(<SettingsPage />);
     await waitFor(() =>
       expect(
@@ -557,13 +622,70 @@ describe("SettingsPage — data management", () => {
     Object.defineProperty(file, "text", { value: () => Promise.resolve(backup) });
     const fileInput = screen.getByLabelText(/import backup file/i) as HTMLInputElement;
     await userEvent.upload(fileInput, file);
+    await waitFor(() =>
+      expect(screen.getByText(/import backup\?/i)).toBeInTheDocument(),
+    );
     await userEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
 
     expect(screen.queryByText(/import backup\?/i)).not.toBeInTheDocument();
     expect(fileInput.value).toBe("");
     const importCalls = vi
       .mocked(globalThis.fetch)
-      .mock.calls.filter(([url]) => String(url).includes("/import"));
+      .mock.calls.filter(([url]) => String(url).endsWith("/data/import"));
+    expect(importCalls).toHaveLength(0);
+  });
+
+  it("shows inline validation errors and blocks import when the file is invalid (BI-35)", async () => {
+    vi.spyOn(globalThis, "fetch")
+      // initial load: no schedule yet
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+        json: async () => ({}),
+      } as Response)
+      // POST /api/data/import/preview — 422 with field-level errors
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 422,
+        statusText: "Unprocessable Entity",
+        json: async () => ({
+          detail: [
+            {
+              loc: ["body", "bills", 0, "amount"],
+              msg: "amount must be greater than 0",
+            },
+          ],
+        }),
+      } as Response);
+
+    renderWithToast(<SettingsPage />);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /save and go to dashboard/i }),
+      ).toBeInTheDocument(),
+    );
+
+    const backup = JSON.stringify({ version: 2, bills: [{ amount: "-10.00" }] });
+    const file = new File([backup], "bad-backup.json", { type: "application/json" });
+    Object.defineProperty(file, "text", { value: () => Promise.resolve(backup) });
+    const fileInput = screen.getByLabelText(/import backup file/i) as HTMLInputElement;
+    await userEvent.upload(fileInput, file);
+
+    await waitFor(() =>
+      expect(screen.getByText(/can't be imported/i)).toBeInTheDocument(),
+    );
+    expect(screen.getByText(/bills\.0\.amount/i)).toBeInTheDocument();
+    expect(screen.queryByText(/import backup\?/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /import and overwrite/i })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /^close$/i }));
+    expect(screen.queryByText(/can't be imported/i)).not.toBeInTheDocument();
+    expect(fileInput.value).toBe("");
+
+    const importCalls = vi
+      .mocked(globalThis.fetch)
+      .mock.calls.filter(([url]) => String(url).endsWith("/data/import"));
     expect(importCalls).toHaveLength(0);
   });
 });

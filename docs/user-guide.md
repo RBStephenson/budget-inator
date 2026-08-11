@@ -199,6 +199,6 @@ Found at the bottom of the Settings page.
 
 **Export backup** — downloads a `budget-inator-backup-YYYY-MM-DD.json` file containing your full pay schedule, all bills, effective-dated bill history, all bill instance overrides (payment statuses and actual amounts), and adjusted pay dates. Keep this somewhere safe if you ever need to migrate or recover.
 
-**Import backup** — restores from a backup file. This **overwrites all current data** and cannot be undone. Import is intended for migration and recovery, not for merging two data sets.
+**Import backup** — restores from a backup file. This **overwrites all current data** and cannot be undone. Import is intended for migration and recovery, not for merging two data sets. Selecting a file validates it first and shows a preview (bill count, payment history count, pay schedule details) before anything is written; an invalid file shows the specific validation errors instead and nothing is changed.
 
 **Delete all data** — permanently removes your pay schedule, all bills, and all history. You will be prompted to confirm. The app returns to the first-time setup state.

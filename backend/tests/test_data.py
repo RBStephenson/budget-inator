@@ -441,6 +441,124 @@ class TestImport:
         assert restored.manual_pay_date == date(2025, 1, 3)
 
 
+class TestImportPreview:
+    def test_preview_returns_counts_without_writing(self, client: TestClient, db):
+        _seed(db)
+        payload = {
+            "version": 2,
+            "pay_schedule": {
+                "net_salary": "3000.00",
+                "first_paycheck_date": "2025-02-01",
+                "beginning_balance": "100.00",
+                "frequency": "monthly",
+            },
+            "bills": [
+                {
+                    "name": "Internet",
+                    "amount": "60.00",
+                    "recurrence": "monthly",
+                    "due_day": 5,
+                    "category": "utilities",
+                }
+            ],
+        }
+        resp = client.post("/data/import/preview", json=payload)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["bill_count"] == 1
+        assert body["bill_instance_count"] == 0
+        assert body["pay_schedule"]["net_salary"] == "3000.00"
+        assert body["pay_schedule"]["frequency"] == "monthly"
+        assert body["pay_schedule"]["first_paycheck_date"] == "2025-02-01"
+
+        # Nothing written — the pre-existing seeded data is untouched.
+        assert db.query(Bill).count() == 1
+        assert db.query(Bill).first().name == "Rent"
+
+    def test_preview_null_schedule_when_absent(self, client: TestClient, db):
+        resp = client.post("/data/import/preview", json={"version": 2, "bills": []})
+        assert resp.status_code == 200
+        assert resp.json()["pay_schedule"] is None
+
+    def test_preview_counts_instances_and_history(self, client: TestClient, db):
+        payload = {
+            "version": 2,
+            "bills": [
+                {
+                    "name": "Rent",
+                    "amount": "100.00",
+                    "recurrence": "monthly",
+                    "due_day": 1,
+                    "category": "housing",
+                }
+            ],
+            "bill_instances": [
+                {
+                    "bill_index": 0,
+                    "due_date": "2025-01-01",
+                    "estimated_amount": "100.00",
+                    "status": "paid",
+                }
+            ],
+            "pay_period_overrides": [
+                {
+                    "original_pay_date": "2025-01-03",
+                    "overridden_pay_date": "2025-01-02",
+                }
+            ],
+        }
+        resp = client.post("/data/import/preview", json=payload)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["bill_count"] == 1
+        assert body["bill_instance_count"] == 1
+        assert body["pay_period_override_count"] == 1
+
+    def test_preview_rejects_invalid_bill_and_writes_nothing(
+        self, client: TestClient, db
+    ):
+        payload = {
+            "version": 2,
+            "bills": [
+                {
+                    "name": "Bad",
+                    "amount": "-10.00",
+                    "recurrence": "monthly",
+                    "due_day": 1,
+                    "category": "other",
+                }
+            ],
+        }
+        resp = client.post("/data/import/preview", json=payload)
+        assert resp.status_code == 422
+        errors = resp.json()["detail"]
+        assert isinstance(errors, list)
+        assert any("amount" in str(e.get("loc", [])) for e in errors)
+        assert db.query(Bill).count() == 0
+
+    def test_preview_rejects_wrong_version(self, client: TestClient, db):
+        resp = client.post("/data/import/preview", json={"version": 99, "bills": []})
+        assert resp.status_code == 422
+
+    def test_preview_does_not_import(self, client: TestClient, db):
+        """A preview call must never leave data behind, valid or not."""
+        payload = {
+            "version": 2,
+            "bills": [
+                {
+                    "name": "Internet",
+                    "amount": "60.00",
+                    "recurrence": "monthly",
+                    "due_day": 5,
+                    "category": "utilities",
+                }
+            ],
+        }
+        resp = client.post("/data/import/preview", json=payload)
+        assert resp.status_code == 200
+        assert db.query(Bill).count() == 0
+
+
 class TestDelete:
     def test_delete_wipes_all_data(self, client: TestClient, db):
         _seed(db)
