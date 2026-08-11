@@ -264,7 +264,13 @@ export function HelpPage() {
           <h4 className="help-section__subtitle">Data management</h4>
           <ul>
             <li><strong>Export backup</strong> — downloads a JSON file with your full pay schedule, bills, effective-dated bill history, payment history, adjusted pay dates, and payday actuals</li>
-            <li><strong>Import backup</strong> — restores from a backup file; this overwrites all current data</li>
+            <li>
+              <strong>Import backup</strong> — restores from a backup file; this
+              overwrites all current data. Selecting a file first shows a
+              preview (bill count, payment history count, pay schedule) before
+              anything is written, or the exact validation errors if the file
+              is invalid — nothing changes until you confirm.
+            </li>
             <li><strong>Delete all data</strong> — permanently removes everything and returns the app to the first-time setup state</li>
           </ul>
         </section>

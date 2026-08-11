@@ -64,5 +64,6 @@ A condensed tour of what Budget-inator does. For the full walkthrough see
 - **PDF report** — downloadable budget report: pay period schedule plus a
   monthly income/bills/sinking-fund/net summary
 - **JSON backup** — export/import the full data set (effective-dated bill
-  history, payment history, adjusted pay dates, payday actuals); delete all
-  data and start fresh
+  history, payment history, adjusted pay dates, payday actuals); import
+  validates and previews the file (counts + schedule, or the exact errors)
+  before writing anything; delete all data and start fresh

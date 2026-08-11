@@ -157,7 +157,10 @@ once (skipped bills are left alone, since skipping is a deliberate choice).
   effective-dated history, payment statuses/actuals, and pay-date
   overrides. Keep it somewhere safe.
 - **Import backup** — restores from a backup file. This **overwrites all
-  current data** — it's for migration/recovery, not merging.
+  current data** — it's for migration/recovery, not merging. Before
+  anything is written, a preview shows the bill/history counts and pay
+  schedule the file contains (or the exact validation errors if it's
+  invalid) so you confirm with full information.
 - **Delete all data** — wipes everything and returns to first-time setup.
 
 ## 4. Where to go next

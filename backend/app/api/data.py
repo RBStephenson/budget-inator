@@ -322,6 +322,21 @@ class ImportPayload(BaseModel):
         return self
 
 
+class ImportPreviewSchedule(BaseModel):
+    net_salary: Decimal
+    frequency: PayFrequency
+    first_paycheck_date: date
+
+
+class ImportPreview(BaseModel):
+    pay_schedule: ImportPreviewSchedule | None
+    bill_count: int
+    bill_instance_count: int
+    bill_version_count: int
+    pay_period_override_count: int
+    pay_period_actual_count: int
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 
@@ -452,6 +467,30 @@ def export_data(db: Session = Depends(get_db)) -> ExportPayload:
         bill_instances=export_instances,
         pay_period_overrides=export_overrides,
         pay_period_actuals=export_actuals,
+    )
+
+
+@router.post("/import/preview", response_model=ImportPreview)
+def preview_import(body: ImportPayload) -> ImportPreview:
+    """Validate an import payload and summarize it without writing anything.
+
+    Pydantic validates `body` before this function runs, so an invalid file
+    never reaches here — FastAPI returns 422 with the field-level errors.
+    """
+    pay_schedule = None
+    if body.pay_schedule is not None:
+        pay_schedule = ImportPreviewSchedule(
+            net_salary=body.pay_schedule.net_salary,
+            frequency=body.pay_schedule.frequency,
+            first_paycheck_date=body.pay_schedule.first_paycheck_date,
+        )
+    return ImportPreview(
+        pay_schedule=pay_schedule,
+        bill_count=len(body.bills),
+        bill_instance_count=len(body.bill_instances),
+        bill_version_count=len(body.bill_versions),
+        pay_period_override_count=len(body.pay_period_overrides),
+        pay_period_actual_count=len(body.pay_period_actuals),
     )
 
 

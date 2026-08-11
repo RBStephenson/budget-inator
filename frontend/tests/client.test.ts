@@ -45,6 +45,35 @@ describe("ApiError detail extraction", () => {
     mockFetch(404, { detail: "not found" });
     await expect(get("/bills")).rejects.toBeInstanceOf(ApiError);
   });
+
+  it("formats FastAPI's array-of-errors detail (real 422 shape) into fieldErrors", async () => {
+    mockFetch(422, {
+      detail: [
+        { loc: ["body", "bills", 0, "amount"], msg: "must be greater than 0" },
+        { loc: ["body", "bills", 0, "due_day"], msg: "must be between 1 and 31" },
+      ],
+    });
+    await expect(get("/bills")).rejects.toMatchObject({
+      status: 422,
+      fieldErrors: [
+        "bills.0.amount: must be greater than 0",
+        "bills.0.due_day: must be between 1 and 31",
+      ],
+      message: "bills.0.amount: must be greater than 0; bills.0.due_day: must be between 1 and 31",
+    });
+  });
+
+  it("handles an array detail entry with no loc", async () => {
+    mockFetch(422, { detail: [{ msg: "payload must be an object" }] });
+    await expect(get("/bills")).rejects.toMatchObject({
+      fieldErrors: ["payload must be an object"],
+    });
+  });
+
+  it("defaults fieldErrors to an empty array for a string detail", async () => {
+    mockFetch(400, { detail: "name required" });
+    await expect(get("/bills")).rejects.toMatchObject({ fieldErrors: [] });
+  });
 });
 
 describe("post", () => {

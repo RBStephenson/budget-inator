@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError } from "../api/client";
-import { deleteAllData, exportData, importData } from "../api/data";
+import {
+  deleteAllData,
+  exportData,
+  importData,
+  previewImport,
+  type ImportPreview,
+} from "../api/data";
 import {
   createPaySchedule,
   getPaySchedule,
@@ -18,6 +24,25 @@ import { FREQUENCY_LABELS } from "../types/paySchedule";
 type PageStatus = "loading" | "error" | "ready";
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 type DataStatus = "idle" | "busy" | "done" | "error";
+
+function fmtDate(isoDate: string): string {
+  return new Date(isoDate + "T00:00:00").toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+interface PendingImport {
+  file: File;
+  payload: unknown;
+  summary: ImportPreview;
+}
+
+interface RejectedImport {
+  file: File;
+  errors: string[];
+}
 
 interface FormState {
   net_salary: string;
@@ -48,7 +73,9 @@ export function SettingsPage() {
   const [importStatus, setImportStatus] = useState<DataStatus>("idle");
   const [deleteStatus, setDeleteStatus] = useState<DataStatus>("idle");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
+  const [previewStatus, setPreviewStatus] = useState<DataStatus>("idle");
+  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
+  const [rejectedImport, setRejectedImport] = useState<RejectedImport | null>(null);
   const { addToast } = useToast();
   const { refetch: refetchSchedule } = useSchedule();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -120,11 +147,44 @@ export function SettingsPage() {
     }
   }
 
-  async function handleImport(file: File) {
-    setImportStatus("busy");
+  async function handleFileSelected(file: File) {
+    setPreviewStatus("busy");
     try {
       const text = await file.text();
       const payload = JSON.parse(text) as unknown;
+      const summary = await previewImport(payload);
+      setPendingImport({ file, payload, summary });
+      setPreviewStatus("idle");
+    } catch (err) {
+      setPreviewStatus("idle");
+      if (err instanceof ApiError && err.fieldErrors.length > 0) {
+        setRejectedImport({ file, errors: err.fieldErrors });
+      } else {
+        addToast(
+          err instanceof Error ? err.message : "Could not read that file.",
+          "error",
+        );
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    }
+  }
+
+  function handleImportCancelled() {
+    setPendingImport(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function handleRejectedImportClosed() {
+    setRejectedImport(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function handleImportConfirmed() {
+    if (!pendingImport) return;
+    const { payload } = pendingImport;
+    setPendingImport(null);
+    setImportStatus("busy");
+    try {
       await importData(payload);
       // Import replaces all data, so the loaded schedule/form is now stale —
       // re-sync from the server before the user can save over it.
@@ -147,18 +207,6 @@ export function SettingsPage() {
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
-  }
-
-  function handleImportCancelled() {
-    setPendingImportFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  }
-
-  async function handleImportConfirmed() {
-    if (!pendingImportFile) return;
-    const file = pendingImportFile;
-    setPendingImportFile(null);
-    await handleImport(file);
   }
 
   async function handleDeleteConfirmed() {
@@ -360,17 +408,21 @@ export function SettingsPage() {
                 Restore from a backup file. This overwrites all current data.
               </p>
               <label className="btn btn--secondary settings-data__file-label">
-                {importStatus === "busy" ? "Importing…" : "Import backup"}
+                {previewStatus === "busy"
+                  ? "Checking file…"
+                  : importStatus === "busy"
+                    ? "Importing…"
+                    : "Import backup"}
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept=".json,application/json"
                   aria-label="Import backup file"
                   className="settings-data__file-input"
-                  disabled={importStatus === "busy"}
+                  disabled={previewStatus === "busy" || importStatus === "busy"}
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) setPendingImportFile(file);
+                    if (file) void handleFileSelected(file);
                   }}
                 />
               </label>
@@ -400,14 +452,50 @@ export function SettingsPage() {
         </div>
       </div>
 
-      {pendingImportFile && (
+      {pendingImport && (
         <ConfirmDialog
           title="Import backup?"
-          message={`This overwrites all current data with the contents of "${pendingImportFile.name}".`}
+          message={`This overwrites all current data with the contents of "${pendingImport.file.name}".`}
           confirmLabel="Import and overwrite"
           onConfirm={handleImportConfirmed}
           onCancel={handleImportCancelled}
-        />
+        >
+          <dl className="import-preview">
+            {pendingImport.summary.pay_schedule && (
+              <>
+                <dt>Pay schedule</dt>
+                <dd>
+                  {FREQUENCY_LABELS[
+                    pendingImport.summary.pay_schedule.frequency as PayFrequency
+                  ] ?? pendingImport.summary.pay_schedule.frequency}
+                  , ${pendingImport.summary.pay_schedule.net_salary} net,
+                  first paycheck {fmtDate(pendingImport.summary.pay_schedule.first_paycheck_date)}
+                </dd>
+              </>
+            )}
+            <dt>Bills</dt>
+            <dd>{pendingImport.summary.bill_count}</dd>
+            <dt>Payment history entries</dt>
+            <dd>{pendingImport.summary.bill_instance_count}</dd>
+          </dl>
+        </ConfirmDialog>
+      )}
+
+      {rejectedImport && (
+        <ConfirmDialog
+          title="This backup file can't be imported"
+          message={`"${rejectedImport.file.name}" failed validation. Nothing was changed.`}
+          cancelLabel="Close"
+          hideConfirm
+          onConfirm={handleRejectedImportClosed}
+          onCancel={handleRejectedImportClosed}
+        >
+          <ul className="import-preview__errors">
+            {rejectedImport.errors.map((msg) => (
+              <li key={msg}>{msg}</li>
+            ))}
+          </ul>
+        </ConfirmDialog>
       )}
 
       {showDeleteConfirm && (
