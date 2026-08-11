@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { AnnualCostModal } from "../src/components/AnnualCostModal";
@@ -80,8 +80,10 @@ describe("AnnualCostModal", () => {
       makeApiBill({ id: 2, name: "Netflix", category: "subscriptions" }),
     ]);
     render(<AnnualCostModal onClose={() => {}} />);
-    await waitFor(() => screen.getByText("Housing"));
-    expect(screen.getByText("Subscriptions")).toBeInTheDocument();
+    await waitFor(() => screen.getByRole("table"));
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText("Housing")).toBeInTheDocument();
+    expect(table.getByText("Subscriptions")).toBeInTheDocument();
   });
 
   it("shows the grand total annual cost", async () => {
@@ -113,5 +115,35 @@ describe("AnnualCostModal", () => {
     await waitFor(() => screen.getByText("Annual Cost Breakdown"));
     await user.click(screen.getByRole("dialog"));
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("does not render a chart when there are no active bills", async () => {
+    mockBills([]);
+    render(<AnnualCostModal onClose={() => {}} />);
+    await waitFor(() =>
+      expect(screen.getByText(/no active bills/i)).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+
+  it("renders one full-circle chart segment when all bills share a category", async () => {
+    mockBills([
+      makeApiBill({ id: 1, name: "Rent", category: "housing" }),
+      makeApiBill({ id: 2, name: "HOA", category: "housing" }),
+    ]);
+    render(<AnnualCostModal onClose={() => {}} />);
+    await waitFor(() => screen.getByText("Rent"));
+    expect(screen.getByRole("img", { name: /housing 100%/i })).toBeInTheDocument();
+  });
+
+  it("renders a chart legend entry with percentage per category", async () => {
+    mockBills([
+      makeApiBill({ id: 1, name: "Rent", amount: "1000.00", recurrence: "monthly", category: "housing" }),
+      makeApiBill({ id: 2, name: "Netflix", amount: "20.00", recurrence: "monthly", category: "subscriptions" }),
+    ]);
+    render(<AnnualCostModal onClose={() => {}} />);
+    await waitFor(() => screen.getByText("Rent"));
+    // housing = 12000/12240 ≈ 98%, subscriptions ≈ 2%
+    expect(screen.getByRole("img", { name: /housing 98%.*subscriptions 2%/i })).toBeInTheDocument();
   });
 });

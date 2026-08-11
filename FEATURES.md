@@ -56,7 +56,8 @@ A condensed tour of what Budget-inator does. For the full walkthrough see
 ## Reports & exports
 
 - **Annual cost breakdown** — per-payment and annual cost for every active
-  bill, grouped by category with subtotals
+  bill, grouped by category with subtotals, plus a donut chart with a
+  color/percentage legend
 - **PDF report** — downloadable budget report: pay period schedule plus a
   monthly income/bills/sinking-fund/net summary
 - **JSON backup** — export/import the full data set (effective-dated bill

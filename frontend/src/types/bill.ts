@@ -94,6 +94,19 @@ export const CATEGORY_LABELS: Record<BillCategory, string> = {
   other: "Other",
 };
 
+// Okabe-Ito colorblind-safe palette, one color per category; "other" uses a
+// neutral gray instead of the palette's yellow (poor contrast, and reads
+// appropriately neutral for a catch-all).
+export const CATEGORY_COLORS: Record<BillCategory, string> = {
+  housing: "#0072b2",
+  utilities: "#56b4e9",
+  subscriptions: "#cc79a7",
+  insurance: "#009e73",
+  debt: "#d55e00",
+  savings: "#e69f00",
+  other: "#949494",
+};
+
 export const ANNUAL_MULTIPLIERS: Record<BillRecurrence, number> = {
   monthly: 12,
   biweekly: 26,

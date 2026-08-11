@@ -161,7 +161,7 @@ Click **Annual Cost** on the dashboard to open a modal showing every active bill
 - Per-payment amount (estimate shown with ~ for variable bills)
 - Annual cost (amount × payments per year)
 
-Bills are grouped by category with a subtotal per category and a grand total at the bottom. Useful for reviewing your total annual spend at a glance.
+A donut chart at the top breaks down annual spend by category, with a legend showing each category's color, dollar total, and percentage of the whole. Below it, bills are grouped by category with a subtotal per category and a grand total at the bottom. Useful for reviewing your total annual spend at a glance.
 
 ---
 
