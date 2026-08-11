@@ -1,8 +1,9 @@
 import { Fragment, useEffect, useState } from "react";
 import { listBills } from "../api/bills";
 import type { Bill, BillCategory } from "../types/bill";
-import { CATEGORY_LABELS, CATEGORY_ORDER, annualCost } from "../types/bill";
+import { CATEGORY_COLORS, CATEGORY_LABELS, CATEGORY_ORDER, annualCost } from "../types/bill";
 import { fmtCurrency } from "../utils/currency";
+import { CategoryPieChart } from "./CategoryPieChart";
 
 interface Props {
   onClose: () => void;
@@ -36,7 +37,14 @@ export function AnnualCostModal({ onClose }: Props) {
     }
     const grandTotal = bills.reduce((sum, b) => sum + annualCost(b), 0);
 
-    content = (
+    const chartSegments = CATEGORY_ORDER.filter((cat) => byCategory[cat]?.length).map((cat) => ({
+      key: cat,
+      label: CATEGORY_LABELS[cat],
+      value: byCategory[cat]!.reduce((sum, b) => sum + annualCost(b), 0),
+      color: CATEGORY_COLORS[cat],
+    }));
+
+    const table = (
       <table className="annual-cost__table">
         <thead>
           <tr>
@@ -77,6 +85,13 @@ export function AnnualCostModal({ onClose }: Props) {
           </tr>
         </tbody>
       </table>
+    );
+
+    content = (
+      <>
+        <CategoryPieChart segments={chartSegments} />
+        {table}
+      </>
     );
   }
 

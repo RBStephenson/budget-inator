@@ -1835,6 +1835,55 @@ body {
   padding-top: 0.5rem;
 }
 
+.category-pie-chart {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  flex-wrap: wrap;
+}
+
+.category-pie-chart__svg {
+  width: 140px;
+  height: 140px;
+  flex-shrink: 0;
+}
+
+.category-pie-chart__legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+}
+
+.category-pie-chart__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.category-pie-chart__swatch {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.category-pie-chart__legend-label {
+  font-weight: 600;
+  color: #374151;
+  min-width: 6.5rem;
+}
+
+.category-pie-chart__legend-value {
+  color: #6b7280;
+}
+
 /* ── Slide-over (Add/Edit Bill) ───────────────────────────────────────────────── */
 
 .slideover-backdrop {

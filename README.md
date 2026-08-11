@@ -50,7 +50,7 @@ A personal budget management application that helps you track bills against your
 - Optional bill notes are saved with the bill and included in backups, with a hover/focus tooltip on the dashboard row
 
 **Reports & exports**
-- **Annual cost breakdown** — modal showing per-payment and annual cost for every active bill, grouped by category with subtotals
+- **Annual cost breakdown** — modal showing per-payment and annual cost for every active bill, grouped by category with subtotals, plus a donut chart with a color/percentage legend
 - **PDF report** — downloadable budget report covering the pay period schedule and a monthly income/bills/sinking-fund/net summary
 - **JSON backup** — export and import your full data set, including effective-dated bill history, payment history, adjusted pay dates, and payday actuals; delete all data and start fresh
 

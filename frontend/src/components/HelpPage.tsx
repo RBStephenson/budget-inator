@@ -227,7 +227,8 @@ export function HelpPage() {
           <p>
             Click <strong>Annual Cost</strong> on the dashboard to open a modal showing
             every active bill&apos;s per-payment amount and annual cost, grouped by
-            category with subtotals and a grand total.
+            category with subtotals and a grand total. A donut chart with a
+            color/percentage legend breaks down annual spend by category.
           </p>
         </section>
 

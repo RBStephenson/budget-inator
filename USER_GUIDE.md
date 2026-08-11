@@ -142,7 +142,8 @@ once (skipped bills are left alone, since skipping is a deliberate choice).
 
 - **Annual Cost** modal: per-payment and annual cost for every active bill,
   grouped by category with subtotals — a quick gut-check on total yearly
-  spend.
+  spend. A donut chart with a color/percentage legend breaks down annual
+  spend by category at a glance.
 - **Download PDF**: a report with the full pay-period schedule and a
   monthly income/bills/net summary, generated from current data.
 
