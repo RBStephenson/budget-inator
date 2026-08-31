@@ -11,8 +11,11 @@ from app.api.pay_schedule import router as pay_schedule_router
 from app.api.reports import router as reports_router
 from app.api.schedule import router as schedule_router
 from app.config import settings
+from app.logging_config import log_request
 
 app = FastAPI(title="Budget-inator API")
+
+app.middleware("http")(log_request)
 
 app.add_middleware(
     CORSMiddleware,
