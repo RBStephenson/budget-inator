@@ -12,6 +12,16 @@ services:
     environment:
       - DATABASE_URL=sqlite:////data/budget.db
       - CORS_ORIGINS=["http://localhost:8090"]
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen("http://localhost:8000/health", timeout=2).close()
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
 
   frontend:

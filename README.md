@@ -115,7 +115,7 @@ Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/).
 ```bash
 docker compose up
 ```
-Open [http://localhost:8080](http://localhost:8080).
+Open [http://localhost:8090](http://localhost:8090).
 
 **Development** (backend hot-reload on save):
 ```bash
@@ -123,6 +123,22 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 ```
 
 The SQLite database is stored in `./data/budget.db` (created automatically).
+Docker Compose checks the backend's `/health` endpoint and reports the service as
+unhealthy if the API stops responding.
+
+#### Backend configuration
+
+For manual backend runs, copy `backend/.env.example` to `backend/.env` and adjust
+these settings as needed. Docker Compose supplies both values automatically.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `DATABASE_URL` | `sqlite:///./budget.db` | SQLAlchemy connection string for the budget database |
+| `CORS_ORIGINS` | `["http://localhost:5173"]` | JSON array of frontend origins allowed to call the API |
+
+The backend writes one JSON log entry per completed or failed request. Request logs
+include the method, path, status, and duration, but never include query strings,
+headers, or request bodies.
 
 **E2E tests** (Playwright, isolated stack — never touches `./data/budget.db`):
 ```bash
