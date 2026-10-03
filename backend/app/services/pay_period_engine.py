@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from bisect import bisect_left
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
@@ -777,7 +778,37 @@ def rebalance_grace_period_bills(
         period.assigned_bills.sort(key=lambda bill: bill.due_date)
 
 
-def apply_sinking_funds(periods: list[PayPeriodResult], bills: list[BillInput]) -> None:
+SINKING_LOOKAHEAD_DAYS = 370
+SHORTEST_PAY_PERIOD_DAYS = 7  # weekly
+
+
+def _funding_calendar_period_ends(
+    periods: list[PayPeriodResult], first_paycheck_date: date, frequency: PayFrequency
+) -> list[date]:
+    """Period end dates from the first paycheck through the sinking lookahead.
+
+    Built with ``build_periods`` so monthly anchors and the semimonthly
+    month-end pattern produce exactly the boundaries the projection uses.
+    """
+    extra = SINKING_LOOKAHEAD_DAYS // SHORTEST_PAY_PERIOD_DAYS + 2
+    ends = [
+        p.period_end
+        for p in build_periods(first_paycheck_date, frequency, len(periods) + extra)
+    ]
+    if ends[: len(periods)] != [p.period_end for p in periods]:
+        raise ValueError(
+            "sinking-fund pay calendar does not match the projected periods"
+        )
+    return ends
+
+
+def apply_sinking_funds(
+    periods: list[PayPeriodResult],
+    bills: list[BillInput],
+    *,
+    first_paycheck_date: date,
+    frequency: PayFrequency,
+) -> None:
     """Project sinking-fund contributions and due-date reserve use.
 
     This is intentionally projection-only: the app does not persist bank transfer
@@ -803,7 +834,10 @@ def apply_sinking_funds(periods: list[PayPeriodResult], bills: list[BillInput]) 
     }
     window_start = periods[0].period_start
     window_end = periods[-1].period_end
-    sinking_lookahead_end = window_end + timedelta(days=370)
+    sinking_lookahead_end = window_end + timedelta(days=SINKING_LOOKAHEAD_DAYS)
+    funding_period_ends = _funding_calendar_period_ends(
+        periods, first_paycheck_date, frequency
+    )
     due_dates_by_bill = {
         bill_id: sorted(
             {
@@ -844,9 +878,11 @@ def apply_sinking_funds(periods: list[PayPeriodResult], bills: list[BillInput]) 
             bill = _bill_version_for_due_date(versions, next_due)
             if bill is None:
                 raise RuntimeError(f"sinking bill {bill_id} has no versions")
-            funding_period_count = sum(
-                1 for p in periods[index:] if p.period_end < next_due
-            )
+            # Every paycheck ending before the due date funds it, including
+            # ones past the end of this projection (BI-61): counting only
+            # ``periods`` made the reserve depend on how far the caller
+            # happened to project.
+            funding_period_count = bisect_left(funding_period_ends, next_due) - index
             if funding_period_count <= 0:
                 continue
 
@@ -955,6 +991,8 @@ def project(
         paid_dates,
         manual_pay_dates,
     )
-    apply_sinking_funds(periods, bills)
+    apply_sinking_funds(
+        periods, bills, first_paycheck_date=first_paycheck_date, frequency=frequency
+    )
     apply_rolling_balances(periods, net_salary, beginning_balance, actuals)
     return periods

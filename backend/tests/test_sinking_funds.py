@@ -10,7 +10,12 @@ from fastapi.testclient import TestClient
 
 from app.models import Bill, PaySchedule
 from app.models.enums import BillRecurrence, PayFrequency
-from app.services.pay_period_engine import BillInput, project
+from app.services.pay_period_engine import (
+    BillInput,
+    apply_sinking_funds,
+    build_periods,
+    project,
+)
 
 
 def _make_schedule(db) -> None:
@@ -329,3 +334,87 @@ def test_versioned_sinking_bill_via_api_shows_one_row_per_period(
         ("2025-03-20", "80.00"),
         ("2025-03-20", "80.00"),
     ]
+
+
+# ---------------------------------------------------------------------------
+# BI-61: the reserve is split over every paycheck before the due date, not just
+# the paychecks this particular projection happened to generate
+# ---------------------------------------------------------------------------
+
+
+def _annual_sinking(amount: str, due: date) -> BillInput:
+    return BillInput(
+        id=7,
+        name="Insurance",
+        amount=Decimal(amount),
+        recurrence=BillRecurrence.annual,
+        due_day=None,
+        first_due_date=due,
+        sinking_fund_enabled=True,
+    )
+
+
+def _first_contribution(
+    first_paycheck: date, frequency: PayFrequency, num_periods: int, bill: BillInput
+) -> str:
+    periods = project(
+        first_paycheck, frequency, num_periods, Decimal("2000"), Decimal("0"), [bill]
+    )
+    return str(periods[0].sinking_fund_contributions[0].contribution_amount)
+
+
+@pytest.mark.parametrize(
+    ("first_paycheck", "frequency", "due", "expected"),
+    [
+        # Biweekly from 01-03: periods end 01-16 + 14k; 23 end before 12-01.
+        (date(2025, 1, 3), PayFrequency.biweekly, date(2025, 12, 1), "52.17"),
+        # Monthly anchored on the 31st: ends Feb 27 .. Nov 29 = 10 paychecks.
+        (date(2025, 1, 31), PayFrequency.monthly, date(2025, 12, 15), "120.00"),
+        # Semimonthly 15th/month-end: ends 2/14, 2/27, 3/14, 3/30, 4/14, 4/29.
+        (date(2025, 1, 31), PayFrequency.semimonthly, date(2025, 4, 30), "200.00"),
+    ],
+)
+def test_contribution_counts_paychecks_past_the_projection_end(
+    first_paycheck: date, frequency: PayFrequency, due: date, expected: str
+) -> None:
+    bill = _annual_sinking("1200", due)
+
+    short = _first_contribution(first_paycheck, frequency, 2, bill)
+    long = _first_contribution(first_paycheck, frequency, 40, bill)
+
+    assert short == long == expected
+
+
+def test_schedule_range_does_not_change_the_reserve(client: TestClient, db) -> None:
+    _make_schedule(db)
+    resp = client.post(
+        "/bills",
+        json={
+            "name": "Insurance",
+            "amount": "1200.00",
+            "recurrence": "annual",
+            "due_date": "2025-12-01",
+            "category": "insurance",
+            "sinking_fund_enabled": True,
+        },
+    )
+    assert resp.status_code == 201
+
+    def first_contribution(to: str) -> str:
+        periods = client.get(f"/schedule?from=2025-01-03&to={to}").json()["periods"]
+        return periods[0]["sinking_fund_contributions"][0]["contribution_amount"]
+
+    assert first_contribution("2025-01-16") == "52.17"
+    assert first_contribution("2025-11-01") == "52.17"
+
+
+def test_mismatched_pay_calendar_fails_loudly() -> None:
+    periods = build_periods(date(2025, 1, 3), PayFrequency.biweekly, 4)
+
+    with pytest.raises(ValueError, match="pay calendar"):
+        apply_sinking_funds(
+            periods,
+            [_annual_sinking("1200", date(2025, 12, 1))],
+            first_paycheck_date=date(2025, 1, 10),
+            frequency=PayFrequency.biweekly,
+        )
