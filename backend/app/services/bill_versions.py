@@ -66,6 +66,45 @@ def _copy_bill_terms(
     return target
 
 
+def _copy_version_terms(version: BillVersion, bill: Bill) -> None:
+    bill.name = version.name
+    bill.estimated_amount = version.estimated_amount
+    bill.recurrence = version.recurrence
+    bill.due_day = version.due_day
+    bill.due_day_is_month_end = version.due_day_is_month_end
+    bill.first_due_date = version.first_due_date
+    bill.grace_period_days = version.grace_period_days
+    bill.category = version.category
+    bill.is_variable = version.is_variable
+    bill.sinking_fund_enabled = version.sinking_fund_enabled
+    bill.is_active = version.is_active
+    bill.notes = version.notes
+
+
+def version_in_effect(db: Session, bill_id: int, on: date) -> BillVersion | None:
+    return (
+        db.query(BillVersion)
+        .filter(BillVersion.bill_id == bill_id, BillVersion.effective_date <= on)
+        .order_by(BillVersion.effective_date.desc())
+        .first()
+    )
+
+
+def cancel_scheduled_versions(db: Session, bill: Bill, after: date) -> None:
+    """Drop versions dated after *after* and roll the bill row back to the
+    terms in effect on that date.
+
+    A future-dated edit writes its terms onto the bill row immediately, so
+    without the rollback the row would keep the cancelled future terms.
+    """
+    db.query(BillVersion).filter(
+        BillVersion.bill_id == bill.id, BillVersion.effective_date > after
+    ).delete(synchronize_session="fetch")
+    current = version_in_effect(db, bill.id, after)
+    if current is not None:
+        _copy_version_terms(current, bill)
+
+
 def ensure_initial_version(db: Session, bill: Bill) -> None:
     """Create a baseline version for legacy/directly-created bills."""
     exists = (
@@ -159,15 +198,7 @@ def bill_inputs_for_window(
 
 
 def bill_input_for_due_date(db: Session, bill: Bill, due_date: date) -> BillInput:
-    version = (
-        db.query(BillVersion)
-        .filter(
-            BillVersion.bill_id == bill.id,
-            BillVersion.effective_date <= due_date,
-        )
-        .order_by(BillVersion.effective_date.desc())
-        .first()
-    )
+    version = version_in_effect(db, bill.id, due_date)
     if version is not None:
         return _version_to_input(version)
     return _bill_to_input(bill)

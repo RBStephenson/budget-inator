@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -286,6 +286,122 @@ def test_delete_is_effective_dated_for_historical_windows(
         for item in period["assigned_bills"]
     ]
     assert "Rent" in old_names
+
+    today = date.today()
+    assert _rent_amounts_between(client, today, today + timedelta(days=90)) == []
+
+
+def _rent_amounts_between(client: TestClient, start: date, end: date) -> list[str]:
+    window = client.get(
+        "/schedule", params={"from": start.isoformat(), "to": end.isoformat()}
+    ).json()
+    return [
+        item["amount"]
+        for period in window["periods"]
+        for item in period["assigned_bills"]
+        if item["name"] == "Rent" and start <= date.fromisoformat(item["due_date"])
+    ]
+
+
+def _schedule_rent_increase(client: TestClient, bill_id: int) -> date:
+    future = date.today() + timedelta(days=60)
+    resp = client.patch(
+        f"/bills/{bill_id}",
+        json={"effective_date": future.isoformat(), "amount": "900.00"},
+    )
+    assert resp.status_code == 200
+    return future
+
+
+def test_patch_without_effective_date_rejected_when_future_version_exists(
+    client: TestClient, db
+) -> None:
+    # BI-58: an omitted effective_date used to skip the ordering guard and
+    # record the row's (future) terms at today, pulling the increase forward.
+    _make_schedule(db)
+    bill = _create_rent(client)
+    _schedule_rent_increase(client, bill["id"])
+
+    resp = client.patch(f"/bills/{bill['id']}", json={"notes": "landlord changed"})
+
+    assert resp.status_code == 422
+    today = date.today()
+    amounts = _rent_amounts_between(client, today, today + timedelta(days=45))
+    assert amounts
+    assert set(amounts) == {"800.00"}
+    assert db.query(BillVersion).filter(BillVersion.bill_id == bill["id"]).count() == 2
+
+
+def test_patch_without_effective_date_still_applies_from_today(
+    client: TestClient, db
+) -> None:
+    _make_schedule(db)
+    bill = _create_rent(client)
+
+    resp = client.patch(f"/bills/{bill['id']}", json={"amount": "850.00"})
+
+    assert resp.status_code == 200
+    versions = (
+        db.query(BillVersion)
+        .filter(BillVersion.bill_id == bill["id"])
+        .order_by(BillVersion.effective_date)
+        .all()
+    )
+    assert [(v.effective_date, str(v.estimated_amount)) for v in versions] == [
+        (date(1, 1, 1), "800.00"),
+        (date.today(), "850.00"),
+    ]
+
+
+def test_delete_cancels_scheduled_change_and_stays_off_schedule(
+    client: TestClient, db
+) -> None:
+    # BI-58: deactivating left the future version active, so the bill came
+    # back on the schedule at the new amount once that date arrived.
+    _make_schedule(db)
+    bill = _create_rent(client)
+    future = _schedule_rent_increase(client, bill["id"])
+
+    assert client.delete(f"/bills/{bill['id']}").status_code == 204
+
+    today = date.today()
+    assert _rent_amounts_between(client, today, future + timedelta(days=90)) == []
+    versions = (
+        db.query(BillVersion)
+        .filter(BillVersion.bill_id == bill["id"])
+        .order_by(BillVersion.effective_date)
+        .all()
+    )
+    assert [
+        (v.effective_date, str(v.estimated_amount), v.is_active) for v in versions
+    ] == [
+        (date(1, 1, 1), "800.00", True),
+        (today, "800.00", False),
+    ]
+    row = client.get(f"/bills/{bill['id']}").json()
+    assert row["is_active"] is False
+    assert row["amount"] == "800.00"
+
+
+def test_reactivating_after_delete_uses_terms_in_effect_today(
+    client: TestClient, db
+) -> None:
+    _make_schedule(db)
+    bill = _create_rent(client)
+    _schedule_rent_increase(client, bill["id"])
+    assert client.delete(f"/bills/{bill['id']}").status_code == 204
+
+    today = date.today()
+    resp = client.patch(
+        f"/bills/{bill['id']}",
+        json={"is_active": True, "effective_date": today.isoformat()},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["amount"] == "800.00"
+    amounts = _rent_amounts_between(client, today, today + timedelta(days=120))
+    assert amounts
+    assert set(amounts) == {"800.00"}
 
 
 def test_direct_legacy_bill_without_versions_still_projects(

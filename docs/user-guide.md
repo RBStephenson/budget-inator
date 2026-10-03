@@ -85,7 +85,7 @@ The same flagged-bill count shows as a badge on the **Dashboard** link in the si
 
 Go to **Bills** (the **+ Add Bill** button on the dashboard takes you there, or navigate to `/bills`).
 
-The bills table shows all your active bills. Use **Edit** to modify a bill, **Duplicate** to clone it, or **Deactivate** to hide it. Deactivated bills are hidden from future schedule windows but not deleted.
+The bills table shows all your active bills. Use **Edit** to modify a bill, **Duplicate** to clone it, or **Deactivate** to hide it. Deactivated bills are hidden from future schedule windows but not deleted. Deactivating also cancels any change you had scheduled for a future effective date, so reactivating the bill brings it back with the terms in effect today.
 
 **Duplicate** opens the Add Bill form pre-filled with the source bill's values (name prefixed "Copy of ..."). Saving creates a brand-new bill — the original is never modified. Useful for near-identical recurring charges, like a second streaming subscription with the same billing cycle.
 

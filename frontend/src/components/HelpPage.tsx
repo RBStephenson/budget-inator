@@ -106,7 +106,8 @@ export function HelpPage() {
             Bills link). Use <strong>Edit</strong> to modify a bill,{" "}
             <strong>Duplicate</strong> to clone it, or <strong>Deactivate</strong> to
             hide it. Deactivated bills are hidden from the schedule but not
-            permanently deleted. Edits use an effective date, so past schedule,
+            permanently deleted; deactivating also cancels any change scheduled
+            for a future effective date. Edits use an effective date, so past schedule,
             monthly summary, and PDF history keep the bill terms that applied at
             the time.
           </p>
