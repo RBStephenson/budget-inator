@@ -58,14 +58,87 @@ describe("Sidebar", () => {
     expect(await screen.findByRole("button", { name: /light mode/i })).toBeInTheDocument();
   });
 
-  it("shows the next payday stat once schedule data loads", async () => {
+});
+
+// The schedule's first period is the one *containing* today, so its payday is
+// usually in the past. "Next payday" must be the first pay_date on or after
+// today (BI-64). Only Date is faked, so findBy* polling still runs on real timers.
+describe("Sidebar - next payday", () => {
+  function mockPeriods(payDates: string[], totalFlaggedBills = 0) {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        periods: payDates.map((pay_date) => ({ pay_date })),
+        summary: {
+          from_date: "",
+          to_date: "",
+          period_count: payDates.length,
+          total_flagged_bills: totalFlaggedBills,
+        },
+      }),
+    } as Response);
+  }
+
+  function setToday(year: number, monthIndex: number, day: number) {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(year, monthIndex, day, 12, 0));
+  }
+
+  afterEach(() => vi.useRealTimers());
+
+  it("shows the upcoming payday, not the one that already passed", async () => {
+    setToday(2026, 9, 3);
+    mockPeriods(["2026-10-02", "2026-10-16", "2026-10-30"]);
     renderSidebar("dashboard");
+
     expect(await screen.findByText(/next payday/i)).toBeInTheDocument();
-    expect(await screen.findByText(/jul 24/i)).toBeInTheDocument();
+    expect(screen.getByText("Oct 16")).toBeInTheDocument();
+    expect(screen.queryByText("Oct 2")).not.toBeInTheDocument();
+  });
+
+  it("shows today when today is payday", async () => {
+    setToday(2026, 9, 16);
+    mockPeriods(["2026-10-02", "2026-10-16", "2026-10-30"]);
+    renderSidebar("dashboard");
+
+    await screen.findByText(/next payday/i);
+    expect(screen.getByText("Oct 16")).toBeInTheDocument();
+  });
+
+  it("uses the effective pay_date when a payday was overridden", async () => {
+    // The 10-16 payday was moved to 10-14 by an override; pay_date carries
+    // the effective date, so that is what the Sidebar must show.
+    setToday(2026, 9, 3);
+    mockPeriods(["2026-10-02", "2026-10-14", "2026-10-30"]);
+    renderSidebar("dashboard");
+
+    await screen.findByText(/next payday/i);
+    expect(screen.getByText("Oct 14")).toBeInTheDocument();
+  });
+
+  it("hides the stat when no loaded payday is today or later", async () => {
+    setToday(2026, 9, 3);
+    // A flagged bill gives a positive anchor: its badge renders only once the
+    // schedule data has landed, so the absence check can't pass vacuously
+    // against a still-loading sidebar.
+    mockPeriods(["2026-09-18", "2026-10-02"], 1);
+    renderSidebar("dashboard");
+
+    await screen.findByLabelText(/1 bill cannot be paid on time/i);
+    expect(screen.queryByText(/next payday/i)).not.toBeInTheDocument();
   });
 });
 
 describe("Sidebar - flagged bill badge", () => {
+  // Some of these anchor on the "Next payday" stat, which only shows a payday
+  // on or after today (BI-64): pin the clock before the mocked Jul 24 payday.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 6, 20, 12, 0));
+  });
+  afterEach(() => vi.useRealTimers());
+
   function mockFlagged(totalFlaggedBills: number) {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,

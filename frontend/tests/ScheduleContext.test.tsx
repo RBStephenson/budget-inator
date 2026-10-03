@@ -8,8 +8,18 @@ import { ScheduleProvider } from "../src/context/ScheduleContext";
 import { ToastProvider } from "../src/context/ToastContext";
 import { makePeriod, makeSchedule } from "./fixtures";
 
-beforeEach(() => vi.restoreAllMocks());
-afterEach(() => vi.restoreAllMocks());
+beforeEach(() => {
+  vi.restoreAllMocks();
+  // The Sidebar shows the first payday on or after today (BI-64), so pin the
+  // clock before the mocked Aug 15 / Aug 17 paydays. Only Date is faked, so
+  // userEvent and waitFor keep running on real timers.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(2026, 7, 10, 12, 0));
+});
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 describe("ScheduleContext — Sidebar/Dashboard consistency (BI-22)", () => {
   it("reflects a payday change made in the Dashboard in the Sidebar without a reload", async () => {
