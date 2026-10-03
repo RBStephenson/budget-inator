@@ -446,6 +446,62 @@ describe("Dashboard — PDF download", () => {
     expect(within(statCards).getByText("$1,700.00")).toBeInTheDocument();
   });
 
+  it("keeps the dashboard and an expanded upcoming card on screen while a bill action refetches (BI-65)", async () => {
+    const user = userEvent.setup();
+    const schedule = makeSchedule([
+      makePeriod({ period_index: 0 }),
+      makePeriod({
+        period_index: 1,
+        pay_date: "2025-01-17",
+        original_pay_date: "2025-01-17",
+        period_start: "2025-01-17",
+        period_end: "2025-01-30",
+        assigned_bills: [makeBill({ bill_id: 7, name: "Water", due_date: "2025-01-20", amount: "40.00" })],
+      }),
+    ]);
+    const okJson = (body: unknown) =>
+      Promise.resolve({ ok: true, status: 200, statusText: "OK", json: async () => body } as Response);
+    let scheduleCalls = 0;
+    let releaseRefetch: (() => void) | undefined;
+    vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
+      const u = String(url);
+      if (u.includes("/pay-period-actuals")) return okJson([]);
+      if (u.includes("/bill-instances")) return okJson({});
+      if (u.includes("/schedule")) {
+        scheduleCalls += 1;
+        if (scheduleCalls === 1) return okJson(schedule);
+        // Hold the refetch open so the in-flight state can be inspected.
+        return new Promise<Response>((resolve) => {
+          releaseRefetch = () =>
+            resolve({ ok: true, status: 200, statusText: "OK", json: async () => schedule } as Response);
+        });
+      }
+      return okJson({});
+    });
+    const { container } = renderWithToast(<Dashboard />);
+
+    const upcomingHeader = await screen.findByRole("button", { name: /upcoming/i });
+    await user.click(upcomingHeader);
+    expect(upcomingHeader).toHaveAttribute("aria-expanded", "true");
+    const upcomingCard = upcomingHeader.parentElement as HTMLElement;
+    const waterRow = within(upcomingCard).getByText("Water").closest("li") as HTMLElement;
+    await user.click(within(waterRow).getByRole("button", { name: /^paid$/i }));
+    await user.click(within(waterRow).getByRole("button", { name: "Confirm paid date" }));
+
+    // The refetch is in flight: the dashboard stays mounted, nothing resets.
+    await waitFor(() => expect(scheduleCalls).toBe(2));
+    expect(screen.queryByText(/loading schedule/i)).not.toBeInTheDocument();
+    expect(container.querySelector(".dashboard")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("button", { name: /upcoming/i })).toHaveAttribute("aria-expanded", "true");
+
+    releaseRefetch?.();
+    await waitFor(() =>
+      expect(container.querySelector(".dashboard")).toHaveAttribute("aria-busy", "false"),
+    );
+    expect(screen.getByRole("button", { name: /upcoming/i })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Water")).toBeInTheDocument();
+  });
+
   it("adds a bill via the quick-add bar and refetches the schedule", async () => {
     const user = userEvent.setup();
     const schedule = makeSchedule([makePeriod()]);

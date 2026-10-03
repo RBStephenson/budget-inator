@@ -169,4 +169,49 @@ describe("PaydayActualsBanner", () => {
       false,
     );
   });
+
+  it("re-reads actuals when the schedule refreshes, without blanking meanwhile (BI-65)", async () => {
+    // Actuals recorded elsewhere (e.g. the period card's starting-balance
+    // edit) must dismiss the banner once the schedule refetches, now that the
+    // Dashboard keeps this banner mounted instead of remounting it.
+    const recorded: ActualRow = {
+      pay_date: "2025-01-03",
+      actual_net_pay: null,
+      actual_balance: "900.00",
+    };
+    let listCalls = 0;
+    let releaseSecond: (() => void) | undefined;
+    vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
+      if (String(url).includes("/pay-period-actuals")) {
+        listCalls += 1;
+        if (listCalls === 1) {
+          return Promise.resolve({ ok: true, status: 200, json: async () => [] } as Response);
+        }
+        return new Promise<Response>((resolve) => {
+          releaseSecond = () =>
+            resolve({ ok: true, status: 200, json: async () => [recorded] } as Response);
+        });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({}) } as Response);
+    });
+
+    const banner = (period: ReturnType<typeof makePeriod>) => (
+      <ToastProvider>
+        <PaydayActualsBanner period={period} onRecorded={vi.fn()} />
+      </ToastProvider>
+    );
+    const { rerender } = render(banner(makePeriod({ original_pay_date: "2025-01-03" })));
+    await screen.findByText(/confirm your deposit and balance/i);
+
+    // A schedule refetch hands down a new period object for the same payday.
+    rerender(banner(makePeriod({ original_pay_date: "2025-01-03" })));
+    await waitFor(() => expect(listCalls).toBe(2));
+    // Still showing the previous state while the re-read is in flight.
+    expect(screen.getByText(/confirm your deposit and balance/i)).toBeInTheDocument();
+
+    releaseSecond?.();
+    await waitFor(() =>
+      expect(screen.queryByText(/confirm your deposit and balance/i)).not.toBeInTheDocument(),
+    );
+  });
 });
