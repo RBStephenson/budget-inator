@@ -1,5 +1,6 @@
 import { useSchedule } from "../context/ScheduleContext";
 import { useDarkMode } from "../hooks/useDarkMode";
+import { todayIso } from "../utils/date";
 import { Link } from "./Link";
 
 type Page = "dashboard" | "bills" | "settings" | "help" | "not-found";
@@ -23,7 +24,10 @@ function formatPayDate(iso: string): string {
 export function Sidebar({ page }: Props) {
   const { dark, toggle } = useDarkMode();
   const { data } = useSchedule();
-  const nextPayDate = data?.periods?.[0]?.pay_date;
+  // periods[0] is the period containing today, whose payday has usually
+  // passed already. YYYY-MM-DD strings compare correctly as text (BI-64).
+  const today = todayIso();
+  const nextPayDate = data?.periods?.find((p) => p.pay_date >= today)?.pay_date;
   const flaggedCount = data?.summary.total_flagged_bills ?? 0;
 
   return (
