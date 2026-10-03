@@ -9,6 +9,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.models import Bill, PaySchedule
+from app.models.enums import BillRecurrence, PayFrequency
+from app.services.pay_period_engine import BillInput, project
 
 
 def _make_schedule(db) -> None:
@@ -207,3 +209,123 @@ def test_export_import_preserves_sinking_fund_flag(client: TestClient, db) -> No
     assert client.post("/data/import", json=backup).status_code == 204
     restored = client.get("/data/export").json()
     assert restored["bills"][0]["sinking_fund_enabled"] is True
+
+
+# ---------------------------------------------------------------------------
+# BI-59: a bill with several versions is one fund, not one fund per version
+# ---------------------------------------------------------------------------
+#
+# Fixed dates: biweekly pay from 2025-01-03, monthly "Water" due on the 20th,
+# $100 until 2025-02-28 and $80 from 2025-03-01. Only the first five periods
+# are pinned: the last periods of a projection under-count funding periods
+# (review finding M1), and that fix must not have to rewrite these asserts.
+
+
+def _water_version(
+    amount: str, start: date, end: date | None, *, sinking: bool = True
+) -> BillInput:
+    return BillInput(
+        id=1,
+        name="Water",
+        amount=Decimal(amount),
+        recurrence=BillRecurrence.monthly,
+        due_day=20,
+        first_due_date=None,
+        sinking_fund_enabled=sinking,
+        active_start=start,
+        active_end=end,
+    )
+
+
+def _project_water(versions: list[BillInput]):
+    return project(
+        date(2025, 1, 3),
+        PayFrequency.biweekly,
+        12,
+        Decimal("2000"),
+        Decimal("0"),
+        versions,
+    )
+
+
+def test_versioned_sinking_bill_contributes_once_per_period_toward_real_due_date() -> (
+    None
+):
+    periods = _project_water(
+        [
+            _water_version("100", date(2025, 1, 3), date(2025, 2, 28)),
+            _water_version("80", date(2025, 3, 1), None),
+        ]
+    )
+
+    assert all(len(p.sinking_fund_contributions) == 1 for p in periods)
+    pinned = [
+        (
+            c.next_due_date,
+            str(c.target_amount),
+            str(c.contribution_amount),
+            str(c.saved_amount),
+        )
+        for p in periods[:5]
+        for c in p.sinking_fund_contributions
+    ]
+    assert pinned == [
+        (date(2025, 1, 20), "100", "100.00", "100.00"),
+        (date(2025, 2, 20), "100", "50.00", "50.00"),
+        (date(2025, 2, 20), "100", "50.00", "100.00"),
+        (date(2025, 3, 20), "80", "40.00", "40.00"),
+        (date(2025, 3, 20), "80", "40.00", "80.00"),
+    ]
+
+
+def test_sinking_enabled_only_in_later_version_funds_only_its_due_dates() -> None:
+    periods = _project_water(
+        [
+            _water_version("100", date(2025, 1, 3), date(2025, 2, 28), sinking=False),
+            _water_version("80", date(2025, 3, 1), None),
+        ]
+    )
+
+    assert all(len(p.sinking_fund_contributions) == 1 for p in periods)
+    targets = {
+        (c.next_due_date, str(c.target_amount))
+        for p in periods
+        for c in p.sinking_fund_contributions
+    }
+    assert all(due >= date(2025, 3, 20) and amount == "80" for due, amount in targets)
+    # Reserve consumption by the non-sinking 01-20 / 02-20 occurrences is a
+    # separate defect (BI-60); deliberately not asserted here.
+
+
+def test_versioned_sinking_bill_via_api_shows_one_row_per_period(
+    client: TestClient, db
+) -> None:
+    _make_schedule(db)
+    created = client.post(
+        "/bills",
+        json={
+            "name": "Water",
+            "amount": "100.00",
+            "recurrence": "monthly",
+            "due_day": 20,
+            "category": "utilities",
+            "sinking_fund_enabled": True,
+        },
+    ).json()
+    resp = client.patch(
+        f"/bills/{created['id']}",
+        json={"amount": "80.00", "effective_date": "2025-03-01"},
+    )
+    assert resp.status_code == 200
+
+    periods = client.get("/schedule?from=2025-01-03&to=2025-04-10").json()["periods"]
+
+    rows = [p["sinking_fund_contributions"] for p in periods]
+    assert all(len(r) == 1 for r in rows)
+    assert [(r[0]["next_due_date"], r[0]["target_amount"]) for r in rows[:5]] == [
+        ("2025-01-20", "100.00"),
+        ("2025-02-20", "100.00"),
+        ("2025-02-20", "100.00"),
+        ("2025-03-20", "80.00"),
+        ("2025-03-20", "80.00"),
+    ]

@@ -788,17 +788,33 @@ def apply_sinking_funds(periods: list[PayPeriodResult], bills: list[BillInput]) 
     if not periods:
         return
 
-    sinking_bills = [b for b in bills if b.sinking_fund_enabled and b.is_active]
-    if not sinking_bills:
+    # ``bills`` holds one entry per version, all sharing the bill's id and each
+    # scoped to its own active window. Group them so each bill gets one fund,
+    # one due-date timeline, and one contribution per period (BI-59).
+    versions_by_bill: dict[int, list[BillInput]] = {}
+    for b in bills:
+        if b.sinking_fund_enabled and b.is_active:
+            versions_by_bill.setdefault(b.id, []).append(b)
+    if not versions_by_bill:
         return
 
-    reserves: dict[int, Decimal] = {b.id: Decimal("0") for b in sinking_bills}
+    reserves: dict[int, Decimal] = {
+        bill_id: Decimal("0") for bill_id in versions_by_bill
+    }
     window_start = periods[0].period_start
     window_end = periods[-1].period_end
     sinking_lookahead_end = window_end + timedelta(days=370)
     due_dates_by_bill = {
-        b.id: due_dates_for_bill(b, window_start, sinking_lookahead_end)
-        for b in sinking_bills
+        bill_id: sorted(
+            {
+                d
+                for version in versions
+                for d in due_dates_for_bill(
+                    version, window_start, sinking_lookahead_end
+                )
+            }
+        )
+        for bill_id, versions in versions_by_bill.items()
     }
 
     for index, period in enumerate(periods):
@@ -817,13 +833,17 @@ def apply_sinking_funds(periods: list[PayPeriodResult], bills: list[BillInput]) 
             assigned.sinking_fund_shortfall = max(Decimal("0"), due_amount - applied)
             reserves[assigned.bill_id] = max(Decimal("0"), reserve - due_amount)
 
-        for bill in sinking_bills:
+        for bill_id, versions in versions_by_bill.items():
             future_due_dates = [
-                d for d in due_dates_by_bill[bill.id] if d > period.period_end
+                d for d in due_dates_by_bill[bill_id] if d > period.period_end
             ]
             if not future_due_dates:
                 continue
             next_due = future_due_dates[0]
+            # Fund toward the terms that will actually apply on that due date.
+            bill = _bill_version_for_due_date(versions, next_due)
+            if bill is None:
+                raise RuntimeError(f"sinking bill {bill_id} has no versions")
             funding_period_count = sum(
                 1 for p in periods[index:] if p.period_end < next_due
             )
