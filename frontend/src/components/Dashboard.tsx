@@ -25,7 +25,7 @@ export function Dashboard() {
   const [editBill, setEditBill] = useState<Bill | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const { addToast } = useToast();
-  const { data, status, refetch } = useSchedule();
+  const { data, status, refreshing, refetch } = useSchedule();
   const {
     data: monthlyData,
     status: monthlyStatus,
@@ -88,7 +88,7 @@ export function Dashboard() {
   }
 
   return (
-    <div className="dashboard">
+    <div className="dashboard" aria-busy={view === "periods" && refreshing}>
       <div className="dashboard__hero">
         <div className="dashboard__hero-copy">
           <p className="dashboard__eyebrow">Dashboard</p>

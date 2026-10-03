@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Dashboard } from "../src/components/Dashboard";
 import { Sidebar } from "../src/components/Sidebar";
 import { ToastContainer } from "../src/components/ToastContainer";
-import { ScheduleProvider } from "../src/context/ScheduleContext";
+import { ScheduleProvider, useSchedule } from "../src/context/ScheduleContext";
 import { ToastProvider } from "../src/context/ToastContext";
 import { makePeriod, makeSchedule } from "./fixtures";
 
@@ -19,6 +19,87 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
+});
+
+describe("ScheduleContext refetch keeps data on screen (BI-65)", () => {
+  function Probe() {
+    const { data, status, refreshing, refetch } = useSchedule();
+    return (
+      <div>
+        <span data-testid="status">{status}</span>
+        <span data-testid="refreshing">{String(refreshing)}</span>
+        <span data-testid="pay-date">{data?.periods[0]?.pay_date ?? "none"}</span>
+        <button onClick={refetch}>refetch</button>
+      </div>
+    );
+  }
+
+  function scheduleResponse(payDate: string): Response {
+    return {
+      ok: true,
+      status: 200,
+      json: async () =>
+        makeSchedule([makePeriod({ pay_date: payDate, original_pay_date: payDate })]),
+    } as Response;
+  }
+
+  it("reports loading only for the first fetch, then keeps the old data while refetching", async () => {
+    const user = userEvent.setup();
+    let releaseSecond: (() => void) | undefined;
+    let call = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => {
+      call += 1;
+      if (call === 1) return Promise.resolve(scheduleResponse("2026-08-15"));
+      return new Promise<Response>((resolve) => {
+        releaseSecond = () => resolve(scheduleResponse("2026-08-29"));
+      });
+    });
+
+    render(
+      <ScheduleProvider>
+        <Probe />
+      </ScheduleProvider>,
+    );
+    expect(screen.getByTestId("status")).toHaveTextContent("loading");
+    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("ok"));
+    expect(screen.getByTestId("refreshing")).toHaveTextContent("false");
+
+    await user.click(screen.getByRole("button", { name: "refetch" }));
+
+    expect(screen.getByTestId("status")).toHaveTextContent("ok");
+    expect(screen.getByTestId("refreshing")).toHaveTextContent("true");
+    expect(screen.getByTestId("pay-date")).toHaveTextContent("2026-08-15");
+
+    releaseSecond?.();
+    await waitFor(() => expect(screen.getByTestId("pay-date")).toHaveTextContent("2026-08-29"));
+    expect(screen.getByTestId("refreshing")).toHaveTextContent("false");
+  });
+
+  it("still surfaces an error when a refetch fails", async () => {
+    const user = userEvent.setup();
+    let call = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => {
+      call += 1;
+      if (call === 1) return Promise.resolve(scheduleResponse("2026-08-15"));
+      return Promise.resolve({
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+        json: async () => ({}),
+      } as Response);
+    });
+
+    render(
+      <ScheduleProvider>
+        <Probe />
+      </ScheduleProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("ok"));
+    await user.click(screen.getByRole("button", { name: "refetch" }));
+
+    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("error"));
+    expect(screen.getByTestId("refreshing")).toHaveTextContent("false");
+  });
 });
 
 describe("ScheduleContext — Sidebar/Dashboard consistency (BI-22)", () => {

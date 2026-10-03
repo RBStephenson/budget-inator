@@ -36,6 +36,11 @@ export function PaydayActualsBanner({ period, onRecorded }: Props) {
   const [saving, setSaving] = useState(false);
   const { addToast } = useToast();
 
+  // Re-read on every new schedule (each refetch hands down a new `period`
+  // object), not just on mount: actuals can be recorded elsewhere, e.g. the
+  // starting-balance edit on the period card, and the Dashboard no longer
+  // remounts this banner on refetch (BI-65). The previous actuals stay in
+  // place until the new list arrives, so the banner doesn't flicker.
   useEffect(() => {
     let active = true;
     listPayPeriodActuals()
@@ -43,12 +48,12 @@ export function PaydayActualsBanner({ period, onRecorded }: Props) {
         if (active) setActuals(d);
       })
       .catch(() => {
-        if (active) setActuals([]);
+        if (active) setActuals((prev) => prev ?? []);
       });
     return () => {
       active = false;
     };
-  }, []);
+  }, [period]);
 
   // Don't render until we know the state (avoids a flash), once the payday has
   // passed, or once actuals for this payday are already recorded.
