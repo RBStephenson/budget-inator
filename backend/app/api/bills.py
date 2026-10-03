@@ -8,6 +8,7 @@ from app.models import Bill
 from app.models.enums import BillCategory, BillRecurrence
 from app.schemas.bill import BillCreate, BillRead, BillUpdate
 from app.services.bill_versions import (
+    cancel_scheduled_versions,
     ensure_initial_version,
     latest_version_effective_date,
     record_bill_version,
@@ -101,16 +102,20 @@ def patch_bill(bill_id: int, body: BillUpdate, db: Session = Depends(get_db)) ->
     bill = _get_bill_or_404(bill_id, db)
     ensure_initial_version(db, bill)
 
-    if body.effective_date is not None:
-        latest = latest_version_effective_date(db, bill.id)
-        if latest is not None and body.effective_date < latest:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=(
-                    "effective_date must be on or after the latest existing "
-                    f"version's effective date ({latest.isoformat()})"
-                ),
-            )
+    # An omitted effective_date means "from today", and must clear the same
+    # ordering guard as an explicit one (BI-58): the bill row already holds a
+    # future version's terms, so recording them at today would pull that
+    # future change forward.
+    effective_date = body.effective_date or date.today()
+    latest = latest_version_effective_date(db, bill.id)
+    if latest is not None and effective_date < latest:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "effective_date must be on or after the latest existing "
+                f"version's effective date ({latest.isoformat()})"
+            ),
+        )
 
     if body.name is not None:
         bill.name = body.name
@@ -152,7 +157,7 @@ def patch_bill(bill_id: int, body: BillUpdate, db: Session = Depends(get_db)) ->
         bill.notes = body.notes
 
     _validate_due_fields(bill, db)
-    record_bill_version(db, bill, body.effective_date or date.today())
+    record_bill_version(db, bill, effective_date)
 
     db.commit()
     db.refresh(bill)
@@ -163,6 +168,11 @@ def patch_bill(bill_id: int, body: BillUpdate, db: Session = Depends(get_db)) ->
 def delete_bill(bill_id: int, db: Session = Depends(get_db)) -> None:
     bill = _get_bill_or_404(bill_id, db)
     ensure_initial_version(db, bill)
+    today = date.today()
+    # Deactivating cancels any scheduled future change (BI-58). Leaving those
+    # versions active would bring the bill back on their effective date, and
+    # their date would block reactivating it from today.
+    cancel_scheduled_versions(db, bill, after=today)
     bill.is_active = False
-    record_bill_version(db, bill, date.today())
+    record_bill_version(db, bill, today)
     db.commit()
