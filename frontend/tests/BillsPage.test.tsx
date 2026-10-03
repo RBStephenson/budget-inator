@@ -1,10 +1,44 @@
 import { render as rtlRender, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from "vitest";
 import { BillsPage } from "../src/components/BillsPage";
 import { ToastContainer } from "../src/components/ToastContainer";
 import { ToastProvider } from "../src/context/ToastContext";
 import { makeApiBill } from "./fixtures";
+
+// BillsPage's contract with ScheduleContext is "call refetch() after a bill
+// change" (BI-63) — stub the hook rather than rendering a real
+// ScheduleProvider, which would add its own fetch("/schedule") call to every
+// test's fetch mock. Same approach as SettingsPage.test.tsx (BI-54).
+const refetchScheduleMock = vi.fn();
+vi.mock("../src/context/ScheduleContext", () => ({
+  useSchedule: () => ({ data: null, status: "ok", refetch: refetchScheduleMock }),
+}));
+
+function billListGets(spy: MockInstance<typeof fetch>): number {
+  return spy.mock.calls.filter(
+    ([url, init]) => String(url).endsWith("/bills") && !init?.method,
+  ).length;
+}
+
+function mockBillsApi(bills: ReturnType<typeof makeApiBill>[]) {
+  return vi.spyOn(globalThis, "fetch").mockImplementation((_url, init) => {
+    if (init?.method === "PATCH" || init?.method === "POST") {
+      return Promise.resolve({
+        ok: true,
+        status: init.method === "POST" ? 201 : 200,
+        statusText: "OK",
+        json: async () => bills[0] ?? { id: 9 },
+      } as Response);
+    }
+    return Promise.resolve({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: async () => bills,
+    } as Response);
+  });
+}
 
 // BillsPage calls useToast(); wrap every render in a ToastProvider with a
 // ToastContainer so error toasts can be asserted.
@@ -26,7 +60,10 @@ function mockListBills(bills: ReturnType<typeof makeApiBill>[], ok = true) {
   } as Response);
 }
 
-beforeEach(() => vi.restoreAllMocks());
+beforeEach(() => {
+  vi.restoreAllMocks();
+  refetchScheduleMock.mockClear();
+});
 afterEach(() => vi.restoreAllMocks());
 
 describe("BillsPage", () => {
@@ -101,6 +138,31 @@ describe("BillsPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /deactivate rent/i }));
     await userEvent.click(screen.getByRole("button", { name: /cancel/i }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(refetchScheduleMock).not.toHaveBeenCalled();
+  });
+
+  it("refreshes both the bill list and the shared schedule after deactivating (BI-63)", async () => {
+    const fetchSpy = mockBillsApi([makeApiBill({ name: "Rent" })]);
+    render(<BillsPage />);
+    await waitFor(() => expect(screen.getByText("Rent")).toBeInTheDocument());
+    const listGetsBefore = billListGets(fetchSpy);
+
+    await userEvent.click(screen.getByRole("button", { name: /deactivate rent/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Deactivate" }));
+
+    await waitFor(() => expect(refetchScheduleMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(billListGets(fetchSpy)).toBe(listGetsBefore + 1));
+  });
+
+  it("refreshes the shared schedule after saving the full bill form (BI-63)", async () => {
+    mockBillsApi([makeApiBill({ name: "Rent" })]);
+    render(<BillsPage />);
+    await waitFor(() => expect(screen.getByText("Rent")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("button", { name: /edit rent/i }));
+    await userEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+    await waitFor(() => expect(refetchScheduleMock).toHaveBeenCalledTimes(1));
   });
 
   it("shows an error toast and keeps the dialog open when deactivate fails", async () => {
@@ -132,6 +194,7 @@ describe("BillsPage", () => {
     );
     // Dialog stays open so the user can retry or cancel
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(refetchScheduleMock).not.toHaveBeenCalled();
   });
 
   it("disables the confirm button while deactivating to prevent a double-PATCH (BI-27)", async () => {
@@ -191,6 +254,7 @@ describe("BillsPage", () => {
     });
     render(<BillsPage />);
     await waitFor(() => expect(screen.getByLabelText(/bill name/i)).toBeInTheDocument());
+    const listGetsBefore = billListGets(fetchSpy);
 
     await user.type(screen.getByLabelText(/bill name/i), "Car Insurance");
     await user.type(screen.getByLabelText(/^amount$/i), "600");
@@ -210,6 +274,10 @@ describe("BillsPage", () => {
         due_date: "2026-08-01",
       });
     });
+    // The name promises a refetch: the list is re-read, and so is the shared
+    // schedule behind the Dashboard and Sidebar (BI-63).
+    await waitFor(() => expect(billListGets(fetchSpy)).toBe(listGetsBefore + 1));
+    expect(refetchScheduleMock).toHaveBeenCalledTimes(1);
   });
 
 });

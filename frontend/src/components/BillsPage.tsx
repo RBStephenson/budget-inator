@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { deactivateBill } from "../api/bills";
+import { useSchedule } from "../context/ScheduleContext";
 import { useToast } from "../context/ToastContext";
 import { useBills } from "../hooks/useBills";
 import type { Bill } from "../types/bill";
@@ -11,6 +12,7 @@ import { QuickAddBar } from "./QuickAddBar";
 
 export function BillsPage() {
   const { bills, status, refetch } = useBills();
+  const { refetch: refetchSchedule } = useSchedule();
   const [editBill, setEditBill] = useState<Bill | null>(null);
   const [duplicateSource, setDuplicateSource] = useState<Bill | null>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -18,13 +20,21 @@ export function BillsPage() {
   const [deactivating, setDeactivating] = useState(false);
   const { addToast } = useToast();
 
+  // A bill change here also changes the shared schedule behind the Dashboard
+  // and Sidebar, which only refetches when told to (BI-63, as BI-54/57 did
+  // for Settings).
+  function refreshAfterChange() {
+    refetch();
+    refetchSchedule();
+  }
+
   async function handleDeactivateConfirm() {
     if (!deactivateTarget) return;
     setDeactivating(true);
     try {
       await deactivateBill(deactivateTarget.id);
       setDeactivateTarget(null);
-      refetch();
+      refreshAfterChange();
     } catch {
       // Keep the dialog open so the user can retry or cancel
       addToast(
@@ -40,7 +50,7 @@ export function BillsPage() {
     setAddOpen(false);
     setEditBill(null);
     setDuplicateSource(null);
-    refetch();
+    refreshAfterChange();
   }
 
   return (
@@ -62,7 +72,7 @@ export function BillsPage() {
       </div>
 
       <QuickAddBar
-        onAdded={refetch}
+        onAdded={refreshAfterChange}
         onOpenFullForm={() => setAddOpen(true)}
         showScheduleFields
       />
