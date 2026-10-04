@@ -791,6 +791,86 @@ def test_rebalance_apply_rejects_whole_batch_if_any_move_is_invalid(
     )
 
 
+def _rebalance_move(bill_id: int, name: str, due_date: str, to_pay_date: str) -> dict:
+    return {
+        "bill_id": bill_id,
+        "name": name,
+        "due_date": due_date,
+        "amount": "100.00",
+        "from_pay_date": "2025-01-17",
+        "to_pay_date": to_pay_date,
+        "from_period_remaining_before": "0",
+        "from_period_remaining_after": "0",
+        "source_remaining_before": "0",
+        "source_remaining_after": "0",
+        "reason": "test",
+    }
+
+
+@pytest.mark.parametrize("settled_status", ["paid", "skipped"])
+def test_rebalance_apply_rejects_move_onto_settled_instance(
+    client: TestClient, db, settled_status: str
+):
+    _make_schedule(db, first_paycheck=date(2025, 1, 3), frequency="biweekly")
+    bill = _make_monthly_bill(db, name="Rent", due_day=1)
+    db.add(
+        BillInstance(
+            bill_id=bill.id,
+            due_date=date(2025, 2, 1),
+            estimated_amount="100.00",
+            status=settled_status,
+        )
+    )
+    db.commit()
+
+    resp = client.post(
+        "/schedule/rebalance-apply",
+        json={"moves": [_rebalance_move(bill.id, "Rent", "2025-02-01", "2025-01-03")]},
+    )
+    assert resp.status_code == 422
+    assert (
+        resp.json()["detail"] == "paid or skipped bills cannot be manually rebalanced"
+    )
+    db.expire_all()
+    inst = db.query(BillInstance).filter(BillInstance.bill_id == bill.id).one()
+    assert inst.manual_pay_date is None
+
+
+def test_rebalance_apply_rejects_whole_batch_if_a_later_move_is_paid(
+    client: TestClient, db
+):
+    """BI-66: the paid/skipped check must run before any move is committed,
+    so a settled bill late in the batch can't leave earlier moves applied.
+    """
+    _make_schedule(db, first_paycheck=date(2025, 1, 3), frequency="biweekly")
+    good_bill = _make_monthly_bill(db, name="Rent", due_day=1)
+    paid_bill = _make_monthly_bill(db, name="Internet", due_day=1)
+    db.add(
+        BillInstance(
+            bill_id=paid_bill.id,
+            due_date=date(2025, 2, 1),
+            estimated_amount="100.00",
+            status="paid",
+        )
+    )
+    db.commit()
+
+    resp = client.post(
+        "/schedule/rebalance-apply",
+        json={
+            "moves": [
+                _rebalance_move(good_bill.id, "Rent", "2025-02-01", "2025-01-03"),
+                _rebalance_move(paid_bill.id, "Internet", "2025-02-01", "2025-01-03"),
+            ]
+        },
+    )
+    assert resp.status_code == 422
+    db.expire_all()
+    assert (
+        db.query(BillInstance).filter(BillInstance.bill_id == good_bill.id).count() == 0
+    )
+
+
 def test_smoothing_preview_picks_best_fit_next_period_subset(client: TestClient, db):
     """BI-29: exact subset-sum, not greedy — 500+200 beats 1500 alone or 500 alone."""
     source_pay_date = date.today()

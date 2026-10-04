@@ -739,6 +739,17 @@ def build_smoothing_preview(
     )
 
 
+def _find_bill_instance(db: Session, move: RebalanceMove) -> BillInstance | None:
+    return (
+        db.query(BillInstance)
+        .filter(
+            BillInstance.bill_id == move.bill_id,
+            BillInstance.due_date == move.due_date,
+        )
+        .first()
+    )
+
+
 def apply_rebalance_moves(db: Session, body: RebalanceApplyRequest) -> None:
     now = utcnow()
 
@@ -789,20 +800,7 @@ def apply_rebalance_moves(db: Session, body: RebalanceApplyRequest) -> None:
                 ),
             )
 
-    for move in body.moves:
-        bill = bills[move.bill_id]
-
-        def lookup(move: RebalanceMove = move) -> BillInstance | None:
-            return (
-                db.query(BillInstance)
-                .filter(
-                    BillInstance.bill_id == move.bill_id,
-                    BillInstance.due_date == move.due_date,
-                )
-                .first()
-            )
-
-        existing = lookup()
+        existing = _find_bill_instance(db, move)
         if existing is not None and existing.status in (
             BillStatus.paid,
             BillStatus.skipped,
@@ -811,6 +809,12 @@ def apply_rebalance_moves(db: Session, body: RebalanceApplyRequest) -> None:
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="paid or skipped bills cannot be manually rebalanced",
             )
+
+    for move in body.moves:
+        bill = bills[move.bill_id]
+
+        def lookup(move: RebalanceMove = move) -> BillInstance | None:
+            return _find_bill_instance(db, move)
 
         def build(move: RebalanceMove = move, bill: Bill = bill) -> BillInstance:
             bill_terms = bill_input_for_due_date(db, bill, move.due_date)
