@@ -5,6 +5,7 @@ from app.database import get_db
 from app.models import PaySchedule
 from app.models.enums import PayFrequency
 from app.schemas.pay_schedule import (
+    SEMIMONTHLY_ANCHOR_ERROR,
     PayScheduleCreate,
     PayScheduleRead,
     PayScheduleUpdate,
@@ -21,10 +22,7 @@ def _validate_semimonthly_anchor(row: PaySchedule, db: Session) -> None:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                "first_paycheck_date must fall on the 1st, 15th, or last day "
-                "of the month for semimonthly pay"
-            ),
+            detail=SEMIMONTHLY_ANCHOR_ERROR,
         )
 
 

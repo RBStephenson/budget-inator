@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from collections.abc import Callable
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.models import Bill, BillInstance, PaySchedule
 from app.models.pay_period_actual import PayPeriodActual
 from app.models.pay_period_override import PayPeriodOverride
+from app.schemas.pay_schedule import FIRST_PAYCHECK_MAX_DAYS_FUTURE
 
 
 def _seed(db) -> None:
@@ -666,3 +669,104 @@ class TestPayPeriodActualsRoundTrip:
         db.commit()
         client.delete("/data")
         assert db.query(PayPeriodActual).count() == 0
+
+
+def _schedule_payload(
+    first_paycheck_date: date, frequency: str = "monthly", net_salary: str = "3000.00"
+) -> dict:
+    return {
+        "version": 7,
+        "pay_schedule": {
+            "net_salary": net_salary,
+            "first_paycheck_date": first_paycheck_date.isoformat(),
+            "beginning_balance": "100.00",
+            "frequency": frequency,
+        },
+        "bills": [],
+    }
+
+
+class TestImportPayScheduleValidation:
+    """BI-67: import must not store a pay schedule the app can't run on."""
+
+    @pytest.mark.parametrize("endpoint", ["/data/import", "/data/import/preview"])
+    @pytest.mark.parametrize(
+        "make_payload",
+        [
+            pytest.param(
+                lambda: _schedule_payload(date(2025, 2, 1), net_salary="0.00"),
+                id="zero-salary",
+            ),
+            pytest.param(
+                lambda: _schedule_payload(date(2025, 2, 10), frequency="semimonthly"),
+                id="semimonthly-bad-anchor",
+            ),
+            pytest.param(
+                lambda: _schedule_payload(date(1900, 1, 6), frequency="weekly"),
+                id="too-old-to-project",
+            ),
+            pytest.param(
+                lambda: _schedule_payload(
+                    date.today() + timedelta(days=FIRST_PAYCHECK_MAX_DAYS_FUTURE + 1)
+                ),
+                id="too-far-future",
+            ),
+        ],
+    )
+    def test_rejects_unrunnable_schedule(
+        self, client: TestClient, db, endpoint: str, make_payload: Callable[[], dict]
+    ):
+        resp = client.post(endpoint, json=make_payload())
+        assert resp.status_code == 422
+
+    def test_rejected_import_leaves_existing_data(self, client: TestClient, db):
+        _seed(db)
+        resp = client.post(
+            "/data/import",
+            json=_schedule_payload(date(1900, 1, 6), frequency="weekly"),
+        )
+        assert resp.status_code == 422
+        export = client.get("/data/export").json()
+        assert export["pay_schedule"]["net_salary"] == "2000.00"
+        assert len(export["bills"]) == 1
+
+    @pytest.mark.parametrize(
+        ("make_first_paycheck_date", "frequency"),
+        [
+            pytest.param(
+                lambda: date(2025, 2, 15), "semimonthly", id="semimonthly-15th"
+            ),
+            pytest.param(
+                lambda: date(2025, 2, 28), "semimonthly", id="semimonthly-month-end"
+            ),
+            pytest.param(
+                lambda: date.today() + timedelta(days=FIRST_PAYCHECK_MAX_DAYS_FUTURE),
+                "monthly",
+                id="future-limit",
+            ),
+        ],
+    )
+    def test_accepts_valid_schedule(
+        self,
+        client: TestClient,
+        db,
+        make_first_paycheck_date: Callable[[], date],
+        frequency: str,
+    ):
+        resp = client.post(
+            "/data/import",
+            json=_schedule_payload(make_first_paycheck_date(), frequency),
+        )
+        assert resp.status_code == 204
+
+    def test_accepts_schedule_older_than_the_api_window(self, client: TestClient, db):
+        """A schedule that has run for 10+ years must still restore from its own
+        backup: the floor is what the engine can project, not the API's
+        10-year write window.
+        """
+        resp = client.post(
+            "/data/import",
+            json=_schedule_payload(date(2010, 1, 1), frequency="weekly"),
+        )
+        assert resp.status_code == 204
+        assert client.get("/schedule").status_code == 200

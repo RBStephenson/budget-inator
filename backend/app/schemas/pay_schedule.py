@@ -10,17 +10,39 @@ from app.models.enums import PayFrequency
 FIRST_PAYCHECK_MAX_DAYS_PAST = 3653  # ~10 years
 FIRST_PAYCHECK_MAX_DAYS_FUTURE = 183  # ~6 months
 
+SEMIMONTHLY_ANCHOR_ERROR = (
+    "first_paycheck_date must fall on the 1st, 15th, or last day "
+    "of the month for semimonthly pay"
+)
+
+
+def _latest_first_paycheck_date() -> date:
+    return date.today() + timedelta(days=FIRST_PAYCHECK_MAX_DAYS_FUTURE)
+
 
 def _validate_first_paycheck_date(v: date) -> date:
-    today = date.today()
-    earliest = today - timedelta(days=FIRST_PAYCHECK_MAX_DAYS_PAST)
-    latest = today + timedelta(days=FIRST_PAYCHECK_MAX_DAYS_FUTURE)
-    if v < earliest or v > latest:
+    earliest = date.today() - timedelta(days=FIRST_PAYCHECK_MAX_DAYS_PAST)
+    if v < earliest or v > _latest_first_paycheck_date():
         raise ValueError(
             f"first_paycheck_date must be within {FIRST_PAYCHECK_MAX_DAYS_PAST} "
             f"days in the past and {FIRST_PAYCHECK_MAX_DAYS_FUTURE} days in "
             "the future"
         )
+    return v
+
+
+def validate_first_paycheck_not_too_far_future(v: date) -> date:
+    if v > _latest_first_paycheck_date():
+        raise ValueError(
+            f"first_paycheck_date must be no more than "
+            f"{FIRST_PAYCHECK_MAX_DAYS_FUTURE} days in the future"
+        )
+    return v
+
+
+def validate_net_salary_positive(v: Decimal) -> Decimal:
+    if v <= 0:
+        raise ValueError("net_salary must be greater than 0")
     return v
 
 
@@ -33,9 +55,7 @@ class PayScheduleCreate(BaseModel):
     @field_validator("net_salary")
     @classmethod
     def salary_positive(cls, v: Decimal) -> Decimal:
-        if v <= 0:
-            raise ValueError("net_salary must be greater than 0")
-        return v
+        return validate_net_salary_positive(v)
 
     @field_validator("beginning_balance")
     @classmethod
@@ -59,9 +79,9 @@ class PayScheduleUpdate(BaseModel):
     @field_validator("net_salary")
     @classmethod
     def salary_positive(cls, v: Decimal | None) -> Decimal | None:
-        if v is not None and v <= 0:
-            raise ValueError("net_salary must be greater than 0")
-        return v
+        if v is None:
+            return v
+        return validate_net_salary_positive(v)
 
     @field_validator("beginning_balance")
     @classmethod

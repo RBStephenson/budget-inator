@@ -14,6 +14,13 @@ from app.models import Bill, BillInstance, BillVersion, PaySchedule
 from app.models.enums import BillCategory, BillRecurrence, BillStatus, PayFrequency
 from app.models.pay_period_actual import PayPeriodActual
 from app.models.pay_period_override import PayPeriodOverride
+from app.schemas.pay_schedule import (
+    SEMIMONTHLY_ANCHOR_ERROR,
+    validate_first_paycheck_not_too_far_future,
+    validate_net_salary_positive,
+)
+from app.services.pay_period_engine import is_valid_semimonthly_anchor
+from app.services.schedule_service import first_paycheck_is_projectable
 from app.utils import utcnow
 
 router = APIRouter(prefix="/data", tags=["data"])
@@ -250,12 +257,36 @@ class ImportPaySchedule(BaseModel):
     beginning_balance: Decimal
     frequency: PayFrequency
 
-    @field_validator("net_salary", "beginning_balance")
+    @field_validator("net_salary")
+    @classmethod
+    def salary_positive(cls, v: Decimal) -> Decimal:
+        return validate_net_salary_positive(v)
+
+    @field_validator("beginning_balance")
     @classmethod
     def non_negative(cls, v: Decimal) -> Decimal:
         if v < 0:
             raise ValueError("must be >= 0")
         return v
+
+    @field_validator("first_paycheck_date")
+    @classmethod
+    def not_too_far_future(cls, v: date) -> date:
+        return validate_first_paycheck_not_too_far_future(v)
+
+    @model_validator(mode="after")
+    def schedule_is_runnable(self) -> ImportPaySchedule:
+        # Deliberately not the API's 10-year past window: a schedule that has
+        # aged past it still runs, so its own backup must still restore (BI-67).
+        if self.frequency == PayFrequency.semimonthly and not (
+            is_valid_semimonthly_anchor(self.first_paycheck_date)
+        ):
+            raise ValueError(SEMIMONTHLY_ANCHOR_ERROR)
+        if not first_paycheck_is_projectable(self.first_paycheck_date, self.frequency):
+            raise ValueError(
+                "first_paycheck_date is too far in the past for the schedule to project"
+            )
+        return self
 
 
 class ImportPayload(BaseModel):
