@@ -169,6 +169,18 @@ def _periods_needed(first_paycheck: date, target: date, frequency: PayFrequency)
     return delta // _MIN_PERIOD_DAYS[frequency] + 5
 
 
+def first_paycheck_is_projectable(
+    first_paycheck: date, frequency: PayFrequency
+) -> bool:
+    """True if a schedule starting at *first_paycheck* can serve the furthest
+    range a request may ask for from today without hitting
+    ``MAX_PROJECTED_PERIODS`` (BI-67). Too old a start makes every
+    ``/schedule`` call 422.
+    """
+    horizon = date.today() + timedelta(days=MAX_SCHEDULE_RANGE_DAYS)
+    return _periods_needed(first_paycheck, horizon, frequency) <= MAX_PROJECTED_PERIODS
+
+
 def _ensure_schedule_range_allowed(from_date: date, to_date: date) -> None:
     if (to_date - from_date).days > MAX_SCHEDULE_RANGE_DAYS:
         raise HTTPException(
