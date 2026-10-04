@@ -298,8 +298,132 @@ def test_sinking_enabled_only_in_later_version_funds_only_its_due_dates() -> Non
         for c in p.sinking_fund_contributions
     }
     assert all(due >= date(2025, 3, 20) and amount == "80" for due, amount in targets)
-    # Reserve consumption by the non-sinking 01-20 / 02-20 occurrences is a
-    # separate defect (BI-60); deliberately not asserted here.
+
+
+def _occurrence_funding(periods) -> dict[date, tuple[str, str]]:
+    return {
+        a.due_date: (str(a.sinking_fund_applied), str(a.sinking_fund_shortfall))
+        for p in periods
+        for a in p.assigned_bills
+    }
+
+
+def _saved_by_period_end(periods) -> list[tuple[date, str, str]]:
+    return [
+        (p.period_end, str(c.contribution_amount), str(c.saved_amount))
+        for p in periods
+        for c in p.sinking_fund_contributions
+    ]
+
+
+def test_non_sinking_occurrences_do_not_spend_a_later_versions_reserve() -> None:
+    """BI-60 repro A: sinking turned on in a later version."""
+    periods = _project_water(
+        [
+            _water_version("100", date(2025, 1, 3), date(2025, 2, 28), sinking=False),
+            _water_version("80", date(2025, 3, 1), None),
+        ]
+    )
+
+    funding = _occurrence_funding(periods)
+    assert funding[date(2025, 1, 20)] == ("0", "0")
+    assert funding[date(2025, 2, 20)] == ("0", "0")
+    assert funding[date(2025, 3, 20)] == ("80.00", "0")
+    assert _saved_by_period_end(periods)[:5] == [
+        (date(2025, 1, 16), "16.00", "16.00"),
+        (date(2025, 1, 30), "16.00", "32.00"),
+        (date(2025, 2, 13), "16.00", "48.00"),
+        (date(2025, 2, 27), "16.00", "64.00"),
+        (date(2025, 3, 13), "16.00", "80.00"),
+    ]
+
+
+def test_turning_sinking_on_via_api_does_not_drain_the_fund_early(
+    client: TestClient, db
+) -> None:
+    """BI-60 repro A through the real edit path: PATCH writes a new version."""
+    _make_schedule(db)
+    created = client.post(
+        "/bills",
+        json={
+            "name": "Water",
+            "amount": "100.00",
+            "recurrence": "monthly",
+            "due_day": 20,
+            "category": "utilities",
+            "sinking_fund_enabled": False,
+        },
+    ).json()
+    resp = client.patch(
+        f"/bills/{created['id']}",
+        json={
+            "amount": "80.00",
+            "sinking_fund_enabled": True,
+            "effective_date": "2025-03-01",
+        },
+    )
+    assert resp.status_code == 200
+
+    periods = client.get("/schedule?from=2025-01-03&to=2025-04-10").json()["periods"]
+
+    funding = {
+        b["due_date"]: (b["sinking_fund_applied"], b["sinking_fund_shortfall"])
+        for p in periods
+        for b in p["assigned_bills"]
+    }
+    assert funding["2025-01-20"] == ("0", "0")
+    assert funding["2025-02-20"] == ("0", "0")
+    assert funding["2025-03-20"] == ("80.00", "0")
+
+
+def test_occurrences_after_sinking_is_turned_off_report_no_shortfall() -> None:
+    """BI-60 repro B: sinking turned off in a later version."""
+    periods = _project_water(
+        [
+            _water_version("100", date(2025, 1, 3), date(2025, 2, 28)),
+            _water_version("80", date(2025, 3, 1), None, sinking=False),
+        ]
+    )
+
+    funding = _occurrence_funding(periods)
+    assert funding[date(2025, 1, 20)] == ("100.00", "0")
+    assert funding[date(2025, 2, 20)] == ("100.00", "0")
+    for due in (date(2025, 3, 20), date(2025, 4, 20), date(2025, 5, 20)):
+        assert funding[due] == ("0", "0")
+
+
+def test_leftover_reserve_stays_reserved_until_sinking_resumes() -> None:
+    """Brent's call on BI-60: a reserve left over when sinking is turned off
+    is neither spent nor released; a later sinking version picks it up."""
+    periods = project(
+        date(2025, 1, 3),
+        PayFrequency.biweekly,
+        12,
+        Decimal("2000"),
+        Decimal("0"),
+        [
+            _water_version("100", date(2025, 1, 3), date(2025, 2, 28)),
+            _water_version("80", date(2025, 3, 1), date(2025, 4, 30), sinking=False),
+            _water_version("90", date(2025, 5, 1), None),
+        ],
+        actual_amounts={(1, date(2025, 2, 20)): Decimal("60")},
+    )
+
+    funding = _occurrence_funding(periods)
+    # Paying 60 against a 100 reserve leaves 40 behind.
+    assert funding[date(2025, 2, 20)] == ("60", "0")
+    assert funding[date(2025, 3, 20)] == ("0", "0")
+    assert funding[date(2025, 4, 20)] == ("0", "0")
+    assert funding[date(2025, 5, 20)] == ("90.00", "0")
+    # The 40 carries forward: the May fund starts from 40, not from zero.
+    assert _saved_by_period_end(periods)[3:9] == [
+        (date(2025, 2, 27), "8.33", "48.33"),
+        (date(2025, 3, 13), "8.33", "56.66"),
+        (date(2025, 3, 27), "8.34", "65.00"),
+        (date(2025, 4, 10), "8.33", "73.33"),
+        (date(2025, 4, 24), "8.34", "81.67"),
+        (date(2025, 5, 8), "8.33", "90.00"),
+    ]
 
 
 def test_versioned_sinking_bill_via_api_shows_one_row_per_period(
