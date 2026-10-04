@@ -24,6 +24,10 @@ block_cipher = None
 reportlab_datas = collect_data_files("reportlab")
 reportlab_hidden = collect_submodules("reportlab")
 
+# Alembic loads env.py and the migration scripts from disk at runtime, so
+# PyInstaller's import analysis never sees them or what they import.
+alembic_hidden = collect_submodules("alembic")
+
 a = Analysis(
     [str(ROOT / "packaging" / "standalone.py")],
     pathex=[str(BACKEND)],
@@ -33,6 +37,8 @@ a = Analysis(
         (str(FRONTEND_DIST), "dist"),
         # Bundle the backend app package (needed for relative imports)
         (str(BACKEND / "app"), "app"),
+        # Migration scripts, run on startup by app.db_migrate (BI-68)
+        (str(BACKEND / "alembic"), "alembic"),
         *reportlab_datas,
     ],
     hiddenimports=[
@@ -64,6 +70,9 @@ a = Analysis(
         "pydantic.deprecated.class_validators",
         # PDF report rendering
         *reportlab_hidden,
+        # Schema migrations (env.py imports logging.config at module level)
+        *alembic_hidden,
+        "logging.config",
     ],
     hookspath=[],
     hooksconfig={},
