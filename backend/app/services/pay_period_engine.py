@@ -828,6 +828,12 @@ def apply_sinking_funds(
             versions_by_bill.setdefault(b.id, []).append(b)
     if not versions_by_bill:
         return
+    # Every version of each sinking bill, sinking or not, so an occurrence can
+    # be matched to the terms in effect on its own due date (BI-60).
+    all_versions_by_bill: dict[int, list[BillInput]] = {}
+    for b in bills:
+        if b.id in versions_by_bill:
+            all_versions_by_bill.setdefault(b.id, []).append(b)
 
     reserves: dict[int, Decimal] = {
         bill_id: Decimal("0") for bill_id in versions_by_bill
@@ -855,6 +861,14 @@ def apply_sinking_funds(
         # First consume reserve for due occurrences in this period.
         for assigned in period.assigned_bills:
             if assigned.bill_id not in reserves or assigned.skipped:
+                continue
+            # An occurrence under a non-sinking version neither draws on the
+            # fund nor reports a shortfall; any leftover reserve stays put
+            # until a sinking version needs it (BI-60).
+            version = _bill_version_for_due_date(
+                all_versions_by_bill[assigned.bill_id], assigned.due_date
+            )
+            if version is None or not version.sinking_fund_enabled:
                 continue
             due_amount = (
                 assigned.actual_amount
