@@ -40,12 +40,19 @@ def _frontend_dist() -> Path:
     return Path(__file__).parent.parent / "frontend" / "dist"
 
 
+def _alembic_dir() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS) / "alembic"  # type: ignore[attr-defined]
+    return Path(__file__).parent.parent / "backend" / "alembic"
+
+
 data_dir = _user_data_dir()
 data_dir.mkdir(parents=True, exist_ok=True)
 
 # Point the app at the user-data DB (not the Docker ./data volume). This must
 # happen before importing app.config / app.database, which read DATABASE_URL.
-os.environ["DATABASE_URL"] = f"sqlite:///{data_dir / 'budget.db'}"
+db_path = data_dir / "budget.db"
+os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
 
 # ---------------------------------------------------------------------------
 # Build the combined app
@@ -56,11 +63,31 @@ from fastapi import FastAPI  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from starlette.exceptions import HTTPException as StarletteHTTPException  # noqa: E402
 
-from app.database import Base, engine  # noqa: E402
+from app.db_migrate import UnrecognizedDatabaseError, migrate_database  # noqa: E402
 from app.main import app as api_app  # noqa: E402
 
-# Create any missing tables in the user-data DB (fresh install / new release).
-Base.metadata.create_all(bind=engine)
+# Bring the user-data DB to the current schema with Alembic, the same
+# migrations Docker runs. Never create_all here: it would create newer tables
+# ahead of the migrations that expect to create them (BI-68).
+try:
+    _migration = migrate_database(db_path, _alembic_dir())
+except UnrecognizedDatabaseError as exc:
+    print(f"Budget-inator can't open its database safely:\n  {exc}")
+    if getattr(sys, "frozen", False):
+        # Keep the console open long enough to read the message. With no
+        # stdin (a scheduled task or wrapper script) there's nobody to wait for.
+        try:
+            input("Press Enter to close.")
+        except EOFError:
+            pass
+    sys.exit(1)
+if _migration.backup_path is not None:
+    # Flush: the user needs this path even if output is piped and the process
+    # is later killed with the buffer unwritten.
+    print(
+        f"Database upgraded. Previous copy saved to: {_migration.backup_path}",
+        flush=True,
+    )
 
 
 class SPAStaticFiles(StaticFiles):

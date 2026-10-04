@@ -103,6 +103,8 @@ Your budget database is stored in your user data folder and survives app updates
 - **Windows**: `%LOCALAPPDATA%\Budget-inator\`
 - **Linux**: `~/.local/share/Budget-inator/`
 
+When you run a newer release, it upgrades the database automatically on first launch. Before changing anything, it saves a copy of your previous data next to it as `budget.backup-<date>-<time>.db`. If the app finds a database it doesn't recognise, it leaves the file untouched, explains why in the console window, and exits.
+
 > macOS builds aren't published yet — use Docker or the manual setup below.
 
 ---

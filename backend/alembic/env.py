@@ -29,6 +29,15 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
+    # A caller that already holds a connection (app.db_migrate, BI-68) passes
+    # it here so migrations run against that database, not DATABASE_URL.
+    given = config.attributes.get("connection")
+    if given is not None:
+        context.configure(connection=given, target_metadata=target_metadata)
+        with context.begin_transaction():
+            context.run_migrations()
+        return
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

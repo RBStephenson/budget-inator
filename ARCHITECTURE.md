@@ -52,7 +52,12 @@ direct API calls.
 **Packaging** (`packaging/`): `standalone.py` is the PyInstaller entry point
 that boots the FastAPI backend and opens the browser to it automatically;
 `budget-inator.spec` defines the PyInstaller build. Produces a single
-`.exe` (Windows) or binary (Linux) with no separate install step.
+`.exe` (Windows) or binary (Linux) with no separate install step. The bundle
+includes the Alembic migrations, and on startup `app/db_migrate.py` brings the
+user-data SQLite database to the latest revision. It backs up the database
+before any change, stamps databases written by v1.0.0 (which predate
+migration tracking) at that release's revision, and refuses any unversioned
+database it can't identify.
 
 ## Core domain concepts
 
