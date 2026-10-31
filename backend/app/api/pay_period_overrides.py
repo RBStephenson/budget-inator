@@ -33,7 +33,7 @@ def upsert_override(
 ) -> PayPeriodOverride:
     if body.override_date == original_date:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="override_date must differ from original_date",
         )
 

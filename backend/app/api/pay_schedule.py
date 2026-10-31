@@ -21,7 +21,7 @@ def _validate_semimonthly_anchor(row: PaySchedule, db: Session) -> None:
     ):
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=SEMIMONTHLY_ANCHOR_ERROR,
         )
 
