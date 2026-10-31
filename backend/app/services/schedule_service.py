@@ -184,7 +184,7 @@ def first_paycheck_is_projectable(
 def _ensure_schedule_range_allowed(from_date: date, to_date: date) -> None:
     if (to_date - from_date).days > MAX_SCHEDULE_RANGE_DAYS:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"date range must be {MAX_SCHEDULE_RANGE_DAYS} days or less",
         )
 
@@ -192,7 +192,7 @@ def _ensure_schedule_range_allowed(from_date: date, to_date: date) -> None:
 def _ensure_projected_periods_allowed(num_needed: int) -> None:
     if num_needed > MAX_PROJECTED_PERIODS:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"schedule projection is limited to {MAX_PROJECTED_PERIODS} periods",
         )
 
@@ -404,7 +404,7 @@ def build_schedule(
 
         if to_date < from_date:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="'to' must be >= 'from'",
             )
         _ensure_schedule_range_allowed(from_date, to_date)
@@ -798,14 +798,14 @@ def apply_rebalance_moves(db: Session, body: RebalanceApplyRequest) -> None:
 
         if move.to_pay_date not in valid_pay_dates:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"{move.to_pay_date.isoformat()} is not a generated pay date",
             )
 
         bill_terms = bill_input_for_due_date(db, bill, move.due_date)
         if not due_dates_for_bill(bill_terms, move.due_date, move.due_date):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=(
                     f"{move.due_date.isoformat()} is not a due date for "
                     f"bill {move.bill_id}"
@@ -818,7 +818,7 @@ def apply_rebalance_moves(db: Session, body: RebalanceApplyRequest) -> None:
             BillStatus.skipped,
         ):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="paid or skipped bills cannot be manually rebalanced",
             )
 
@@ -905,7 +905,7 @@ def build_monthly_summary(
         )
     except (ValueError, IndexError):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="'from' must be YYYY-MM",
         )
 
@@ -919,18 +919,18 @@ def build_monthly_summary(
             to_m = (raw - 1) % 12 + 1
     except (ValueError, IndexError):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="'to' must be YYYY-MM",
         )
 
     if (to_year, to_m) < (from_year, from_m):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="'to' must be >= 'from'",
         )
     if _month_span(from_year, from_m, to_year, to_m) > MAX_MONTHLY_SUMMARY_MONTHS:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 f"monthly summary range must be {MAX_MONTHLY_SUMMARY_MONTHS} "
                 "months or less"

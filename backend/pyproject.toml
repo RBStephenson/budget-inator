@@ -18,3 +18,10 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Deprecation warnings raised from our own code fail the suite, so a removed
+# library name can't turn a 422 into a 500. Matched by message, not class:
+# StarletteDeprecationWarning doesn't exist at our starlette floor (0.48.0).
+# Library-internal warnings are unaffected.
+filterwarnings = [
+    "error:.*deprecated:Warning:app",
+]

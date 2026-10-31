@@ -43,7 +43,7 @@ def _validate_due_fields(bill: Bill, db: Session) -> None:
     if error is not None:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=error,
         )
 
@@ -110,7 +110,7 @@ def patch_bill(bill_id: int, body: BillUpdate, db: Session = Depends(get_db)) ->
     latest = latest_version_effective_date(db, bill.id)
     if latest is not None and effective_date < latest:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 "effective_date must be on or after the latest existing "
                 f"version's effective date ({latest.isoformat()})"
