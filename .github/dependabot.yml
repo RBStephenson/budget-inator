@@ -2,7 +2,9 @@ version: 2
 
 updates:
   # ── Python (backend) ──────────────────────────────────────────────────────
-  - package-ecosystem: pip
+  # uv ecosystem: updates pyproject.toml + uv.lock, so indirect dependencies
+  # are visible with exact versions (BI-74).
+  - package-ecosystem: uv
     directory: /backend
     schedule:
       interval: weekly

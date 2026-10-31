@@ -50,12 +50,10 @@ The SQLite database is stored in `./data/budget.db`, created automatically.
 ### Manual (development)
 
 ```bash
-# Backend
+# Backend (requires uv 0.11.23: https://docs.astral.sh/uv/getting-started/installation/)
 cd backend
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+uv sync                              # creates .venv from uv.lock
+uv run uvicorn app.main:app --reload
 
 # Frontend (separate terminal)
 cd frontend

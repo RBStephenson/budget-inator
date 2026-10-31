@@ -156,15 +156,14 @@ Runs on its own ports (8091/8002/5175) and its own Compose project, so it's safe
 
 #### Prerequisites
 - Python 3.12+
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) 0.11.23 (the backend's dependencies are locked in `backend/uv.lock`)
 - Node.js 22+
 
 #### Backend
 ```bash
 cd backend
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+uv sync                              # creates .venv from uv.lock (includes dev tools)
+uv run uvicorn app.main:app --reload
 ```
 
 #### Frontend
