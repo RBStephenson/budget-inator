@@ -5,3 +5,6 @@ alembic>=1.20.0
 pydantic-settings>=2.15.0
 reportlab>=5.0.1
 starlette>=0.48.0
+# Indirect (via reportlab), pinned for security: 13.0.0 fixes 41 advisories
+# published 2026-10-22/23. Listed here so Dependabot can see it (BI-73).
+pillow>=13.0.0
