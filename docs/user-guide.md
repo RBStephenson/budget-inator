@@ -188,7 +188,8 @@ cd backend
 uv run python -m app.digest --db ../data/budget.db --out bills-due.md
 ```
 
-- It lists every bill due today and over the next 3 days (change that with `--days`, from 0 to 31). On a payday it lists the whole pay period.
+- **On a payday** it lists the bills to pay from that paycheck: exactly the ones the dashboard shows with that **Pay on** date, including any you moved onto it. Bills from earlier paychecks that aren't marked paid get a one-line count instead of being listed, except anything due in the next few days, which still gets listed in a short "Also due" block so it can't slip by.
+- **Any other day** it lists every bill due today and over the next 3 days (change that with `--days`, from 0 to 31), each with the paycheck it's paid from, like `(pay on Fri Nov 13)`.
 - Bills are listed **whether or not they're marked paid**, and the ones you've marked paid are tagged `(marked paid)`. That way a bill you paid but forgot to mark doesn't hide the ones you haven't paid.
 - Skipped bills aren't listed. Neither is anything already past its due date: this is a heads-up list, not a late-bill tracker (the dashboard's flagged bills banner covers that).
 - It never changes your data: the database is opened read-only.

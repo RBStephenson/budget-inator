@@ -83,22 +83,26 @@ def test_writes_the_digest_from_the_real_engine(db_path: Path, tmp_path: Path) -
     assert code == EXIT_OK
     body = out.read_text(encoding="utf-8")
     assert body.startswith("generated: 2026-11-14\nstatus: ok\n")
-    assert "- Sun Nov 15: Internet, $100.00" in body
-    assert "- Mon Nov 16: Water, $100.00 (marked paid)" in body
+    # Biweekly paydays from Jan 2 put Nov 15 and Nov 16 on the Nov 6 paycheck.
+    assert "- Due Sun Nov 15: Internet, $100.00 (pay on Fri Nov 06)" in body
+    assert "- Due Mon Nov 16: Water, $100.00 (pay on Fri Nov 06, marked paid)" in body
     assert "Rent" not in body  # due on the 1st, outside the 3-day window
 
 
-class _FrozenDate(date):
-    @classmethod
-    def today(cls) -> date:  # type: ignore[override]
-        return TODAY
+def _freeze_engine_clock(monkeypatch: pytest.MonkeyPatch, day: date) -> None:
+    # The engine picks the period that carried bills land in from its own
+    # date.today(), so pin it to match the injected digest date.
+    class _Frozen(date):
+        @classmethod
+        def today(cls) -> date:  # type: ignore[override]
+            return day
+
+    monkeypatch.setattr(schedule_service, "date", _Frozen)
 
 
 @pytest.fixture
 def engine_clock(monkeypatch: pytest.MonkeyPatch) -> None:
-    # The engine picks the period that carried bills land in from its own
-    # date.today(), so pin it to match the injected digest date.
-    monkeypatch.setattr(schedule_service, "date", _FrozenDate)
+    _freeze_engine_clock(monkeypatch, TODAY)
 
 
 def _add_bill_with_instance(
@@ -151,7 +155,38 @@ def test_lists_an_unmarked_bill_moved_to_a_far_earlier_paycheck(
 
     main(["--db", str(db_path), "--out", str(out)], today=TODAY)
 
-    assert "- Tue Nov 17: Phone, $50.00" in out.read_text(encoding="utf-8")
+    assert "- Due Tue Nov 17: Phone, $50.00 (pay on Fri Sep 25)" in out.read_text(
+        encoding="utf-8"
+    )
+
+
+def test_payday_lists_bills_assigned_to_that_paycheck(
+    db_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Due Dec 2 (the Nov 20 paycheck's period) but moved to the Nov 6
+    # paycheck: it belongs on Nov 6's payday list, not Nov 20's.
+    _add_bill_with_instance(
+        db_path, "Moved bill", date(2026, 12, 2), "pending", date(2026, 11, 6)
+    )
+    out = tmp_path / "bills-due.md"
+
+    _freeze_engine_clock(monkeypatch, date(2026, 11, 6))
+    main(["--db", str(db_path), "--out", str(out)], today=date(2026, 11, 6))
+    nov_6 = out.read_text(encoding="utf-8")
+
+    _freeze_engine_clock(monkeypatch, date(2026, 11, 20))
+    main(["--db", str(db_path), "--out", str(out)], today=date(2026, 11, 20))
+    nov_20 = out.read_text(encoding="utf-8")
+
+    assert "Payday (Fri Nov 06)" in nov_6
+    assert "- Due Wed Dec 02: Moved bill, $50.00\n" in nov_6
+    assert "- Due Sun Nov 15: Internet, $100.00\n" in nov_6
+    # Rent (Nov 1) and the moved bill's Nov 2 occurrence sit on the Oct 23
+    # paycheck, unmarked, so the engine carries them in: counted, not listed.
+    assert "2 bills from earlier paychecks aren't marked paid" in nov_6
+    assert "Rent" not in nov_6
+    assert "Payday (Fri Nov 20)" in nov_20
+    assert "Moved bill" not in nov_20
 
 
 def test_payday_moved_earlier_lists_the_whole_period(
@@ -161,13 +196,7 @@ def test_payday_moved_earlier_lists_the_whole_period(
     # Nov 19. The period itself still starts Nov 20, so with --days 0 the
     # digest must look ahead to find the payday period at all.
     early_payday = date(2026, 11, 19)
-
-    class _EarlyPayday(date):
-        @classmethod
-        def today(cls) -> date:  # type: ignore[override]
-            return early_payday
-
-    monkeypatch.setattr(schedule_service, "date", _EarlyPayday)
+    _freeze_engine_clock(monkeypatch, early_payday)
     engine = create_engine(f"sqlite:///{db_path.as_posix()}")
     with Session(engine) as db:
         db.add(
@@ -184,8 +213,8 @@ def test_payday_moved_earlier_lists_the_whole_period(
     main(["--db", str(db_path), "--out", str(out), "--days", "0"], today=early_payday)
 
     body = out.read_text(encoding="utf-8")
-    assert "Payday: the whole pay period" in body
-    assert "- Wed Dec 02: Late in period, $50.00" in body
+    assert "Payday (Thu Nov 19)" in body
+    assert "- Due Wed Dec 02: Late in period, $50.00\n" in body
 
 
 @pytest.mark.usefixtures("engine_clock")
@@ -205,8 +234,10 @@ def test_lists_a_bill_paid_early_in_an_earlier_period(
 
     main(["--db", str(db_path), "--out", str(out)], today=TODAY)
 
-    assert "- Tue Nov 17: Insurance, $50.00 (marked paid)" in out.read_text(
-        encoding="utf-8"
+    # Paid on Oct 25, so its Pay on is the Oct 23 paycheck it was paid from.
+    assert (
+        "- Due Tue Nov 17: Insurance, $50.00 (pay on Fri Oct 23, marked paid)"
+        in out.read_text(encoding="utf-8")
     )
 
 

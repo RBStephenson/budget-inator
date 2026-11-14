@@ -194,8 +194,9 @@ uv run python -m app.digest --db ../data/budget.db --out bills-due.md --days 3
 | `--days` | `3` | Days ahead to include, 0–31 |
 
 What it lists:
-- Every bill due from today through today + `--days`, **whether or not it's marked paid**. Paid status is only as current as the last time bills were marked in the app, so bills already marked paid are kept and tagged `(marked paid)` rather than hidden.
-- On a payday it lists the whole pay period instead.
+- **On a payday:** exactly the bills assigned to that paycheck (the dashboard's **Pay on** date), by due date. That includes bills you moved or rebalanced onto it, and leaves out ones you moved off it. Unmarked bills carried in from earlier paychecks are counted in one line, not listed.
+- **Any other day:** every bill due from today through today + `--days`, each tagged with the paycheck it's paid from, e.g. `- Due Tue Mar 03: Water, $42.10 (pay on Fri Feb 27)`. On a payday this short window still runs: anything due in it that's paid from a different paycheck gets its own short "Also due" block.
+- Bills are listed **whether or not they're marked paid**. Paid status is only as current as the last time bills were marked in the app, so bills already marked paid are kept and tagged `(marked paid)` rather than hidden.
 - Skipped bills are left out, and so is anything already past its due date.
 
 The file starts with `generated: YYYY-MM-DD` and `status: ok`, so a reader can
