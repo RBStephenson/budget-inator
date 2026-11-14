@@ -31,7 +31,11 @@ Windows/Linux), via Docker, or as a manual dev setup.
 - `services/` — business logic: `pay_period_engine` (the core scheduling
   logic that maps bills onto pay periods), `bill_versions` (effective-dated
   edit handling), `schedule_service`, `report_service` /`pdf_report`
-  (ReportLab PDF generation)
+  (ReportLab PDF generation), `due_soon` (selects and renders the bills
+  due soon, for the digest command)
+- `digest.py` — command-line entry point (`python -m app.digest`) that
+  opens the database read-only, runs `schedule_service`, and writes the
+  due-soon digest to a file for a scheduled job to read
 
 Bills are **effective-dated**: editing a bill's name, amount, category, or
 due rule doesn't rewrite history — it creates a new `bill_version` so past
