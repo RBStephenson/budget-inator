@@ -54,6 +54,7 @@ A personal budget management application that helps you track bills against your
 - **Annual cost breakdown** — modal showing per-payment and annual cost for every active bill, grouped by category with subtotals, plus a donut chart with a color/percentage legend
 - **PDF report** — downloadable budget report covering the pay period schedule and a monthly income/bills/sinking-fund/net summary
 - **JSON backup** — export and import your full data set, including effective-dated bill history, payment history, adjusted pay dates, and payday actuals; import previews the file's contents (or validation errors) before overwriting anything; delete all data and start fresh
+- **Due-soon bill digest** — a command-line tool that writes the bills due in the next few days to a markdown file, for a scheduled job to pick up (see [Due-soon bill digest](#due-soon-bill-digest-command-line))
 
 ## Tech Stack
 
@@ -172,6 +173,35 @@ cd frontend
 npm install
 npm run dev
 ```
+
+---
+
+### Due-soon bill digest (command line)
+
+The app only shows reminders when it's open. To get them somewhere you already
+look, run the digest command from a scheduled task and have that task read
+the file it writes:
+
+```bash
+cd backend
+uv run python -m app.digest --db ../data/budget.db --out bills-due.md --days 3
+```
+
+| Option | Default | Purpose |
+|---|---|---|
+| `--db` | (required) | Path to the budget database |
+| `--out` | (required) | Markdown file to write (replaced on each run) |
+| `--days` | `3` | Days ahead to include, 0–31 |
+
+What it lists:
+- Every bill due from today through today + `--days`, **whether or not it's marked paid**. Paid status is only as current as the last time bills were marked in the app, so bills already marked paid are kept and tagged `(marked paid)` rather than hidden.
+- On a payday it lists the whole pay period instead.
+- Skipped bills are left out, and so is anything already past its due date.
+
+The file starts with `generated: YYYY-MM-DD` and `status: ok`, so a reader can
+tell today's list from a stale one. The database is opened **read-only**. If
+anything goes wrong (a missing database, no pay schedule), it still writes the
+file, marked `status: error` with the reason, and exits with code 1.
 
 ## Contributing
 

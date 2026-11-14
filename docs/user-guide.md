@@ -16,6 +16,7 @@ Budget-inator maps your bills to your pay schedule so you always know which bill
   - [Pay date overrides](#pay-date-overrides)
 - [Annual cost breakdown](#annual-cost-breakdown)
 - [PDF report](#pdf-report)
+- [Due-soon bill digest](#due-soon-bill-digest)
 - [Settings](#settings)
   - [Pay schedule](#pay-schedule)
   - [Data management](#data-management)
@@ -175,6 +176,25 @@ Click **Download PDF** on the dashboard. The report contains two sections:
 2. **Monthly Summary** — a table of monthly income, total bills, and net remaining across the full schedule window
 
 The report is generated from the current data at the time you click the button. Months with a negative net remaining are highlighted in red.
+
+---
+
+## Due-soon bill digest
+
+The dashboard only helps when it's open. If you'd rather have upcoming bills come to you, the backend includes a command that writes them to a small markdown file. A scheduled task can then pick it up (a morning summary, an email script, a notification).
+
+```bash
+cd backend
+uv run python -m app.digest --db ../data/budget.db --out bills-due.md
+```
+
+- It lists every bill due today and over the next 3 days (change that with `--days`, from 0 to 31). On a payday it lists the whole pay period.
+- Bills are listed **whether or not they're marked paid**, and the ones you've marked paid are tagged `(marked paid)`. That way a bill you paid but forgot to mark doesn't hide the ones you haven't paid.
+- Skipped bills aren't listed. Neither is anything already past its due date: this is a heads-up list, not a late-bill tracker (the dashboard's flagged bills banner covers that).
+- It never changes your data: the database is opened read-only.
+- The file's first line is the date it was generated. If something goes wrong, the file says `status: error` and explains why, so a stale or failed digest is easy to spot.
+
+See the README for the full option list.
 
 ---
 

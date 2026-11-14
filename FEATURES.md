@@ -67,3 +67,7 @@ A condensed tour of what Budget-inator does. For the full walkthrough see
   history, payment history, adjusted pay dates, payday actuals); import
   validates and previews the file (counts + schedule, or the exact errors)
   before writing anything; delete all data and start fresh
+- **Due-soon bill digest** — a command-line tool (`python -m app.digest`)
+  that writes a short markdown list of the bills due in the next few days
+  (the whole pay period on a payday), for a scheduled job or reminder script
+  to pick up; opens the database read-only
