@@ -182,6 +182,104 @@ class TestPayday:
         assert digest.is_payday is True
         assert digest.window_end == date(2026, 11, 28)
         assert _names(digest) == ["Late in period"]
+        assert digest.items[0].pay_on == TODAY  # effective pay date, not Nov 15
+
+    def test_payday_lists_what_is_assigned_here_not_what_is_due_here(self) -> None:
+        # "Moved here" is due after this period but was put on this paycheck;
+        # "Moved away" is due inside this period but was put on the next one.
+        periods = [
+            _period(
+                TODAY,
+                date(2026, 11, 27),
+                [
+                    _bill(1, "Stays", date(2026, 11, 20)),
+                    _bill(2, "Moved here", date(2026, 12, 5)),
+                ],
+                index=0,
+            ),
+            _period(
+                date(2026, 11, 28),
+                date(2026, 12, 11),
+                [_bill(3, "Moved away", date(2026, 11, 25))],
+                index=1,
+            ),
+        ]
+
+        digest = select_due_soon(periods, TODAY)
+
+        assert _names(digest) == ["Stays", "Moved here"]
+        assert {item.pay_on for item in digest.items} == {TODAY}
+
+    def test_payday_still_lists_a_bill_due_soon_from_an_earlier_paycheck(
+        self,
+    ) -> None:
+        # Moved onto the Oct 30 paycheck and never marked: on payday its
+        # carried copy only feeds the count, so without the safety net a bill
+        # due tomorrow would vanish from the list.
+        tomorrow = date(2026, 11, 15)
+        periods = [
+            _period(
+                date(2026, 10, 30),
+                date(2026, 11, 13),
+                [_bill(1, "Moved early", tomorrow)],
+                index=0,
+            ),
+            _period(
+                TODAY,
+                date(2026, 11, 27),
+                [
+                    _bill(1, "Moved early", tomorrow, is_carried_over=True),
+                    _bill(2, "Here", date(2026, 11, 15)),
+                ],
+                index=1,
+            ),
+        ]
+
+        digest = select_due_soon(periods, TODAY)
+        text = render_markdown(digest)
+
+        assert _names(digest) == ["Here"]
+        assert [(i.name, i.pay_on) for i in digest.also_due] == [
+            ("Moved early", date(2026, 10, 30))
+        ]
+        assert "Also due in the next 3 days, paid from a different paycheck:" in text
+        assert "- Due Sun Nov 15: Moved early, $100.00 (pay on Fri Oct 30)" in text
+        assert "- Due Sun Nov 15: Here, $100.00\n" in text
+
+    def test_payday_has_no_extra_block_when_everything_due_is_on_it(self) -> None:
+        periods = [
+            _period(TODAY, date(2026, 11, 27), [_bill(1, "Here", date(2026, 11, 15))])
+        ]
+
+        digest = select_due_soon(periods, TODAY)
+
+        assert digest.also_due == ()
+        assert "Also due" not in render_markdown(digest)
+
+    def test_payday_counts_carried_bills_without_listing_them(self) -> None:
+        periods = [
+            _period(
+                TODAY,
+                date(2026, 11, 27),
+                [
+                    _bill(1, "Carried", date(2026, 11, 10), is_carried_over=True),
+                    _bill(
+                        2,
+                        "Carried skip",
+                        date(2026, 11, 11),
+                        is_carried_over=True,
+                        status="skipped",
+                    ),
+                    _bill(3, "Skipped", date(2026, 11, 20), status="skipped"),
+                    _bill(4, "Kept", date(2026, 11, 20)),
+                ],
+            )
+        ]
+
+        digest = select_due_soon(periods, TODAY)
+
+        assert _names(digest) == ["Kept"]
+        assert digest.unmarked_from_earlier == 1
 
     def test_day_after_payday_is_back_to_the_short_window(self) -> None:
         periods = [
@@ -222,6 +320,36 @@ class TestWhichBills:
         ]
 
         assert _names(select_due_soon(periods, TODAY)) == ["Moved early"]
+
+    def test_pay_on_comes_from_the_bills_own_paycheck_not_a_carried_copy(
+        self,
+    ) -> None:
+        # The carried copy sits in an earlier-listed period; the bill's own
+        # copy must still decide its Pay on. That paycheck was also moved a
+        # day early (Nov 6 -> Nov 5), and Pay on is the effective pay date,
+        # as on the dashboard, not the period start.
+        due = date(2026, 11, 15)
+        periods = [
+            _period(
+                NOT_PAYDAY_START,
+                PERIOD_END,
+                [_bill(1, "Card", due, is_carried_over=True)],
+                index=1,
+            ),
+            _period(
+                date(2026, 11, 6),
+                date(2026, 11, 12),
+                [_bill(1, "Card", due)],
+                pay_date=date(2026, 11, 5),
+                index=0,
+            ),
+        ]
+
+        digest = select_due_soon(periods, TODAY)
+
+        assert [(i.name, i.pay_on) for i in digest.items] == [
+            ("Card", date(2026, 11, 5))
+        ]
 
     def test_past_due_carried_copy_is_not_listed(self) -> None:
         periods = [
@@ -324,10 +452,12 @@ class TestRender:
 
         text = render_markdown(select_due_soon(periods, TODAY))
 
-        assert "- Sat Nov 14: Phone, $85.00 (marked paid)" in text
-        assert "- Sun Nov 15: Power, ~$1,234.50" in text
+        assert (
+            "- Due Sat Nov 14: Phone, $85.00 (pay on Fri Nov 13, marked paid)" in text
+        )
+        assert "- Due Sun Nov 15: Power, ~$1,234.50 (pay on Fri Nov 13)\n" in text
         assert "Total: $1,319.50 across 2 bills." in text
-        assert "Next 3 days" in text
+        assert "Due in the next 3 days" in text
 
     def test_empty_window_says_so(self) -> None:
         text = render_markdown(select_due_soon([], TODAY))
@@ -335,12 +465,42 @@ class TestRender:
         assert "No bills due in this window." in text
         assert "Total:" not in text
 
-    def test_payday_heading(self) -> None:
-        periods = [_period(TODAY, date(2026, 11, 27), [])]
+    def test_payday_lines_omit_pay_on_and_count_earlier_unmarked(self) -> None:
+        periods = [
+            _period(
+                TODAY,
+                date(2026, 11, 27),
+                [
+                    _bill(1, "Rent", date(2026, 11, 20), status="paid"),
+                    _bill(2, "Water", date(2026, 11, 22)),
+                    _bill(3, "Old", date(2026, 11, 10), is_carried_over=True),
+                ],
+            )
+        ]
 
         text = render_markdown(select_due_soon(periods, TODAY))
 
-        assert "Payday: the whole pay period" in text
+        assert "Payday (Sat Nov 14)" in text
+        assert "- Due Fri Nov 20: Rent, $100.00 (marked paid)\n" in text
+        assert "- Due Sun Nov 22: Water, $100.00\n" in text
+        assert "pay on" not in text
+        assert "1 bill from earlier paychecks isn't marked paid" in text
+        assert "Total: $200.00 across 2 bills." in text
+
+    def test_single_bill_total_is_singular(self) -> None:
+        periods = [_period(NOT_PAYDAY_START, PERIOD_END, [_bill(1, "Only", TODAY)])]
+
+        text = render_markdown(select_due_soon(periods, TODAY))
+
+        assert "Total: $100.00 across 1 bill." in text
+
+    def test_payday_with_nothing_assigned_says_so(self) -> None:
+        text = render_markdown(
+            select_due_soon([_period(TODAY, date(2026, 11, 27), [])], TODAY)
+        )
+
+        assert "No bills assigned to this paycheck." in text
+        assert "earlier paychecks" not in text
 
     def test_error_file_is_dated_and_marked(self) -> None:
         text = render_error(TODAY, "FileNotFoundError: nope")
